@@ -2,6 +2,7 @@
 -- Arubertoson - The Neovim Settings
 --
 ------------------------------------------------------------------------
+-- this is just a test
 
 vim.g.mapleader = ","
 vim.g.maplocalleader = ";"
