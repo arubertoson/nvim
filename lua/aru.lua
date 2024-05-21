@@ -11,11 +11,24 @@ an acceptable compromise.
 
 ]]
 
+-- Headless indicates that we are only performing install setup of necessary plugins.
+local headless = os.getenv("ARU_HEADLESS_INSTALL")
+if headless ~= nil then
+	lazy = require("aru.lazy_init")
+	lazy.setup({
+		import = "aru/lazy/core",
+		change_detection = { notify = false },
+	})
+
+	print("done setting things up")
+	return
+end
+
 -- To avoid polluting the global namespace we are merging configuration and other
 -- basic functionality.
-local aru = require("aru.config")
+-- local aru = require("aru.config")
 
 -- Merge logger to namespace
-aru.log = require("aru.utils.logging").logger(aru.config.log.level)
+log = require("aru.utils.logging").logger("INFO")
 
-return aru
+return {}
