@@ -47,7 +47,7 @@ return {
 			},
 			{
 				"<leader>/",
-				"<cmd>Telescope current_buffer_fuzzy_find",
+				"<cmd>Telescope current_buffer_fuzzy_find<CR>",
 				desc = "Fuzzy find in current buffer",
 			},
 			{
@@ -125,20 +125,17 @@ return {
 		"neovim/nvim-lspconfig",
 		optional = true,
 		opts = function()
-			-- FIXME: This needs to be fixed when lsp is setup correctly
-			-- print("exciting, I need to write th lsp utils")
-			-- local builtin = require("telescope.builtin")
-			-- local Keys = require("lazyvim.plugins.lsp.keymaps").get()
-			--
-			-- -- stylua: ignore start
-			-- vim.list_extend(Keys, {
-			-- 	{ "gr", "<cmd>Telescope lsp_references<cr>", desc = "References", nowait = true },
-			-- 	{ "n", "<leader>lw", builtin.lsp_dynamic_workspace_symbols, { desc = "workspace symbols" } },
-			-- 	{ "gd", function() builtin.lsp_definitions({ reuse_win = true }) end, desc = "Goto Definition", has = "definition", },
-			-- 	{ "gI", function() builtin.lsp_implementations({ reuse_win = true }) end, desc = "Goto Implementation", },
-			-- 	{ "gy", function() builtin.lsp_type_definitions({ reuse_win = true }) end, desc = "Goto T[y]pe Definition", },
-			-- })
-			-- -- stylua: ignore end
+			local builtin = require("telescope.builtin")
+			local keys = require("aru.plugins.lsp.keymaps")
+
+			-- stylua: ignore start
+			keys.add({
+				{ { "n" }, "gr", "<cmd>Telescope lsp_references<cr>", { desc = "References", nowait = true  }},
+				{ { "n" }, "gd", function() builtin.lsp_definitions({ reuse_win = true }) end, { desc = "Goto Definition" }, { copability = "textDocument/definition" } },
+				{ { "n" }, "gI", function() builtin.lsp_implementations({ reuse_win = true }) end, { desc = "Goto Implementation" }, },
+				{ { "n" }, "gy", function() builtin.lsp_type_definitions({ reuse_win = true }) end, { desc = "Goto T[y]pe Definition" } },
+				{ { "n" }, "<leader>lw", builtin.lsp_dynamic_workspace_symbols, { desc = "Workspace Symbols" } },
+			})
 		end,
 	},
 }

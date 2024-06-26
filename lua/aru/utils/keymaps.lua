@@ -8,16 +8,13 @@
 --      map = "<leader>lh",
 --      callback = function() end or "",
 --      opts = { opt = value },
---      label = "description",
 --  }
 --
+local aru = require("aru")
+local fmt = string.format
+local unpack = table.unpack or unpack
 
 local M = {}
-
-local aru = require("aru")
-
-local unpack = table.unpack or unpack
-local fmt = string.format
 
 ---check if a mapping already exists
 ---@param lhs string
@@ -36,13 +33,13 @@ function M.map_info(mode, lhs)
 end
 
 function M.set(keymap)
-	local mode, key, func, desc = unpack(keymap)
-	if type(func) == "table" then
-		local origin, args = unpack(func)
+	local mode, key, fn, opts = unpack(keymap)
+	if type(fn) == "table" then
+		local origin, args = unpack(fn)
 		assert(type(origin) == "function", "first element needs to be a function")
 		assert(type(args) == "table", "second element needs to be parameter table")
 
-		func = function()
+		fn = function()
 			origin(args)
 		end
 	end
@@ -50,17 +47,18 @@ function M.set(keymap)
 	-- and command
 	assert(key ~= mode, fmt("The lhs (%s) should not be the same as mode for %s", mode, key))
 	assert(
-		type(func) == "string" or type(func) == "function",
+		type(fn) == "string" or type(fn) == "function",
 		fmt('"rhs" (lhs: %s) should be a function or string', key)
 	)
 
-	vim.keymap.set(mode, key, func, desc or {})
+	local log_message = fmt("%s, %s, %s, %s", vim.inspect(mode), key, fn, vim.inspect(opts)):gsub("[\r\n]", "")
+	aru.log:debug(log_message)
+
+	vim.keymap.set(mode, key, fn, opts or {})
 end
 
 function M.set_maps(keymaps)
 	for _, keymap in ipairs(keymaps) do
-		aru.log:debug(fmt("%s:%s:%s:%s", keymap[1], keymap[2], keymap[3], keymap[4]))
-
 		-- Warn when we are about to override keymaps
 		if type(keymap[1]) == "string" then
 			local res = M.map_info(keymap[1], keymap[2])
