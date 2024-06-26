@@ -2,11 +2,12 @@ return {
 	{
 		"nvim-telescope/telescope.nvim",
 		version = false,
+		cmd = "Telescope",
 		dependencies = {
 			{
 				"nvim-telescope/telescope-fzf-native.nvim",
 				build = "make",
-				config = function(plugin)
+				config = function(_)
 					local aru = require("aru")
 
 					local ok, err = pcall(require("telescope").load_extension, "fzf")
@@ -18,7 +19,7 @@ return {
 
 			{
 				"nvim-telescope/telescope-ui-select.nvim",
-				config = function(plugin)
+				config = function(_)
 					local aru = require("aru")
 
 					local ok, err = pcall(require("telescope").load_extension, "ui-select")
@@ -28,9 +29,68 @@ return {
 				end,
 			},
 		},
-		config = function()
-			local data = assert(vim.fn.stdpath("data")) --[[@as string]]
+		keys = {
 
+			{ "<C-p>", "<cmd>Telescope git_files<CR>", desc = "Find git repository files" },
+			{
+				"<leader>pf",
+				"<cmd>Telescope find_files hidden=true<CR>",
+				desc = "Find Files including hidden",
+			},
+			{
+				"<leader>ps",
+				function()
+					require("telescope.builtin").grep_string({ search = vim.fn.input("Grep > ") })
+				end,
+				desc = "Search the results of a grep.",
+			},
+			{
+				"<leader>/",
+				"<cmd>Telescope current_buffer_fuzzy_find",
+				desc = "Fuzzy find in current buffer",
+			},
+			{
+				"n",
+				"<leader>pws",
+				function()
+					local word = vim.fn.expand("<cword>")
+					require("telescope.builtin").grep_string({ search = word })
+				end,
+				desc = "find word",
+			},
+			{
+				"n",
+				"<leader>pWs",
+				function()
+					local word = vim.fn.expand("<cWORD>")
+					require("telescope.builtin").grep_string({ search = word })
+				end,
+				{ desc = "find word-expanded" },
+			},
+
+			-- Quick Navigation to config files
+			{
+				"n",
+				"<leader>pa",
+				function()
+					require("telescope.builtin").find_files({
+						---@diagnostic disable-next-line: param-type-mismatch
+						cwd = vim.fs.joinpath(vim.fn.stdpath("data"), "lazy"),
+					})
+				end,
+				desc = "find plugin source files",
+			},
+			{
+				"n",
+				"<leader>pn",
+				function()
+					require("telescope.builtin").find_files({ cwd = vim.fn.stdpath("config") })
+				end,
+				desc = "find config files",
+			},
+			{ "n", "<leader>ph", require("telescope.builtin").help_tags, desc = "Help tags" },
+		},
+		config = function()
 			require("telescope").setup({
 				extensions = {
 					wrap_results = true,
@@ -39,56 +99,6 @@ return {
 						require("telescope.themes").get_dropdown(),
 					},
 				},
-			})
-
-			local builtin = require("telescope.builtin")
-			require("aru.utils.keymaps").set_maps({
-				-- stylua: ignore start
-				{ "n", "<C-p>", builtin.git_files, { desc = "find git files" } },
-				{ "n", "<leader>pf", { builtin.find_files, { hidden = true } }, { desc = "find files" } },
-				{ "n", "<leader>ps", function() builtin.grep_string({ search = vim.fn.input("Grep > ")}) end, { desc = "Grep string" } },
-				{ "n", "<leader>/", builtin.current_buffer_fuzzy_find, { desc = "current buffer fuzzy find" } },
-
-				{
-					"n",
-					"<leader>pws",
-					function()
-						local word = vim.fn.expand("<cword>")
-						builtin.grep_string({ search = word })
-					end,
-					{ desc = "find word" },
-				},
-				{
-					"n",
-					"<leader>pWs",
-					function()
-						local word = vim.fn.expand("<cWORD>")
-						builtin.grep_string({ search = word })
-					end,
-					{ desc = "find word-expanded" },
-				},
-
-				-- Quick Navigation to config files
-				{
-					"n",
-					"<leader>pa",
-					function()
-						---@diagnostic disable-next-line: param-type-mismatch
-						builtin.find_files({
-							cwd = vim.fs.joinpath(vim.fn.stdpath("data"), "lazy"),
-						})
-					end,
-					{ desc = "find plugin source files" },
-				},
-				{
-					"n",
-					"<leader>pn",
-					function()
-						builtin.find_files({ cwd = vim.fn.stdpath("config") })
-					end,
-					{ desc = "find config files" },
-				},
-				{ "n", "<leader>ph", builtin.help_tags, { desc = "Help tags" } },
 			})
 		end,
 	},
@@ -115,6 +125,7 @@ return {
 		"neovim/nvim-lspconfig",
 		optional = true,
 		opts = function()
+			-- FIXME: This needs to be fixed when lsp is setup correctly
 			print("exciting, I need to write th lsp utils")
 			-- local builtin = require("telescope.builtin")
 			-- local Keys = require("lazyvim.plugins.lsp.keymaps").get()

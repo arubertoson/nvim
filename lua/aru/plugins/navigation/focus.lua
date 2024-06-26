@@ -2,15 +2,9 @@ return {
 	{
 		"nvim-focus/focus.nvim",
 		version = "*",
-		config = function()
+		lazy = true,
+		init = function()
 			local fmt = string.format
-			local focus = require("focus")
-
-			-- Certain focus functins should not work on specific file- and buffer
-			-- types. Navigation and resizing when using these will mess the layout
-			-- up.
-			local ignore_filetypes = { "dbui", "dbout" }
-			local ignore_buftypes = { "nofile", "prompt", "popup" }
 
 			for _, char in ipairs({ "h", "j", "k", "l" }) do
 				require("aru.utils.keymaps").set_maps({
@@ -19,7 +13,7 @@ return {
 						"n",
 						fmt("<C-%s>", char),
 						function()
-							focus.split_command(char)
+							require("focus").split_command(char)
 						end,
 						{ silent = true },
 					},
@@ -36,12 +30,21 @@ return {
 								end
 							end
 
-							focus.split_command(char)
+							require("focus").split_command(char)
 						end,
 						{ silent = true },
 					},
 				})
 			end
+		end,
+		config = function()
+			local focus = require("focus")
+
+			-- Certain focus functins should not work on specific file- and buffer
+			-- types. Navigation and resizing when using these will mess the layout
+			-- up.
+			local ignore_filetypes = { "dbui", "dbout" }
+			local ignore_buftypes = { "nofile", "prompt", "popup" }
 
 			require("aru.utils").create_augroup("WinDisableResize", {
 				{
