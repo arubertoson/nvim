@@ -26,7 +26,6 @@ opt.grepprg = "rg --vimgrep"
 opt.ignorecase = true -- Ignore case
 opt.inccommand = "split" -- preview incremental substitute
 opt.laststatus = 3 -- global statusline
-opt.list = true -- Show some invisible characters (tabs...
 opt.mouse = "a" -- Enable mouse mode
 opt.number = true -- Print line number
 opt.relativenumber = false -- Relative line numbers
@@ -45,7 +44,6 @@ opt.splitbelow = true -- Put new windows below current
 opt.splitkeep = "screen"
 opt.splitright = true -- Put new windows right of current
 opt.termguicolors = true -- True color support
-opt.timeoutlen = vim.g.vscode and 1000 or 300 -- Lower than default (1000) to quickly trigger which-key
 opt.undofile = true
 opt.undolevels = 10000
 opt.updatetime = 200 -- Save swap file and trigger CursorHold
@@ -71,16 +69,17 @@ o.switchbuf = "useopen,uselast"
 opt.linebreak = true -- lines wrap at words rather than random characters
 opt.synmaxcol = 1024 -- don't syntax highlight long lines
 
-opt.cmdheight = 0 -- Set command line height to two lines
-opt.list = true -- invisible chars
-opt.listchars = {
-	eol = nil,
-	tab = "  ", -- suppress first tab
-	extends = "›", -- Alternatives: … »
-	precedes = "‹", -- Alternatives: … «
-	trail = "•", -- BULLET (U+2022, UTF-8: E2 80 A2)
-	-- space = '•', -- BULLET (U+2022, UTF-8: E2 80 A2)
-}
+-- NOTE: This seems to break keeping the visual selection, among other things.
+-- opt.cmdheight = 0 -- Set command line height to two lines
+-- opt.list = true -- invisible chars
+-- opt.listchars = {
+-- 	eol = nil,
+-- 	tab = "› ", -- suppress first tab
+-- 	extends = "›", -- Alternatives: … »
+-- 	precedes = "‹", -- Alternatives: … «
+-- 	trail = "•", -- BULLET (U+2022, UTF-8: E2 80 A2)
+-- 	-- space = '•', -- BULLET (U+2022, UTF-8: E2 80 A2)
+-- }
 
 -- Remove Unecessary Providers
 g.loaded_python3_provider = 0

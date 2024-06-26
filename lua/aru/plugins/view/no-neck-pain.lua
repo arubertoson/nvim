@@ -21,10 +21,7 @@ return {
 						nnp.config = opts.options
 					end
 
-					if not nnp.state == nil and not nnp.state.enabled then
-						nnp.config.width = golden_ratio()
-					end
-
+					nnp.config.width = golden_ratio()
 					nnp.toggle()
 				end,
 			},

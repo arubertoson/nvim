@@ -62,7 +62,13 @@ return {
 			vim.g.db_ui_use_nvim_notify = false
 			vim.g.db_ui_force_echo_notifications = false
 			vim.g.db_ui_disable_mappings = false
-			vim.g.db_ui_default_query = 'select * from "{table}" limit 10;'
+
+			vim.g.db_ui_table_helpers = {
+				postgresql = {
+					List = "select * from {optional_schema}{table} limit 10;",
+					Count = "select count(*) from {optional_schema}{table};",
+				},
+			}
 
 			-- NOTE: The default behavior of auto-execution of queries on save is disabled
 			-- this is useful when you have a big query that you don't want to run every time
@@ -71,6 +77,29 @@ return {
 			vim.g.db_ui_execute_on_save = false
 
 			utils.create_augroup("DbodUI", {
+				{
+					-- Handles smart resizing of the dbui window
+					event = { "TextChanged" },
+					pattern = "dbui",
+					command = function(state)
+						local help = require("aru.utils.helpers")
+
+						local threshold = 2
+						local bufnr = state.buf
+
+						local winid = vim.fn.bufwinid(bufnr)
+						local bufcol = help.find_max_column(bufnr)
+						local wincol = vim.api.nvim_win_get_width(winid)
+
+						if bufcol > (wincol + threshold) then
+							vim.api.nvim_win_set_width(winid, bufcol + threshold)
+						end
+
+						if wincol > (bufcol + threshold) then
+							vim.api.nvim_win_set_width(winid, bufcol + threshold)
+						end
+					end,
+				},
 				{
 					event = { "FileType" },
 					pattern = sql_ft,
@@ -99,35 +128,11 @@ return {
 		end,
 	},
 
-	-- NOTE: This is a test
-	{
-		"folke/edgy.nvim",
-		optional = true,
-		opts = function(_, opts)
-			opts.right = opts.right or {}
-			table.insert(opts.right, {
-				title = "Database",
-				ft = "dbui",
-				pinned = true,
-				width = 0.3,
-				open = function()
-					vim.cmd("DBUI")
-				end,
-			})
-
-			opts.bottom = opts.bottom or {}
-			table.insert(opts.bottom, {
-				title = "DB Query Result",
-				ft = "dbout",
-			})
-		end,
-	},
-
 	{
 		"nanotee/sqls.nvim",
 		ft = sql_ft,
 		dependencies = {
-			{ "nvim-lspconfig", optional = True },
+			{ "nvim-lspconfig", optional = true },
 		},
 		config = function()
 			local lspconfig = require("lspconfig")

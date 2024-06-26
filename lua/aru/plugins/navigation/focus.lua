@@ -38,42 +38,11 @@ return {
 			end
 		end,
 		config = function()
-			local focus = require("focus")
-
-			-- Certain focus functins should not work on specific file- and buffer
-			-- types. Navigation and resizing when using these will mess the layout
-			-- up.
-			local ignore_filetypes = { "dbui", "dbout" }
-			local ignore_buftypes = { "nofile", "prompt", "popup" }
-
-			require("aru.utils").create_augroup("WinDisableResize", {
-				{
-					event = { "WinEnter" },
-					command = function(_)
-						if vim.tbl_contains(ignore_buftypes, vim.bo.buftype) then
-							vim.w.focus_disable = true
-						else
-							vim.w.focus_disable = false
-						end
-					end,
-				},
-				{
-					event = { "FileType" },
-					command = function(_)
-						if vim.tbl_contains(ignore_filetypes, vim.bo.filetype) then
-							vim.b.focus_disable = true
-						else
-							vim.b.focus_disable = false
-						end
-					end,
-				},
-			})
-
-			focus.setup({
+			require("focus").setup({
 				enable = true,
 				commands = true,
 				autoresize = {
-					enable = true,
+					enable = false,
 				},
 				ui = {
 					cursorline = false,
