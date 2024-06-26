@@ -1,7 +1,7 @@
 return {
 	{
 		"folke/flash.nvim",
-		event = "VeryLazy",
+		lazy = true,
 		depedencies = {
 			{
 				"nvim-telescope/telescope.nvim",
