@@ -20,7 +20,8 @@ opt.fillchars = {
 }
 opt.foldlevel = 99
 opt.formatexpr = "v:lua.require'aru.utils'.formatexpr()"
-opt.formatoptions = "jcrqlnt" -- tcqj
+-- opt.formatoptions = "jcrqlnt" -- tcqj
+opt.formatoptions:remove("o")
 opt.grepformat = "%f:%l:%c:%m"
 opt.grepprg = "rg --vimgrep"
 opt.ignorecase = true -- Ignore case

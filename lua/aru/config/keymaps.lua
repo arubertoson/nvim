@@ -112,12 +112,11 @@ local collection = {
 	-- Tabs
 	{ { "n" }, "<leader>ta", ":$tabnew<CR>", { desc = "tab: open new tab" } },
 	{ { "n" }, "<leader>tc", ":tabclose<CR>", { desc = "tab: close current tab" } },
-	{ { "n" }, "<C-]>", ":tabn<CR>", { desc = "tab: go to next tab" } },
+	{ { "n" }, "<A-n>", ":tabn<CR>", { desc = "tab: go to next tab" } },
+	{ { "n" }, "<A-p>", ":tabp<CR>", { desc = "tab: go to previous tab" } },
 	{ { "n" }, "<leader>to", ":tabonly<CR>", { desc = "tab: close other tabs" } },
-	{ { "n" }, "<C-[>", ":tabp<CR>", { desc = "tab: go to previous tab" } },
-	-- -- move current tab to next position
+	-- -- move current tab to next/previous position
 	{ { "n" }, "<leader>tmn", ":+tabmove<CR>", { desc = "tab: move to next tab" } },
-	-- -- move current tab to previous position
 	{ { "n" }, "<leader>tmp", ":-tabmove<CR>", { desc = "tab: move to previous tab" } },
 
 	-- Command Mode

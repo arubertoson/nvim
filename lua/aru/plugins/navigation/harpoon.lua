@@ -11,8 +11,8 @@ return {
 				require("harpoon").ui:toggle_quick_menu(require("harpoon"):list())
 			end)
 
-			for _, idx in ipairs({ "f", "j", "d", "k" }) do
-				vim.keymap.set("n", string.format("<localleader>%s", idx), function()
+			for idx, key in ipairs({ "f", "j", "d", "k" }) do
+				vim.keymap.set("n", string.format("<localleader>%s", key), function()
 					require("harpoon"):list():select(idx)
 				end)
 			end
