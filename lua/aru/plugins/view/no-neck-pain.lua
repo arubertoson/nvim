@@ -1,23 +1,49 @@
--- local function set_golden_ratio_width()
---     local golden_ratio = 1.618
---     local height = vim.api.nvim_win_get_height(0)
---     local golden_width = math.floor(height * golden_ratio)
---     vim.api.nvim_win_set_width(0, golden_width)
---     print("Golden Ratio Width: " .. golden_width)
--- end
---
+local function golden_ratio()
+	-- We check the current width of the existing window and
+	-- overwrite the no-neck-pain config
+	return math.floor(vim.o.columns / 1.618)
+end
 
 return {
 	{
 		"shortcuts/no-neck-pain.nvim",
 		cmd = { "NoNeckPain" },
-		-- opts = {
-		-- 	width = function()
-		--
-		-- 	end
-		-- },
-		-- config = function()
-		-- 	vim.keymap.set()
-		-- end,
+		keys = {
+			{
+				"<leader>o",
+				function()
+					local nnp = require("no-neck-pain")
+
+					-- For some reason if we don't use the normal "command"
+					-- routes we have to set the options our selves.
+					if nnp.config == nil then
+						local opts = require("no-neck-pain.config")
+						nnp.config = opts.options
+					end
+
+					if not nnp.state == nil and not nnp.state.enabled then
+						nnp.config.width = golden_ratio()
+					end
+
+					nnp.toggle()
+				end,
+			},
+		},
+		config = function()
+			require("aru.utils").create_augroup("no-neck-pain-resize", {
+				{
+					event = { "VimResized" },
+					command = function()
+						local nnp = require("no-neck-pain")
+
+						if nnp.state == nil then
+							return
+						end
+
+						nnp.resize(golden_ratio())
+					end,
+				},
+			})
+		end,
 	},
 }

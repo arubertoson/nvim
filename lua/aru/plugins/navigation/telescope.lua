@@ -31,6 +31,7 @@ return {
 		},
 		keys = {
 
+			{ "<leader>?", "<cmd>Telescope help_tags<CR>", desc = "Help tags" },
 			{ "<C-p>", "<cmd>Telescope git_files<CR>", desc = "Find git repository files" },
 			{
 				"<leader>pf",
@@ -88,7 +89,6 @@ return {
 				end,
 				desc = "find config files",
 			},
-			{ "n", "<leader>ph", require("telescope.builtin").help_tags, desc = "Help tags" },
 		},
 		config = function()
 			require("telescope").setup({

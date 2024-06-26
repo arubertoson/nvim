@@ -1,8 +1,8 @@
 return {
 	{
 		"tjdevries/express_line.nvim",
+		event = "VeryLazy",
 		config = function()
-
 			local builtin = require("el.builtin")
 			local extensions = require("el.extensions")
 			local subscribe = require("el.subscribe")
