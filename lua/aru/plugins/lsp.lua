@@ -4,33 +4,23 @@ return {
 		event = "InsertEnter",
 		dependencies = {
 			{ "j-hui/fidget.nvim", opts = {} },
-			-- Schema information
-			-- "b0o/SchemaStore.nvim",
 		},
 		opts = function()
 			return {
-				-- options for vim.lsp.buf.format
-				-- `bufnr` and `filter` is handled by the LazyVim formatter,
-				-- but can be also overridden when specified
 				format = {
 					formatting_options = nil,
 					timeout_ms = nil,
 				},
 				servers = {
 					lua_ls = {
-						-- mason = false, -- set to false if you don't want this server to be installed with mason
-						-- Use this to add any additional keymaps
-						-- for specific lsp servers
-						-- ---@type LazyKeysSpec[]
-						-- keys = {},
 						settings = {
 							Lua = {
 								workspace = {
 									checkThirdParty = false,
 								},
-								codeLens = {
-									enable = true,
-								},
+								-- codeLens = {
+								-- 	enable = true,
+								-- },
 								completion = {
 									callSnippet = "Replace",
 								},

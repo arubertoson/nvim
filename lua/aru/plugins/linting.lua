@@ -66,6 +66,7 @@ return {
 						vim.notify(
 							"Linter not found: " .. name,
 							vim.log.levels.WARN,
+
 							{ title = "nvim-lint" }
 						)
 					end
@@ -85,9 +86,7 @@ return {
 			require("aru.utils").create_augroup("aru-linters", {
 				{
 					event = opts.events,
-					command = function()
-						M.debounce(500, M.lint)
-					end,
+					command = M.debounce(200, M.lint),
 				},
 			})
 		end,

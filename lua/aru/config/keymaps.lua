@@ -51,7 +51,6 @@ local collection = {
 	},
 
 	-- Move selected lines
-	-- FIXME: up down movement is not working.
 	{ { "n" }, "<A-h>", "<<<Esc>" },
 	{ { "n" }, "<A-l>", ">>><Esc>" },
 	{

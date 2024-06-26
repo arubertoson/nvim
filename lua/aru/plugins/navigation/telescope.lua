@@ -126,7 +126,7 @@ return {
 		optional = true,
 		opts = function()
 			-- FIXME: This needs to be fixed when lsp is setup correctly
-			print("exciting, I need to write th lsp utils")
+			-- print("exciting, I need to write th lsp utils")
 			-- local builtin = require("telescope.builtin")
 			-- local Keys = require("lazyvim.plugins.lsp.keymaps").get()
 			--

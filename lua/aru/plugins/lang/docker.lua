@@ -2,6 +2,9 @@ return {
 	{
 		"nvim-treesitter/nvim-treesitter",
 		optional = true,
+		init = function()
+			vim.treesitter.language.register("yaml", "yaml.docker-compose")
+		end,
 		opts = { ensure_installed = { "dockerfile" } },
 	},
 	{
@@ -27,6 +30,13 @@ return {
 	{
 		"neovim/nvim-lspconfig",
 		optional = true,
+		init = function()
+			vim.filetype.add({
+				filename = {
+					["docker-compose.yml"] = "yaml.docker-compose",
+				},
+			})
+		end,
 		opts = {
 			servers = {
 				dockerls = {},
