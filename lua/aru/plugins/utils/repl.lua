@@ -5,7 +5,7 @@ return {
 		event = "VeryLazy",
 		config = function()
 			require("yarepl").setup({
-				wincmd = function(bufnr, name)
+				wincmd = function(bufnr, _)
 					vim.cmd([[belowright 15 split]])
 					vim.api.nvim_set_current_buf(bufnr)
 				end,
