@@ -51,7 +51,6 @@ return {
 				desc = "Fuzzy find in current buffer",
 			},
 			{
-				"n",
 				"<leader>pws",
 				function()
 					local word = vim.fn.expand("<cword>")
@@ -60,7 +59,6 @@ return {
 				desc = "find word",
 			},
 			{
-				"n",
 				"<leader>pWs",
 				function()
 					local word = vim.fn.expand("<cWORD>")
@@ -71,7 +69,6 @@ return {
 
 			-- Quick Navigation to config files
 			{
-				"n",
 				"<leader>pa",
 				function()
 					require("telescope.builtin").find_files({
@@ -82,7 +79,6 @@ return {
 				desc = "find plugin source files",
 			},
 			{
-				"n",
 				"<leader>pn",
 				function()
 					require("telescope.builtin").find_files({ cwd = vim.fn.stdpath("config") })
