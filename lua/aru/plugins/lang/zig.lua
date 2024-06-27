@@ -16,13 +16,6 @@ return {
 	{
 		"neovim/nvim-lspconfig",
 		optional = true,
-		-- init = function()
-		-- 	vim.filetype.add({
-		-- 		filename = {
-		-- 			["docker-compose.yml"] = "yaml.docker-compose",
-		-- 		},
-		-- 	})
-		-- end,
 		opts = {
 			servers = {
 				zls = {},
