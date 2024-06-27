@@ -1,6 +1,7 @@
 return {
 	{
 		"echasnovski/mini.files",
+		enable = false,
 		opts = {
 			windows = {
 				preview = true,

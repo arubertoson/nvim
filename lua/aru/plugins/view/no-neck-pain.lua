@@ -1,13 +1,46 @@
+local function layout_iter(col, winids)
+	local type_, value = unpack(col)
+	if type_ == "leaf" then
+		table.insert(winids, value)
+		return winids
+	elseif type_ == "row" then
+		for _, column in ipairs(value) do
+			layout_iter(column, winids)
+		end
+	else
+		for _, val in ipairs(value) do
+			layout_iter(val, winids)
+		end
+	end
+	return winids
+end
+
+local function flatten_layout(layout)
+	local flattned = {}
+	if layout[1] == "col" then
+		table.insert(flattned, layout_iter(layout, {}))
+	else
+		for _, col in ipairs(layout[2]) do
+			table.insert(flattned, layout_iter(col, {}))
+		end
+	end
+	return flattned
+end
+
 local function close_other_windows()
 	local windows = vim.api.nvim_tabpage_list_wins(0)
 	if #windows == 1 then
 		return
 	end
 
-	local current_win = vim.api.nvim_get_current_win()
-	for _, win in ipairs(windows) do
-		if win ~= current_win then
-			vim.api.nvim_win_close(win, true)
+	local current_window = vim.api.nvim_get_current_win()
+	for _, winids in ipairs(flatten_layout(vim.fn.winlayout())) do
+		if vim.tbl_contains(winids, current_window) then
+			vim.api.nvim_set_current_win(winids[1])
+		else
+			for _, winid in ipairs(winids) do
+				vim.api.nvim_win_close(winid, true)
+			end
 		end
 	end
 end
