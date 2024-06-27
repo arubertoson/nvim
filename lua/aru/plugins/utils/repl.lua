@@ -45,6 +45,29 @@ return {
 						})
 					end,
 				},
+				{
+					event = { "BufWinEnter" },
+					command = function(args)
+						if vim.bo.filetype ~= "REPL" then
+							return
+						end
+
+						local colors = require("aru.utils.colors")
+						local adjusted_bg = colors.get_adjusted_hl("Normal", 0.75)
+						local winid = vim.api.nvim_get_current_win()
+
+						vim.api.nvim_set_hl(0, "REPLDimmedBackground", { bg = adjusted_bg })
+						-- For whatever reason this does not work without
+						-- the defer.
+						vim.defer_fn(function()
+							vim.api.nvim_set_option_value(
+								"winhighlight",
+								"Normal:REPLDimmedBackground",
+								{ scope = "local", win = winid }
+							)
+						end, 5)
+					end,
+				},
 			})
 		end,
 	},
