@@ -57,15 +57,15 @@ return {
 		version = "*",
 		lazy = false,
 		opts = {
-			debug = true,
+			debug = false,
 			minSideBufferWidth = 10,
 			disableOnLastBuffer = false,
 			killAllBuffersOnDisable = false,
 			fallbackOnBufferDelete = true,
 			buffers = {
 				colors = {
-					background = "rose-pine-moon",
-					blend = -0.5,
+					background = "#1f1f28",
+					blend = -0.25,
 				},
 			},
 		},
