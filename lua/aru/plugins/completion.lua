@@ -44,7 +44,14 @@ return {
 				end,
 			},
 		},
-		config = function()
+		opts = {
+			sources = {
+				{ name = "nvim_lsp" },
+				{ name = "path" },
+				{ name = "buffer" },
+			},
+		},
+		config = function(_, opts)
 			-- Module options
 			vim.opt.completeopt = { "menu", "menuone", "noselect" }
 			vim.opt.shortmess:append("c")
@@ -54,12 +61,7 @@ return {
 
 			lspkind.init({})
 
-			cmp.setup({
-				sources = {
-					{ name = "nvim_lsp" },
-					{ name = "path" },
-					{ name = "buffer" },
-				},
+			opts = vim.tbl_deep_extend("force", opts, {
 				mapping = {
 					["<C-n>"] = cmp.mapping.select_next_item({
 						behavior = cmp.SelectBehavior.Insert,
@@ -75,14 +77,9 @@ return {
 						{ "i", "c" }
 					),
 				},
-
-				-- Enable luasnip to handle snippet expansion for nvim-cmp
-				snippet = {
-					expand = function(args)
-						vim.snippet.expand(args.body)
-					end,
-				},
 			})
+
+			cmp.setup(opts)
 		end,
 	},
 }

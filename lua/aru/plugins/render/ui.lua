@@ -16,18 +16,28 @@ return {
 			},
 		},
 	},
+
+	"projekt0n/github-nvim-theme",
+	"rose-pine/neovim",
+	"slugbyte/lackluster.nvim",
+	"aktersnurra/no-clown-fiesta.nvim",
+
 	{
-		-- "olivercederborg/poimandres.nvim",
-		-- "aktersnurra/no-clown-fiesta.nvim",
-		-- "rebelot/kanagawa.nvim",
-		"rose-pine/neovim",
+		"rebelot/kanagawa.nvim",
 		lazy = false,
 		priority = 1000,
 		config = function()
-			require("rose-pine").setup({})
+			require("kanagawa").setup({
+				dimInactive = true,
+				theme = "wave",
+				background = {
+					dark = "wave",
+					light = "lotus",
+				},
+			})
 		end,
 		init = function()
-			vim.cmd("colorscheme rose-pine")
+			vim.cmd("colorscheme kanagawa")
 		end,
 	},
 }
