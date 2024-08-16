@@ -5,9 +5,15 @@ return {
 		event = "VeryLazy",
 		config = function()
 			require("better_escape").setup({
-				mapping = { "jk", "kj" },
-				clear_empty_lines = true,
-				keys = "<Esc>",
+				mapping = {
+					i = {
+						k = { j = "<Esc>" },
+						j = {
+							k = "<Esc>",
+							j = false,
+						},
+					},
+				},
 			})
 		end,
 	},

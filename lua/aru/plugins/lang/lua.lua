@@ -1,5 +1,4 @@
 return {
-
 	{
 		"williamboman/mason.nvim",
 		optional = true,
@@ -30,6 +29,14 @@ return {
 		"folke/lazydev.nvim",
 		dependencies = {
 			{ "Bilal2453/luvit-meta", lazy = true },
+			{
+				"hrsh7th/nvim-cmp",
+				optional = true,
+				opts = function(_, opts)
+					opts.sources = opts.sources or {}
+					table.insert(opts.sources, { name = "lazydev", group_index = 0 })
+				end,
+			},
 		},
 		ft = "lua",
 		cmd = "LazyDev",
@@ -43,48 +50,37 @@ return {
 	},
 
 	{
-		"hrsh7th/nvim-cmp",
-		optional = true,
-		opts = function(_, opts)
-			opts.sources = opts.sources or {}
-			table.insert(opts.sources, { name = "lazydev", group_index = 0 })
-		end,
-	},
-
-	{
 		"neovim/nvim-lspconfig",
 		optional = true,
-		opts = function()
-			return {
-				servers = {
-					lua_ls = {
-						settings = {
-							Lua = {
-								workspace = {
-									checkThirdParty = false,
-								},
-								codeLens = {
-									enable = true,
-								},
-								completion = {
-									callSnippet = "Replace",
-								},
-								doc = {
-									privateName = { "^_" },
-								},
-								hint = {
-									enable = true,
-									paramType = true,
-									-- setType = false,
-									-- paramName = "Disable",
-									-- semicolon = "Disable",
-									-- arrayIndex = "Disable",
-								},
+		opts = {
+			servers = {
+				lua_ls = {
+					settings = {
+						Lua = {
+							workspace = {
+								checkThirdParty = false,
+							},
+							codeLens = {
+								enable = true,
+							},
+							completion = {
+								callSnippet = "Replace",
+							},
+							doc = {
+								privateName = { "^_" },
+							},
+							hint = {
+								enable = true,
+								paramType = true,
+								setType = false,
+								paramName = "Disable",
+								semicolon = "Disable",
+								arrayIndex = "Disable",
 							},
 						},
 					},
 				},
-			}
-		end,
+			},
+		},
 	},
 }

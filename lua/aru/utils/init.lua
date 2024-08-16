@@ -167,12 +167,12 @@ function M.foldexpr()
 	return "0"
 end
 
-function M.formatexpr()
-	if pcall(require, "conform.nvim") then
-		return require("conform").formatexpr()
-	end
-
-	return vim.lsp.formatexpr({ timeout_ms = 3000 })
-end
+-- function M.formatexpr()
+-- 	if pcall(require, "conform.nvim") then
+-- 		return require("conform").formatexpr()
+-- 	end
+--
+-- 	return vim.lsp.formatexpr({ timeout_ms = 3000 })
+-- end
 
 return M

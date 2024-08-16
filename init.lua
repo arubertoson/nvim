@@ -3,8 +3,8 @@
 --
 ------------------------------------------------------------------------
 
-vim.g.mapleader = " "
-vim.g.maplocalleader = ";"
+vim.g.mapleader = ";"
+-- vim.g.maplocalleader = ";"
 
 function R(name)
 	-- Some modules that needs to be initialized might not have a setup,
@@ -37,7 +37,15 @@ local aru = require("aru")
 
 aru.log:info("initializing neovim aru configuration")
 
-for _, mod in ipairs(aru.modules) do
+local modules
+if vim.g.vscode then
+	aru.log:info("vscode")
+	modules = aru.vscode
+else
+	modules = aru.modules
+end
+
+for _, mod in ipairs(modules) do
 	aru.log:debug(fmt("loading module: %s", mod))
 
 	R(fmt("aru.config.%s", mod))

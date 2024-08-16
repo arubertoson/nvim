@@ -17,7 +17,8 @@ return {
 		"milanglacier/yarepl.nvim",
 		event = "VeryLazy",
 		config = function()
-			require("yarepl").setup({
+			local yarepl = require("yarepl")
+			yarepl.setup({
 				wincmd = function(bufnr, _)
 					local is_vertical = (vim.o.lines / vim.o.columns) > 0.35
 					local split_at = golden_ratio(is_vertical)
@@ -32,6 +33,83 @@ return {
 					vim.api.nvim_set_current_buf(bufnr)
 				end,
 			})
+
+			vim.api.nvim_create_user_command("REPLSendBuffer", function(opts)
+				local id = opts.count
+				local name = opts.args
+				local current_buffer = vim.api.nvim_get_current_buf()
+				local lines = vim.api.nvim_buf_get_lines(current_buffer, 0, -1, false)
+
+				yarepl._send_strings(id, name, current_buffer, lines)
+			end, {
+				count = true,
+				nargs = "?",
+				desc = [[
+Send entire buffer content to REPL `i` or the REPL that current buffer is attached to.
+			]],
+			})
+
+			vim.api.nvim_create_user_command("REPLSendTS", function(opts)
+				local id = opts.count
+				local name = opts.args
+				local current_buffer = vim.api.nvim_get_current_buf()
+
+				local parser = vim.treesitter.get_parser(current_buffer)
+				local tree = parser:parse()[1]
+				local root = tree:root()
+
+				-- Get the node at the cursor position
+				local cursor = vim.api.nvim_win_get_cursor(0)
+				local node = root:named_descendant_for_range(
+					cursor[1] - 1,
+					cursor[2],
+					cursor[1] - 1,
+					cursor[2]
+				)
+
+				if node == nil then
+					print("no treesitter node found at the cursor position")
+					return
+				end
+
+				-- Find the closest parent node that's not the root
+				while node ~= nil and node:parent() ~= root do
+					node = node:parent()
+				end
+
+				-- Get the text of the node
+				local start_row, start_col, end_row, end_col = node:range()
+				local lines = vim.api.nvim_buf_get_text(
+					current_buffer,
+					start_row,
+					start_col,
+					end_row,
+					end_col,
+					{}
+				)
+
+				yarepl._send_strings(id, name, current_buffer, lines)
+			end, {
+				count = true,
+				nargs = "?",
+				desc = [[
+Send the current TreeSitter node (closest to root) to REPL `i` or the REPL that current buffer is attached to.
+]],
+			})
+
+			vim.api.nvim_set_keymap(
+				"n",
+				"<Plug>(REPLSendTS)",
+				"<CMD>REPLSendTS<CR>",
+				{ noremap = true, silent = true }
+			)
+			vim.api.nvim_set_keymap(
+				"n",
+				"<Plug>(REPLSendBuffer)",
+				"<CMD>REPLSendBuffer<CR>",
+				{ noremap = true, silent = true }
+			)
+
 			require("aru.utils").create_augroup("aru-repl-group", {
 				{
 					event = { "FileType" },
@@ -50,46 +128,20 @@ return {
 
 						-- stylua: ignore
 						require("aru.utils.keymaps").set_maps({
-							{ { "n" }, "<localleader>rs", string.format("<Plug>(REPLStart%s)", repl), { desc = "Start an REPL", buffer = args.buffer }, },
-							-- { { "n" }, "<localleader>rf", "<Plug>(REPLFocus)", { desc = "Focus on REPL", buffer = args.buffer }, },
-							{ { "n" }, "<localleader>rv", "<CMD>Telescope REPLShow<CR>", { desc = "View REPLs in telescope" }, buffer = args.buffer },
-							{ { "n" }, "<localleader>rh", "<Plug>(REPLHideOrFocus)", { desc = "Hide REPL", buffer = args.buffer} },
-							{ { "v" }, "<localleader>f", "<Plug>(REPLSendVisual)", { desc = "Send visual region to REPL", buffer = args.buffer } },
-							{ { "n" }, "<localleader>fs", "<Plug>(REPLSendLine)", { desc = "Send line to REPL", buffer = args.buffer } },
+							{ { "n" }, "<CR>", "<Plug>(REPLSendTS)", { desc = "Send TreeSitter node to REPL", buffer = args.buffer } },
+							{ { "v" }, "<CR>", "<Plug>(REPLSendVisual)", { desc = "Send visual region to REPL", buffer = args.buffer } },
 							{ { "n" }, "<localleader>f", "<Plug>(REPLSendOperator)", { desc = "Send current line to REPL", buffer = args.buffer } },
-							{ { "n" }, "<localleader>re", "<Plug>(REPLExec)", { desc = "Execute command in REPL", expr = true, buffer = args.buffer } },
-							{ { "n" }, "<localleader>rq", "<Plug>(REPLClose)", { desc = "Quit REPL", buffer = args.buffer } },
+							{ { "n" }, "<localleader>fa", "<Plug>(REPLSendBuffer)", { desc = "Send buffer to REPL", buffer = args.buffer } },
+
+							-- XXX: I can make this into a simple toggle button
+							{ { "n" }, "<localleader>rs", string.format("<Plug>(REPLStart%s)", repl), { desc = "Start an REPL", buffer = args.buffer }, },
+							{ { "n" }, "<localleader>rh", "<Plug>(REPLHideOrFocus)", { desc = "Hide REPL", buffer = args.buffer} },
+
 							{ { "n" }, "<localleader>rc", "<CMD>REPLCleanup<CR>", { desc = "Clear REPLs.", buffer = args.buffer} },
-							{ { "n" }, "<localleader>rS", "<CMD>REPLSwap<CR>", { desc = "Swap REPLs.", buffer = args.buffer } },
-							{ { "n" }, "<localleader>r?", "<Plug>(REPLStart)", { desc = "Start an REPL from available REPL metas", buffer = args.buffer } },
-							{ { "n" }, "<localleader>ra", "<CMD>REPLAttachBufferToREPL<CR>", { desc = "Attach current buffer to a REPL", buffer = args.buffer } },
-							{ { "n" }, "<localleader>rd", "<CMD>REPLDetachBufferToREPL<CR>", { desc = "Detach current buffer to any REPL", buffer = args.buffer } },
+							{ { "n" }, "<localleader>rq", "<Plug>(REPLClose)", { desc = "Quit REPL", buffer = args.buffer } },
 						})
 					end,
 				},
-				-- {
-				-- 	event = { "BufWinEnter" },
-				-- 	command = function(args)
-				-- 		if vim.bo.filetype ~= "REPL" then
-				-- 			return
-				-- 		end
-				--
-				-- 		local colors = require("aru.utils.colors")
-				-- 		local adjusted_bg = colors.get_adjusted_hl("Normal", 0.75)
-				-- 		local winid = vim.api.nvim_get_current_win()
-				--
-				-- 		vim.api.nvim_set_hl(0, "REPLDimmedBackground", { bg = adjusted_bg })
-				-- 		-- For whatever reason this does not work without
-				-- 		-- the defer.
-				-- 		vim.defer_fn(function()
-				-- 			vim.api.nvim_set_option_value(
-				-- 				"winhighlight",
-				-- 				"normal:repldimmedbackground",
-				-- 				{ scope = "local", win = winid }
-				-- 			)
-				-- 		end, 5)
-				-- 	end,
-				-- },
 			})
 		end,
 	},

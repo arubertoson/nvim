@@ -138,10 +138,10 @@ return {
 			local lspconfig = require("lspconfig")
 			local capabilities = require("cmp_nvim_lsp").default_capabilities()
 
-			lspconfig.jinja_lsp.setup({
-				filetypes = { "jinja", "sql" },
-				capabilities = capabilities,
-			})
+			-- lspconfig.jinja_lsp.setup({
+			-- 	filetypes = { "jinja", "sql" },
+			-- 	capabilities = capabilities,
+			-- })
 
 			lspconfig.sqls.setup({
 				capabilities = capabilities,
@@ -151,27 +151,28 @@ return {
 			})
 		end,
 	},
-	{
-		"PedramNavid/dbtpal",
-		ft = sql_ft,
-		dependencies = {
-			"plenary.nvim",
-			"telescope.nvim",
-		},
-		config = function()
-			local dbt = require("dbtpal")
 
-			dbt.setup()
-
-			vim.keymap.set("n", "<leader>drf", dbt.run)
-			vim.keymap.set("n", "<leader>drp", dbt.run_all)
-			vim.keymap.set("n", "<leader>dtf", dbt.test)
-			vim.keymap.set("n", "<leader>dm", require("dbtpal.telescope").dbt_picker)
-
-			-- Enable Telescope Extension
-			require("telescope").load_extension("dbtpal")
-		end,
-	},
+	-- {
+	-- 	"PedramNavid/dbtpal",
+	-- 	ft = sql_ft,
+	-- 	dependencies = {
+	-- 		"plenary.nvim",
+	-- 		"telescope.nvim",
+	-- 	},
+	-- 	config = function()
+	-- 		local dbt = require("dbtpal")
+	--
+	-- 		dbt.setup()
+	--
+	-- 		vim.keymap.set("n", "<leader>drf", dbt.run)
+	-- 		vim.keymap.set("n", "<leader>drp", dbt.run_all)
+	-- 		vim.keymap.set("n", "<leader>dtf", dbt.test)
+	-- 		vim.keymap.set("n", "<leader>dm", require("dbtpal.telescope").dbt_picker)
+	--
+	-- 		-- Enable Telescope Extension
+	-- 		require("telescope").load_extension("dbtpal")
+	-- 	end,
+	-- },
 
 	-- Linters & formatters
 	{
