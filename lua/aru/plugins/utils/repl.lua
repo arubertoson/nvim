@@ -1,3 +1,16 @@
+local function golden_ratio(is_vertical)
+	local ratio = 1.618
+
+	local split_with = vim.o.columns
+	if is_vertical then
+		split_with = vim.o.lines
+	end
+
+	-- We check the current width of the existing window and
+	-- overwrite the no-neck-pain config
+	return split_with - math.floor(split_with / ratio)
+end
+
 return {
 	{ "rafcamlet/nvim-luapad", config = true },
 	{
@@ -6,7 +19,16 @@ return {
 		config = function()
 			require("yarepl").setup({
 				wincmd = function(bufnr, _)
-					vim.cmd([[belowright 15 split]])
+					local is_vertical = (vim.o.lines / vim.o.columns) > 0.35
+					local split_at = golden_ratio(is_vertical)
+
+					local split_cmd = "vsplit"
+					if is_vertical then
+						split_cmd = "split"
+					end
+
+					local concat_cmd = split_at .. " " .. split_cmd
+					vim.cmd(concat_cmd)
 					vim.api.nvim_set_current_buf(bufnr)
 				end,
 			})
@@ -29,9 +51,9 @@ return {
 						-- stylua: ignore
 						require("aru.utils.keymaps").set_maps({
 							{ { "n" }, "<localleader>rs", string.format("<Plug>(REPLStart%s)", repl), { desc = "Start an REPL", buffer = args.buffer }, },
-							{ { "n" }, "<localleader>rf", "<Plug>(REPLFocus)", { desc = "Focus on REPL", buffer = args.buffer }, },
+							-- { { "n" }, "<localleader>rf", "<Plug>(REPLFocus)", { desc = "Focus on REPL", buffer = args.buffer }, },
 							{ { "n" }, "<localleader>rv", "<CMD>Telescope REPLShow<CR>", { desc = "View REPLs in telescope" }, buffer = args.buffer },
-							{ { "n" }, "<localleader>rh", "<Plug>(REPLHide)", { desc = "Hide REPL", buffer = args.buffer} },
+							{ { "n" }, "<localleader>rh", "<Plug>(REPLHideOrFocus)", { desc = "Hide REPL", buffer = args.buffer} },
 							{ { "v" }, "<localleader>f", "<Plug>(REPLSendVisual)", { desc = "Send visual region to REPL", buffer = args.buffer } },
 							{ { "n" }, "<localleader>fs", "<Plug>(REPLSendLine)", { desc = "Send line to REPL", buffer = args.buffer } },
 							{ { "n" }, "<localleader>f", "<Plug>(REPLSendOperator)", { desc = "Send current line to REPL", buffer = args.buffer } },
