@@ -19,7 +19,7 @@ opt.fillchars = {
 	eob = " ",
 }
 opt.foldlevel = 99
-opt.formatexpr = "v:lua.require'aru.utils'.formatexpr()"
+-- opt.formatexpr = "v:lua.require'aru.utils'.formatexpr()"
 -- opt.formatoptions = "jcrqlnt" -- tcqj
 opt.formatoptions:remove("o")
 opt.grepformat = "%f:%l:%c:%m"

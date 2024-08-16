@@ -24,13 +24,13 @@ return {
 		opts = {
 			notify_on_error = false,
 			format = {
-				timeout_ms = 3000,
+				timeout_ms = 5000,
 				async = false,
 				quiet = false,
 				lsp_format = "fallback",
 			},
 			format_on_save = function(_)
-				return { timeout_ms = 500, lsp_format = "fallback" }
+				return { timeout_ms = 5000, lsp_format = "fallback" }
 			end,
 			formatters_by_ft = {
 				sh = { "shfmt" },

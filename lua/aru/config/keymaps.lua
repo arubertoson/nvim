@@ -15,6 +15,15 @@ local collection = {
 	{
 		{ "n" },
 		"<localleader>c",
+		":<C-u>bd<CR>",
+		{
+			desc = "delete buffer",
+			silent = true,
+		},
+	},
+	{
+		{ "n" },
+		"<localleader>C",
 		":<C-u>wincmd c<CR>",
 		{
 			desc = "close window",

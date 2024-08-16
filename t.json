@@ -1,0 +1,63 @@
+{
+  "name": "antomtical_fit_schema",
+  "strict": true,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "portrait_analysis": {
+        "type": "string",
+        "title": "Portrait Glasses Analysis",
+        "description": "Analyzes the effect of glasses on a person's appearance in a portrait, assessing frame fit, lens impact, and harmony with facial features. Evaluates environmental factors such as lighting, reflections, and accessories, as well as head position and camera angle, which may distort perception. Ensures eyes are visible and the image quality allows for proper assessment. Annotations include bounding boxes for glasses, labeled attributes (e.g., glare, misalignment), and qualitative observations. Images with severe obstructions or distortions are marked as unsuitable for analysis."
+      },
+      "is_valid": {
+        "type": "boolean",
+        "description": "look closely if the glasses are worn correctly, if they seem to worn in a way that is unsibale for analysis mark them as invalide (false)."
+      },
+      "reason": {
+        "type": ["string", "null"],
+        "description": "If 'is_valid' is false, briefly explain why an assessment cannot be made (e.g., 'Glasses too low'). Maximum 4 words."
+      },
+      "frame_width": {
+        "enum": [
+          "bad",
+          "neutral",
+          "good"
+        ],
+        "type": ["string", "null"],
+        "description": "Be precise, critical, and honest"
+      },
+      "frame_height": {
+        "enum": [
+          "bad",
+          "neutral",
+          "good"
+        ],
+        "type": ["string", "null"],
+        "description": "Be precise, critical, and honest"
+      },
+      "fit_on_the_nose": {
+        "enum": [
+          "bad",
+          "neutral",
+          "good"
+        ],
+        "type": ["string", "null"],
+        "description": "Be precise, critical, and honest"
+      },
+      "fit_text": {
+        "type": ["string", "null"],
+        "description": "For each aspect, provide a clear assessment of whether the fit is appropriate or if there are any issues. If the fit is incorrect, explain briefly how it deviates from the ideal fit. If the fit appears correct, state that it seems appropriate. Use the rating provided in the response, depending on the rating provide guidelines, use educational language and avoid authorative conclusions, it's ok to be unsure. Don't use the rating directly e.g (\"bad\", \"neutral\", \"good\") and use max 400 chars in the response."
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "portrait_analysis",
+      "is_valid",
+      "reason",
+	"frame_width",
+	"frame_height",
+	"fit_on_the_nose",
+	"fit_text"
+    ],
+  }
+}

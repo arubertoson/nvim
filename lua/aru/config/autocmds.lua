@@ -260,7 +260,7 @@ local augroups = {
 			event = { "TextYankPost" },
 			pattern = { "*" },
 			command = function()
-				vim.highlight.on_yank({
+				vim.hl.on_yank({
 					on_visual = false,
 					higroup = "IncSearch",
 					timeout = 100,
