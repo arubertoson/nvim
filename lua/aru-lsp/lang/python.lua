@@ -1,4 +1,3 @@
-
 vim.lsp.config("basedpyright", {
 	on_attach = function(client, _)
 		client.server_capabilities.documentFormattingProvider = false
@@ -37,4 +36,4 @@ vim.lsp.config("ruff", {
 --   root_markers = { 'ty.toml', 'pyproject.toml', '.git' },
 -- }
 
-vim.lsp.enable({"basedpyright", "ruff"})
+vim.lsp.enable({ "basedpyright", "ruff" })

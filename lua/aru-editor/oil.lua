@@ -3,7 +3,6 @@ function ToggleOil()
 		require("oil").discard_all_changes()
 		require("oil").close()
 	else
-		-- vim.cmd("Oil")
 		require("oil").open_float()
 	end
 end
@@ -13,7 +12,6 @@ function ToggleCwdOil()
 		require("oil").discard_all_changes()
 		require("oil").close()
 	else
-		
 		require("oil").open_float(vim.fn.getcwd())
 	end
 end
@@ -21,7 +19,7 @@ end
 return {
 	{
 		"stevearc/oil.nvim",
-		dependencies = { { 'echasnovski/mini.icons', version = '*' } },
+		dependencies = { { "echasnovski/mini.icons", version = "*" } },
 		lazy = false,
 		cmd = "Oil",
 		config = function()
@@ -34,9 +32,9 @@ return {
 				skip_confirm_for_simple_edits = true,
 				keymaps = {
 					q = "actions.close",
-					["<C-p>"] = "actions.select",
-					["<C-n>"] = "actions.parent",
-					["<C-l>"] = "actions.select_split",
+					["<C-k>"] = "actions.parent",
+					["<C-j>"] = "actions.select",
+					["<C-p>"] = "actions.preview",
 				},
 			})
 

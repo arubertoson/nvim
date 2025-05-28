@@ -4,7 +4,6 @@ return {
 		event = "VeryLazy",
 		dependencies = {
 			"nvim-tree/nvim-web-devicons",
-			"lewis6991/gitsigns.nvim",
 		},
 		config = function()
 			vim.o.showtabline = 2

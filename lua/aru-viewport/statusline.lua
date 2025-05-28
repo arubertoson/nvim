@@ -1,6 +1,7 @@
 return {
 	{
 		"tjdevries/express_line.nvim",
+		dependencies = { "nvim-lua/plenary.nvim" },
 		event = "VeryLazy",
 		config = function()
 			local builtin = require("el.builtin")

@@ -1,7 +1,5 @@
-local Autogrps = {}
-
-local aru = require("aru")
 local helper = require("aru.helper")
+local log = require("aru.logging").get_logger("AruAutocmds", "INFO") -- Explicitly setting logger name and level
 
 local fn = vim.fn
 local api = vim.api
@@ -24,7 +22,7 @@ function stop_hl()
 	api.nvim_feedkeys(str, "m", false)
 end
 
-local number_exclude_ft = { "NvimTree", "markdown", "telekasten", "dbui", "dbout" }
+local number_exclude_ft = { "markdown", "telekasten", "dbui", "dbout", "oil" }
 local number_exclude_bt = { "terminal" }
 
 local augroups = {
@@ -48,8 +46,7 @@ local augroups = {
 		},
 		{
 			event = { "InsertEnter" },
-			command = function()
-			end,
+			command = function() end,
 		},
 		{
 			event = { "OptionSet" },
@@ -103,12 +100,12 @@ local augroups = {
 					or contains(smart_close_filetypes, vim.bo.filetype)
 
 				if is_eligible then
-					require("aru.utils.keymaps").set({
+					vim.keymap.set(
 						"n",
 						"q",
 						smart_close,
-						{ buffer = 0, nowait = true },
-					})
+						{ buffer = 0, nowait = true, silent = true }
+					)
 				end
 			end,
 		},
@@ -139,11 +136,6 @@ local augroups = {
 		},
 	},
 	Utilities = {
-		{
-			event = { "BufWritePre", "FileWritePre" },
-			pattern = { "*" },
-			command = "silent! call mkdir(expand('<afile>:p:h'), 'p')",
-		},
 		{
 			-- Save file when leaving insert mode
 			event = { "InsertLeave", "BufLeave" },
@@ -181,7 +173,7 @@ local augroups = {
 				vim.wo.numberwidth = 3 -- Set minimum number column width
 				vim.wo.signcolumn = "yes:1" -- Always show sign column to prevent reflo
 				-- Combine line number and sign column visually
-				opt.statuscolumn="%l%s"
+				vim.opt.statuscolumn = "%l%s"
 			end,
 		},
 		{
@@ -205,33 +197,31 @@ local augroups = {
 	},
 
 	-- For general other stuff
-	AruVimAuRc = {
-		{
-			event = { "TextYankPost" },
-			pattern = { "*" },
-			command = function()
-				vim.hl.on_yank({
-					on_visual = false,
-					higroup = "IncSearch",
-					timeout = 100,
-				})
-			end,
-		},
-	},
+	-- AruVimAuRc = {
+	-- 	{
+	-- 		event = { "TextYankPost" },
+	-- 		pattern = { "*" },
+	-- 		command = function()
+	-- 			vim.hl.on_yank({
+	-- 				on_visual = false,
+	-- 				higroup = "IncSearch",
+	-- 				timeout = 100,
+	-- 			})
+	-- 		end,
+	-- 	},
+	-- },
 }
 
 -----------------------------------------------------------------------------//
 -- Utils
 -----------------------------------------------------------------------------//
 
-function Autogrps.setup()
-	aru.log:debug("Setting up custom augroups")
+log:debug("Setting up custom augroups")
 
-	for grp, cmds in pairs(augroups) do
-		aru.log:debug(fmt("Creating commands for group %s", grp))
+for grp, cmds in pairs(augroups) do
+	log:debug(fmt("Creating commands for group %s", grp))
 
-		helper.create_augroup(grp, cmds)
-	end
+	helper.create_augroup(grp, cmds)
 end
 
-return Autogrps
+return {}
