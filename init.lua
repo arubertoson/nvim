@@ -4,51 +4,49 @@
 ------------------------------------------------------------------------
 
 vim.g.mapleader = ";"
--- vim.g.maplocalleader = ";"
+vim.g.maplocalleader = ","
 
-function R(name)
-	-- Some modules that needs to be initialized might not have a setup,
-	-- requiring those will be enough and we can safely return afterwards.
-	local mod = require(name)
-	if type(mod) ~= "boolean" and type(mod["setup"]) == "function" then
-		return require(name).setup()
-	end
+------------------------------------------------------------------------
+-- Lazy Setup
+------------------------------------------------------------------------
+
+local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+if not vim.uv.fs_stat(lazypath) then
+	vim.fn.system({
+		"git",
+		"clone",
+		"--filter=blob:none",
+		"https://github.com/folke/lazy.nvim.git",
+		"--branch=stable",
+		lazypath,
+	})
 end
 
-------------------------------------------------------------------------
--- Setup Headless
-------------------------------------------------------------------------
+-- Add lazy to the `runtimepath`, this allows us to `require` it.
+---@diagnostic disable-next-line: undefined-field
+vim.opt.rtp:prepend(lazypath)
 
--- Headless indicates that we are only performing install setup of necessary
--- plugins.
-local headless = os.getenv("ARU_HEADLESS_INSTALL")
-if headless ~= nil then
-	require("aru.config.plugin").headless()
-
-	return
-end
 
 ------------------------------------------------------------------------
--- Setup Configuration Modules
+-- Init
 ------------------------------------------------------------------------
 
 local fmt = string.format
-local aru = require("aru")
+-- local aru = require("aru.helper")
 
-aru.log:info("initializing neovim aru configuration")
+require("lazy").setup({
+	{ import = "aru-custom" },
+	-- { import = "aru-viewport" },
+})
 
-local modules
-if vim.g.vscode then
-	aru.log:info("vscode")
-	modules = aru.vscode
-else
-	modules = aru.modules
-end
+-- find files
+-- git files
+-- help tags
+-- grep files
+-- fuzzy grep current file
+-- grep string
+-- config files
+-- symbols in file
+-- symbols in workspace
 
-for _, mod in ipairs(modules) do
-	aru.log:debug(fmt("loading module: %s", mod))
-
-	R(fmt("aru.config.%s", mod))
-end
-
-aru.log:info("Done setting up aru configuration")
+-- aru.log:info("Done setting up aru configuration")

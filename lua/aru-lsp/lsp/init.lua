@@ -1,8 +1,27 @@
 return {
 	{
 		"neovim/nvim-lspconfig",
-		lazy = true,
+		lazy = false,
 		config = function()
+			-- Configure diagnostic appearance
+			vim.diagnostic.config({
+				virtual_text = false ,
+				  signs = {
+				    text = {
+				      [vim.diagnostic.severity.ERROR] = '',
+				      [vim.diagnostic.severity.WARN] = '',
+				      [vim.diagnostic.severity.INFO] = '',
+				      [vim.diagnostic.severity.HINT] = '',
+				    },
+				    numhl = {
+				      [vim.diagnostic.severity.WARN] = 'WarningMsg',
+				      [vim.diagnostic.severity.ERROR] = 'ErrorMsg',
+				      [vim.diagnostic.severity.INFO] = 'DiagnosticInfo',
+				      [vim.diagnostic.severity.HINT] = 'DiagnosticHint',
+				    },
+				  },
+			})
+
 			-- This is where you enable features that only work
 			-- if there is a language server active in the file
 			vim.api.nvim_create_autocmd("LspAttach", {
@@ -149,18 +168,11 @@ return {
 		"folke/lazydev.nvim",
 		ft = "lua",
 		config = true,
-		opts = { ---@type lazydev.Config
-			runtime = vim.env.VIMRUNTIME --[[@as string]],
-			integrations = {
-				lspconfig = true,
-				cmp = true,
-				coq = false,
+		opts = {
+			runtime = vim.env.VIMRUNTIME,
+			library = {
+				{ path = "${3rd}/luv/library", words = { "vim%.uv" } },
 			},
-			-- library = {
-			-- 	{ path = "${3rd}/luv/library", words = { "vim%.uv" } },
-			-- 	{ path = lazypath .. "lazy.nvim", words = { "LazyPlugin", "LazyPluginSpec" } },
-			-- 	{ path = lazypath .. "lazydev.nvim", words = { "lazydev" } },
-			-- },
 			enabled = true,
 			debug = false,
 		},

@@ -6,6 +6,10 @@ return {
 		branch = "main",
 		build = ":TSUpdate",
 		config = function(opts)
+			-- Set fold options related to treesitter
+			vim.opt.foldmethod = "expr"
+			vim.opt.foldexpr = "v:lua.require'aru.utils'.foldexpr()"
+
 			require("nvim-treesitter").setup({
 				ensure_installed = {
 					"core", "stable"

@@ -30,12 +30,24 @@ function M.open(cmd, opts)
 			end
 		end, { buffer = buf })
 
-		vim.api.nvim_create_autocmd("BufEnter", {
-			buffer = buf,
-			callback = function()
-				vim.cmd.startinsert()
+		{
+			event = { "TermOpen", "BufWinEnter", "BufEnter" },
+			pattern = { "term://*" },
+			command = function()
+				vim.cmd("startinsert")
 			end,
-		})
+		},
+		{
+			event = { "TermOpen" },
+			pattern = { "*" },
+			command = function()
+				vim.wo.list = false
+				vim.wo.number = false
+				vim.wo.relativenumber = false
+				vim.wo.signcolumn = "no"
+				vim.wo.cursorline = false
+			end,
+		},
 	end
 
 	return terminals[termkey]

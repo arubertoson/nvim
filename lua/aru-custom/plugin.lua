@@ -28,6 +28,7 @@ function M.setup()
 		{ import = "aru.plugins.render" },
 		{ import = "aru.plugins.navigation" },
 		{ import = "aru.plugins.viewport" },
+		{ import = "aru.plugins.lsp" },
 		-- { import = "aru.plugins.lang" },
 		-- { import = "aru.plugins.utils" },
 	})

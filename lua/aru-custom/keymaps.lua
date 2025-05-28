@@ -1,6 +1,11 @@
 local M = {}
 
+-- local utils = require("aru.utils") -- Retain if other keymaps in `collection` use it.
+-- For the terminal keymaps, `utils` is still needed.
+-- If `utils.rootfs()` is from `require("aru.utils")`, then it's needed.
+-- Let's assume `require("aru.utils")` is still needed for the functions called within the keymaps.
 local utils = require("aru.utils")
+
 
 local collection = {
 	{
@@ -165,7 +170,14 @@ local collection = {
 }
 
 function M.setup()
-	require("aru.utils.keymaps").set_maps(collection)
+	for _, keymap_spec in ipairs(collection) do
+		local modes = keymap_spec[1]
+		local lhs = keymap_spec[2]
+		local rhs = keymap_spec[3]
+		local opts = keymap_spec[4] or {}
+
+		vim.keymap.set(modes, lhs, rhs, opts)
+	end
 end
 
 return M
