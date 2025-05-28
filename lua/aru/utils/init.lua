@@ -152,7 +152,6 @@ function M.foldexpr()
 	end
 
 	local ok = pcall(vim.treesitter.get_parser, buf)
-
 	if ok then
 		return vim.treesitter.foldexpr()
 	end

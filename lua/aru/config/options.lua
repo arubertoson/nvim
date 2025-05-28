@@ -18,6 +18,32 @@ opt.fillchars = {
 	diff = "╱",
 	eob = " ",
 }
+
+-- Sign Column
+opt.cmdheight = 0 -- Set command line height to two lines
+opt.number = true -- Print line number
+opt.relativenumber = false -- Relative line numbers
+opt.numberwidth=3
+opt.signcolumn="yes:1"
+opt.statuscolumn="%l%s"
+vim.diagnostic.config({
+	virtual_text = false ,
+	  signs = {
+	    text = {
+	      [vim.diagnostic.severity.ERROR] = '',
+	      [vim.diagnostic.severity.WARN] = '',
+	      [vim.diagnostic.severity.INFO] = '',
+	      [vim.diagnostic.severity.HINT] = '',
+	    },
+	    numhl = {
+	      [vim.diagnostic.severity.WARN] = 'WarningMsg',
+	      [vim.diagnostic.severity.ERROR] = 'ErrorMsg',
+	      [vim.diagnostic.severity.INFO] = 'DiagnosticInfo',
+	      [vim.diagnostic.severity.HINT] = 'DiagnosticHint',
+	    },
+	  },
+})
+
 opt.foldlevel = 99
 -- opt.formatexpr = "v:lua.require'aru.utils'.formatexpr()"
 -- opt.formatoptions = "jcrqlnt" -- tcqj
@@ -28,8 +54,6 @@ opt.ignorecase = true -- Ignore case
 opt.inccommand = "split" -- preview incremental substitute
 opt.laststatus = 3 -- global statusline
 opt.mouse = "a" -- Enable mouse mode
-opt.number = true -- Print line number
-opt.relativenumber = false -- Relative line numbers
 opt.pumblend = 10 -- Popup blend
 opt.pumheight = 10 -- Maximum number of entries in a popup
 opt.scrolloff = 4 -- Lines of context
@@ -37,7 +61,7 @@ opt.sessionoptions = { "buffers", "curdir", "tabpages", "winsize", "help", "glob
 opt.shortmess:append({ W = true, I = true, c = true, C = true })
 opt.showmode = false -- Dont show mode since we have a statusline
 opt.sidescrolloff = 8 -- Columns of context
-opt.signcolumn = "yes" -- Always show the signcolumn, otherwise it would shift the text each time
+-- opt.signcolumn = "yes:1" -- Always show the signcolumn, otherwise it would shift the text each time
 opt.smartcase = true -- Don't ignore case with capitals
 opt.smartindent = true -- Insert indents automatically
 opt.spelllang = { "en" }
@@ -53,12 +77,10 @@ opt.wildmode = "longest:full,full" -- Command-line completion mode
 opt.winminwidth = 5 -- Minimum window width
 opt.wrap = false -- Disable line wrap
 
-if vim.fn.has("nvim-0.10") == 1 then
-	opt.smoothscroll = true
-	opt.foldexpr = "v:lua.require'aru.utils'.foldexpr()"
-	opt.foldmethod = "expr"
-	opt.foldtext = ""
-end
+opt.smoothscroll = true
+opt.foldexpr = "v:lua.require'aru.utils'.foldexpr()"
+opt.foldmethod = "expr"
+opt.foldtext = ""
 
 -----------------------------------------------------------------------------//
 -- Window splitting and buffers {{{1
@@ -71,7 +93,6 @@ opt.linebreak = true -- lines wrap at words rather than random characters
 opt.synmaxcol = 1024 -- don't syntax highlight long lines
 
 -- NOTE: This seems to break keeping the visual selection, among other things.
--- opt.cmdheight = 0 -- Set command line height to two lines
 -- opt.list = true -- invisible chars
 -- opt.listchars = {
 -- 	eol = nil,

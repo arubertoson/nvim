@@ -26,8 +26,8 @@ function M.setup()
 	require("lazy").setup({
 		{ import = "aru.plugins" },
 		{ import = "aru.plugins.render" },
-		-- { import = "aru.plugins.view" },
-		-- { import = "aru.plugins.navigation" },
+		{ import = "aru.plugins.navigation" },
+		{ import = "aru.plugins.viewport" },
 		-- { import = "aru.plugins.lang" },
 		-- { import = "aru.plugins.utils" },
 	})

@@ -6,96 +6,76 @@ return {
 	{ "Tastyep/structlog.nvim", lazy = true },
 
 	{
-		"saghen/blink.cmp",
-		-- optional: provides snippets for the snippet source
-		dependencies = { "rafamadriz/friendly-snippets" },
-
-		-- use a release tag to download pre-built binaries
-		version = "1.*",
-		-- AND/OR build from source, requires nightly: https://rust-lang.github.io/rustup/concepts/channels.html#working-with-nightly-rust
-		-- build = 'cargo build --release',
-		-- If you use nix, you can build from source using latest nightly rust with:
-		-- build = 'nix run .#build-plugin',
-
-		---@module 'blink.cmp'
-		---@type blink.cmp.Config
-		opts = {
-			-- 'default' (recommended) for mappings similar to built-in completions (C-y to accept)
-			-- 'super-tab' for mappings similar to vscode (tab to accept)
-			-- 'enter' for enter to accept
-			-- 'none' for no mappings
-			--
-			-- All presets have the following mappings:
-			-- C-space: Open menu or open docs if already open
-			-- C-n/C-p or Up/Down: Select next/previous item
-			-- C-e: Hide menu
-			-- C-k: Toggle signature help (if signature.enabled = true)
-			--
-			-- See :h blink-cmp-config-keymap for defining your own keymap
-			keymap = { preset = "default" },
-
-			appearance = {
-				-- 'mono' (default) for 'Nerd Font Mono' or 'normal' for 'Nerd Font'
-				-- Adjusts spacing to ensure icons are aligned
-				nerd_font_variant = "mono",
-			},
-
-			-- (Default) Only show the documentation popup when manually triggered
-			completion = { documentation = { auto_show = false } },
-
-			-- Default list of enabled providers defined so that you can extend it
-			-- elsewhere in your config, without redefining it, due to `opts_extend`
-			sources = {
-				default = { "lsp", "path", "snippets", "buffer" },
-			},
-
-			-- (Default) Rust fuzzy matcher for typo resistance and significantly better performance
-			-- You may use a lua implementation instead by using `implementation = "lua"` or fallback to the lua implementation,
-			-- when the Rust fuzzy matcher is not available, by using `implementation = "prefer_rust"`
-			--
-			-- See the fuzzy documentation for more information
-			fuzzy = { implementation = "prefer_rust_with_warning" },
-		},
-		opts_extend = { "sources.default" },
+	  "mozanunal/sllm.nvim",
+	  dependencies = {
+	    "echasnovski/mini.notify",
+	    "echasnovski/mini.pick",
+	  },
+	  config = function()
+	    require("sllm").setup({
+	      -- your custom options here
+	    })
+	  end,
 	},
-	-- {
-	--
-	-- 	"williamboman/mason.nvim",
-	-- 	event = "VeryLazy",
-	-- 	keys = { { "<leader>cm", "<cmd>Mason<cr>", desc = "Mason" } },
-	-- 	build = ":MasonUpdate",
-	-- 	opts_extend = { "ensure_installed" },
-	-- 	opts = {
-	-- 		ensure_installed = {
-	-- 			"stylua",
-	-- 			"shfmt",
-	-- 		},
-	-- 	},
-	-- 	config = function(_, opts)
-	-- 		require("mason").setup(opts)
-	--
-	-- 		local mr = require("mason-registry")
-	-- 		mr:on("package:install:success", function()
-	-- 			vim.defer_fn(function()
-	-- 				-- trigger FileType event to possibly load this newly installed LSP server
-	-- 				require("lazy.core.handler.event").trigger({
-	-- 					event = "FileType",
-	-- 					buf = vim.api.nvim_get_current_buf(),
-	-- 				})
-	-- 			end, 100)
-	-- 		end)
-	--
-	-- 		mr.refresh(function()
-	-- 			for _, tool in ipairs(opts.ensure_installed) do
-	-- 				local p = mr.get_package(tool)
-	-- 				if not p:is_installed() then
-	-- 					p:install()
-	-- 				end
-	-- 			end
-	-- 		end)
-	-- 	end,
-	-- },
-	--
+	{
+	  "yetone/avante.nvim",
+	  event = "VeryLazy",
+	  version = false, -- Never set this value to "*"! Never!
+	  opts = {
+	    -- add any opts here
+	    -- for example
+	    provider = "openai",
+	    openai = {
+	      endpoint = "https://api.openai.com/v1",
+	      model = "gpt-4o", -- your desired model (or use gpt-4o, etc.)
+	      timeout = 30000, -- Timeout in milliseconds, increase this for reasoning models
+	      temperature = 0,
+	      max_completion_tokens = 8192, -- Increase this to include reasoning tokens (for reasoning models)
+	      --reasoning_effort = "medium", -- low|medium|high, only used for reasoning models
+	    },
+	  },
+	  -- if you want to build from source then do `make BUILD_FROM_SOURCE=true`
+	  build = "make",
+	  -- build = "powershell -ExecutionPolicy Bypass -File Build.ps1 -BuildFromSource false" -- for windows
+	  dependencies = {
+	    "nvim-treesitter/nvim-treesitter",
+	    "stevearc/dressing.nvim",
+	    "nvim-lua/plenary.nvim",
+	    "MunifTanjim/nui.nvim",
+	    --- The below dependencies are optional,
+	    "echasnovski/mini.pick", -- for file_selector provider mini.pick
+	    "nvim-telescope/telescope.nvim", -- for file_selector provider telescope
+	    "hrsh7th/nvim-cmp", -- autocompletion for avante commands and mentions
+	    "ibhagwan/fzf-lua", -- for file_selector provider fzf
+	    "nvim-tree/nvim-web-devicons", -- or echasnovski/mini.icons
+	    "zbirenbaum/copilot.lua", -- for providers='copilot'
+	    {
+	      -- support for image pasting
+	      "HakonHarnes/img-clip.nvim",
+	      event = "VeryLazy",
+	      opts = {
+		-- recommended settings
+		default = {
+		  embed_image_as_base64 = false,
+		  prompt_for_file_name = false,
+		  drag_and_drop = {
+		    insert_mode = true,
+		  },
+		  -- required for Windows users
+		  use_absolute_path = true,
+		},
+	      },
+	    },
+	    {
+	      -- Make sure to set this up properly if you have lazy=true
+	      'MeanderingProgrammer/render-markdown.nvim',
+	      opts = {
+		file_types = { "markdown", "Avante" },
+	      },
+	      ft = { "markdown", "Avante" },
+	    },
+	  },
+	},
 	{
 		"b0o/SchemaStore.nvim",
 		lazy = true,
@@ -113,7 +93,15 @@ return {
 			bigfile = { enabled = true },
 			dim = { enabled = true },
 			zen = { enabled = true },
-			input = { enabled = true },
+			input = { 
+			  layout = {
+			    cycle = true,
+			    --- Use the default layout or vertical if the window is too narrow
+			    preset = function()
+			      return vim.o.columns >= 79 and "default" or "vertical"
+			    end,
+			  },
+			},
 			picker = { enabled = true },
 			notifier = { enabled = true, timeout = 3000 },
 			terminal = { enabled = true },
@@ -143,25 +131,33 @@ return {
 		keys = {
 			-- Top Pickers & Explorer
 			{
-				"<leader><space>",
+				"<leader>ff",
 				function()
 					Snacks.picker.smart()
 				end,
 				desc = "Smart Find Files",
 			},
 			{
-				"<leader>,",
-				function()
-					Snacks.picker.buffers()
-				end,
-				desc = "Buffers",
-			},
-			{
-				"<leader>/",
+				"<leader>fs",
 				function()
 					Snacks.picker.grep()
 				end,
 				desc = "Grep",
+			},
+			{
+				"<leader>fw",
+				function()
+					Snacks.picker.grep_word()
+				end,
+				desc = "Visual selection or word",
+				mode = { "n", "x" },
+			},
+			{
+				"<leader>fl",
+				function()
+					Snacks.picker.lines()
+				end,
+				desc = "Buffer Lines",
 			},
 			{
 				"<leader>:",
@@ -171,33 +167,11 @@ return {
 				desc = "Command History",
 			},
 			{
-				"<leader>n",
-				function()
-					Snacks.picker.notifications()
-				end,
-				desc = "Notification History",
-			},
-			-- find
-			{
-				"<leader>fb",
-				function()
-					Snacks.picker.buffers()
-				end,
-				desc = "Buffers",
-			},
-			{
 				"<leader>fc",
 				function()
 					Snacks.picker.files({ cwd = vim.fn.stdpath("config") })
 				end,
 				desc = "Find Config File",
-			},
-			{
-				"<leader>ff",
-				function()
-					Snacks.picker.files()
-				end,
-				desc = "Find Files",
 			},
 			{
 				"<leader>fg",
@@ -207,142 +181,13 @@ return {
 				desc = "Find Git Files",
 			},
 			{
-				"<leader>fp",
-				function()
-					Snacks.picker.projects()
-				end,
-				desc = "Projects",
-			},
-			{
-				"<leader>fr",
-				function()
-					Snacks.picker.recent()
-				end,
-				desc = "Recent",
-			},
-			-- git
-			{
-				"<leader>gb",
-				function()
-					Snacks.picker.git_branches()
-				end,
-				desc = "Git Branches",
-			},
-			{
-				"<leader>gl",
-				function()
-					Snacks.picker.git_log()
-				end,
-				desc = "Git Log",
-			},
-			{
-				"<leader>gL",
-				function()
-					Snacks.picker.git_log_line()
-				end,
-				desc = "Git Log Line",
-			},
-			{
-				"<leader>gs",
-				function()
-					Snacks.picker.git_status()
-				end,
-				desc = "Git Status",
-			},
-			{
-				"<leader>gS",
-				function()
-					Snacks.picker.git_stash()
-				end,
-				desc = "Git Stash",
-			},
-			{
 				"<leader>gd",
 				function()
 					Snacks.picker.git_diff()
 				end,
 				desc = "Git Diff (Hunks)",
 			},
-			{
-				"<leader>gf",
-				function()
-					Snacks.picker.git_log_file()
-				end,
-				desc = "Git Log File",
-			},
-			-- Grep
-			{
-				"<leader>sb",
-				function()
-					Snacks.picker.lines()
-				end,
-				desc = "Buffer Lines",
-			},
-			{
-				"<leader>sB",
-				function()
-					Snacks.picker.grep_buffers()
-				end,
-				desc = "Grep Open Buffers",
-			},
-			{
-				"<leader>sg",
-				function()
-					Snacks.picker.grep()
-				end,
-				desc = "Grep",
-			},
-			{
-				"<leader>sw",
-				function()
-					Snacks.picker.grep_word()
-				end,
-				desc = "Visual selection or word",
-				mode = { "n", "x" },
-			},
 			-- search
-			{
-				'<leader>s"',
-				function()
-					Snacks.picker.registers()
-				end,
-				desc = "Registers",
-			},
-			{
-				"<leader>s/",
-				function()
-					Snacks.picker.search_history()
-				end,
-				desc = "Search History",
-			},
-			{
-				"<leader>sa",
-				function()
-					Snacks.picker.autocmds()
-				end,
-				desc = "Autocmds",
-			},
-			{
-				"<leader>sb",
-				function()
-					Snacks.picker.lines()
-				end,
-				desc = "Buffer Lines",
-			},
-			{
-				"<leader>sc",
-				function()
-					Snacks.picker.command_history()
-				end,
-				desc = "Command History",
-			},
-			{
-				"<leader>sC",
-				function()
-					Snacks.picker.commands()
-				end,
-				desc = "Commands",
-			},
 			{
 				"<leader>sd",
 				function()
@@ -363,20 +208,6 @@ return {
 					Snacks.picker.help()
 				end,
 				desc = "Help Pages",
-			},
-			{
-				"<leader>sH",
-				function()
-					Snacks.picker.highlights()
-				end,
-				desc = "Highlights",
-			},
-			{
-				"<leader>si",
-				function()
-					Snacks.picker.icons()
-				end,
-				desc = "Icons",
 			},
 			{
 				"<leader>sj",
@@ -426,27 +257,6 @@ return {
 					Snacks.picker.qflist()
 				end,
 				desc = "Quickfix List",
-			},
-			{
-				"<leader>sR",
-				function()
-					Snacks.picker.resume()
-				end,
-				desc = "Resume",
-			},
-			{
-				"<leader>su",
-				function()
-					Snacks.picker.undo()
-				end,
-				desc = "Undo History",
-			},
-			{
-				"<leader>uC",
-				function()
-					Snacks.picker.colorschemes()
-				end,
-				desc = "Colorschemes",
 			},
 			-- LSP
 			{
@@ -500,18 +310,11 @@ return {
 				desc = "LSP Workspace Symbols",
 			},
 			{
-				"<c-/>",
+				"<c-n>",
 				function()
 					Snacks.terminal()
 				end,
 				desc = "Toggle Terminal",
-			},
-			{
-				"<c-_>",
-				function()
-					Snacks.terminal()
-				end,
-				desc = "which_key_ignore",
 			},
 			{
 				"]]",
@@ -528,14 +331,6 @@ return {
 				end,
 				desc = "Prev Reference",
 				mode = { "n", "t" },
-			},
-			{
-				"<leader>gB",
-				function()
-					Snacks.gitbrowse()
-				end,
-				desc = "Git Browse",
-				mode = { "n", "v" },
 			},
 			{
 				"<leader>gg",

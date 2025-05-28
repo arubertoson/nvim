@@ -56,7 +56,9 @@ return {
 		"folke/todo-comments.nvim",
 		cmd = { "TodoTrouble", "TodoTelescope" },
 		event = { "BufWritePre", "BufReadPost", "InsertLeave" },
-		opts = {},
+		opts = {
+		signs = false
+		},
 		-- stylua: ignore
 		keys = {
 			{ "]t", function() require("todo-comments").jump_next() end, desc = "Next Todo Comment" },
