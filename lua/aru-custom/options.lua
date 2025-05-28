@@ -20,6 +20,8 @@ opt.undolevels = 10000
 -- Sync with system clipboard for copy/paste between Neovim and other applications
 opt.clipboard = "unnamedplus"
 
+vim.opt.foldcolumn = "1"
+
 -----------------------------------------------------------------------------//
 -- Appearance & UI
 -----------------------------------------------------------------------------//
@@ -31,15 +33,16 @@ opt.cursorline = true
 opt.fillchars = {
 	foldopen = "",
 	foldclose = "",
-	fold = "│", -- Use vertical line for fold column
-	foldsep = "│", -- Use vertical line for fold separator
+	fold = " ", -- Use vertical line for fold column
+	foldsep = " ", -- Use vertical line for fold separator
 	diff = "╱",
 	eob = " ",
 }
 -- Set command line height to zero to hide it when not in use
 opt.cmdheight = 0
+opt.wrap = false -- Commented out (reverts to default wrap=true)
+opt.virtualedit = "block" -- Removed (not using virtual edit)
 -- opt.shortmess:append({ W = true, I = true, c = true, C = true }) -- Commented out (unsure if needed)
--- opt.wrap = false -- Commented out (reverts to default wrap=true)
 
 -----------------------------------------------------------------------------//
 -- Navigation & Scrolling
@@ -147,7 +150,6 @@ vim.g.loaded_node_provider = 0
 -- opt.showmode = false -- Dont show mode since we have a statusline -- Moved to lua/aru/viewport/statusline.lua
 -- opt.signcolumn = "yes:1" -- Removed (managed dynamically by autocmds)
 -- opt.termguicolors = true -- True color support -- Already in lua/aru/config/theme.lua
--- opt.virtualedit = "block" -- Removed (not using virtual edit)
 -- opt.wildmode = "longest:full,full" -- Removed (not relevant)
 -- opt.winminwidth = 5 -- Removed (no minimum window width needed)
 -- opt.smoothscroll = true -- Removed (not useful)
@@ -167,3 +169,4 @@ vim.g.loaded_node_provider = 0
 -- 	-- space = '•', -- BULLET (U+2022, UTF-8: E2 80 A2)
 -- }
 
+return {}

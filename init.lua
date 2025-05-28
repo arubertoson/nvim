@@ -26,7 +26,6 @@ end
 ---@diagnostic disable-next-line: undefined-field
 vim.opt.rtp:prepend(lazypath)
 
-
 ------------------------------------------------------------------------
 -- Init
 ------------------------------------------------------------------------
@@ -39,8 +38,19 @@ log:info("Trying to setup env.")
 
 require("lazy").setup({
 	{ import = "aru-custom" },
-	-- { import = "aru-viewport" },
+	{ import = "aru-editor" },
+	{ import = "aru-viewport" },
+	{ import = "aru-lsp" },
 })
+
+-- Setup the theme explicitly
+-- The theme.setup() function itself defers actual colorscheme application to VimEnter
+local theme_ok, theme_mod = pcall(require, "aru.theme")
+if theme_ok then
+	theme_mod.setup()
+else
+	log:error("Failed to load aru.theme: " .. tostring(theme_mod))
+end
 
 -- find files
 -- git files
@@ -52,4 +62,6 @@ require("lazy").setup({
 -- symbols in file
 -- symbols in workspace
 
-log:info("Done setting up aru configuration")
+vim.schedule(function()
+	log:info("Done setting up aru configuration")
+end)

@@ -39,23 +39,20 @@ local function parse_env_file(filepath)
   return env
 end
 
-return {
-  parse = parse_env_file,
-  parse_plugin_env = function()
-    local str = debug.getinfo(2, "S").source:sub(2)
-    local root = vim.fs.root(str, { ".env" })
-    if root then
-      return parse_env_file(vim.fs.joinpath(root, ".env"))
+local function load_env_vars(file_path, force)
+  local parsed = parse_env_file(file_path)
+  for k, v in pairs(parsed) do
+    if force or not vim.env[k] then
+      vim.env[k] = v
     end
+  end
+end
 
-    return {}
-  end,
-  eval = function(file, force)
-    local parsed = parse_env_file(file)
-    for k, v in pairs(parsed) do
-      if force or not vim.env[k] then
-        vim.env[k] = v
-      end
-    end
-  end,
-}
+-- Automatically load environment variables from the config .env file
+local config_env_path = vim.fs.joinpath(vim.fn.stdpath "config", ".env")
+if vim.fn.filereadable(config_env_path) == 1 then
+  load_env_vars(config_env_path)
+end
+
+return {}
+

@@ -1,3 +1,7 @@
+
+local log = require("aru.logging").get_logger("NoNeckPain", "INFO")
+local helper = require("aru.helper")
+
 local function layout_iter(col, winids)
 	local type_, value = unpack(col)
 	if type_ == "leaf" then
@@ -53,6 +57,7 @@ local function golden_ratio()
 	return math.floor(vim.o.columns / 1.418)
 end
 
+
 return {
 	{
 		"shortcuts/no-neck-pain.nvim",
@@ -71,16 +76,13 @@ return {
 				},
 			},
 		},
-		config = function(opts)
-			require("no-neck-pain").setup(opts.opts)
+		config = function(plugin_opts) -- Renamed to plugin_opts for clarity
+			require("no-neck-pain").setup(plugin_opts) -- Pass the plugin_opts directly
 
-			require("aru.utils.keymaps").set({
-				{ "n" },
-				"<leader>wo",
-				function()
-					local nnp = require("no-neck-pain")
+			vim.keymap.set("n", "<leader>wo", function()
+				local nnp = require("no-neck-pain")
 
-					-- We need to ensure that only one windows before firing the
+				-- We need to ensure that only one windows before firing the
 					-- toggle to ensure that we don't screw up other windows. It's
 					-- better to start from a clean slate afterwards.
 					close_other_windows()
@@ -97,21 +99,23 @@ return {
 				end,
 				{
 					desc = "NoNeckPain Toggle",
-				},
-			})
+					silent = true, -- Added silent for good practice
+				}
+			)
 
 			-- To keep the window nice and centered in the correct ratio we add a little
 			-- sweet autocmd to operate on the window resize.
-			require("aru.utils").create_augroup("no-neck-pain-resize", {
+			helper.create_augroup("NoNeckPainResize", { -- Changed name to PascalCase for consistency if desired
 				{
 					event = { "VimResized" },
 					command = function()
 						local nnp = require("no-neck-pain")
 
 						if nnp.state == nil then
+							log:debug("NoNeckPain state is nil, not resizing.")
 							return
 						end
-
+						log:debug("VimResized: Resizing NoNeckPain.")
 						nnp.resize(golden_ratio())
 					end,
 				},

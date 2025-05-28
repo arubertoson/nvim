@@ -1,16 +1,11 @@
-local M = {}
-
--- local utils = require("aru.utils") -- Retain if other keymaps in `collection` use it.
--- For the terminal keymaps, `utils` is still needed.
--- If `utils.rootfs()` is from `require("aru.utils")`, then it's needed.
--- Let's assume `require("aru.utils")` is still needed for the functions called within the keymaps.
 local helper = require("aru.helper")
-
+local log = require("aru.logging").get_logger("AruKeymaps", "INFO") -- Explicitly setting logger name and level
+local fmt = string.format
 
 local collection = {
 	{
 		{ "n" },
-		"<localleader>Q",
+		"<localleader>q",
 		":<C-u>qa<CR>",
 		{
 			desc = "exit neovim",
@@ -64,40 +59,6 @@ local collection = {
 		{ expr = true },
 	},
 
-	-- Move selected lines
-	{ { "n" }, "<A-h>", "<<<Esc>" },
-	{ { "n" }, "<A-l>", ">>><Esc>" },
-	{
-		{ "n" },
-		"<A-j>",
-		function()
-			if vim.opt.diff:get() then
-				vim.cmd([[normal! ]c]])
-			else
-				vim.cmd([[m .+1<CR>==]])
-			end
-		end,
-		{ silent = true },
-	},
-
-	{
-		{ "n" },
-		"<A-k>",
-		function()
-			if vim.opt.diff:get() then
-				vim.cmd([[normal! ]c]])
-			else
-				vim.cmd([[m .-2<CR>==]])
-			end
-		end,
-		{ silent = true },
-	},
-
-	{ { "x" }, "<A-h>", "<'[V']" },
-	{ { "x" }, "<A-l>", ">'[V']" },
-	{ { "x" }, "<A-j>", ":move'>+1<CR>gv", { silent = true } },
-	{ { "x" }, "<A-k>", ":move-2<CR>gv", { silent = true } },
-
 	-- Treat ctrl+s as normal save command
 	{ { "i" }, "<C-s>", "<Esc>:write<CR>i" },
 	{ { "n" }, "<C-s>", ":write<CR>" },
@@ -119,9 +80,6 @@ local collection = {
 			desc = "Replace word under cursor",
 		},
 	},
-
-	-- Buffers
-	{ { "n" }, "<localleader><TAB>", ":<C-u>buffer#<CR>", { silent = true } },
 
 	-- Tabs
 	{ { "n" }, "<leader>ta", ":$tabnew<CR>", { desc = "tab: open new tab" } },
@@ -152,13 +110,6 @@ local collection = {
 			require("aru.terminal")(nil, {})
 		end,
 	},
-	{
-		{ "n" },
-		"<leader>ft",
-		function()
-			require("aru.terminal")(nil, { cwd = helper.rootfs() })
-		end,
-	},
 	{ { "t" }, "<esc><esc>", "<c-\\><c-n>" },
 	{ { "t" }, "<c-/", "<cmd>close<cr>" },
 
@@ -169,15 +120,14 @@ local collection = {
 	{ { "n" }, "q", "<Nop>" },
 }
 
-function M.setup()
-	for _, keymap_spec in ipairs(collection) do
-		local modes = keymap_spec[1]
-		local lhs = keymap_spec[2]
-		local rhs = keymap_spec[3]
-		local opts = keymap_spec[4] or {}
+for _, keymap_spec in ipairs(collection) do
+	local modes = keymap_spec[1]
+	local lhs = keymap_spec[2]
+	local rhs = keymap_spec[3]
+	local opts = keymap_spec[4] or {}
 
-		vim.keymap.set(modes, lhs, rhs, opts)
-	end
+	log:debug(fmt("Setting keymap: Modes: [%s], LHS: %s", table.concat(modes, ", "), lhs))
+	vim.keymap.set(modes, lhs, rhs, opts)
 end
 
-return M
+return {}
