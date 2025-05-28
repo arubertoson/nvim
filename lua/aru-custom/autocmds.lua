@@ -1,7 +1,7 @@
 local Autogrps = {}
 
 local aru = require("aru")
-local utils = require("aru.utils")
+local helper = require("aru.helper")
 
 local fn = vim.fn
 local api = vim.api
@@ -65,7 +65,7 @@ local augroups = {
 		{
 			event = { "CmdlineLeave", "CmdlineChanged" },
 			pattern = { ":" },
-			command = utils.clear_commandline(5000),
+			command = helper.clear_commandline(5000),
 		},
 	},
 	SmartClose = {
@@ -152,8 +152,8 @@ local augroups = {
 				local save_excluded = {}
 
 				local function can_save()
-					return utils.empty(vim.bo.buftype)
-						and not utils.empty(vim.bo.filetype)
+					return helper.empty(vim.bo.buftype)
+						and not helper.empty(vim.bo.filetype)
 						and vim.bo.modifiable
 						and not vim.tbl_contains(save_excluded, vim.bo.filetype)
 				end
@@ -230,7 +230,7 @@ function Autogrps.setup()
 	for grp, cmds in pairs(augroups) do
 		aru.log:debug(fmt("Creating commands for group %s", grp))
 
-		utils.create_augroup(grp, cmds)
+		helper.create_augroup(grp, cmds)
 	end
 end
 

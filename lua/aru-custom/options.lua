@@ -135,16 +135,16 @@ vim.g.loaded_node_provider = 0
 -----------------------------------------------------------------------------//
 -- Removed/Moved Options (for reference)
 -----------------------------------------------------------------------------//
--- opt.completeopt = "menu,menuone,noselect" -- Moved to lua/aru/plugins/utils/snippets.lua
--- opt.formatexpr = "v:lua.require'aru.utils'.formatexpr()" -- Handled by conform.nvim
+-- opt.completeopt = "menu,menuone,noselect" -- Moved to lua/aru/utils/snippets.lua
+-- opt.formatexpr = "v:lua.require'aru.helper'.foldexpr()" -- Handled by conform.nvim
 -- opt.grepformat = "%f:%l:%c:%m" -- Removed (using other search methods)
 -- opt.grepprg = "rg --vimgrep" -- Removed (using other search methods)
--- opt.laststatus = 3 -- global statusline -- Moved to lua/aru/plugins/viewport/statusline.lua
+-- opt.laststatus = 3 -- global statusline -- Moved to lua/aru/viewport/statusline.lua
 -- opt.mouse = "a" -- Removed (not using mouse)
 -- opt.pumblend = 10 -- Removed (using default opaque popup)
 -- opt.pumheight = 10 -- Removed (using default popup height)
 -- opt.sessionoptions = { "buffers", "curdir", "tabpages", "winsize", "help", "globals", "skiprtp", "folds" } -- Removed (managing sessions differently)
--- opt.showmode = false -- Dont show mode since we have a statusline -- Moved to lua/aru/plugins/viewport/statusline.lua
+-- opt.showmode = false -- Dont show mode since we have a statusline -- Moved to lua/aru/viewport/statusline.lua
 -- opt.signcolumn = "yes:1" -- Removed (managed dynamically by autocmds)
 -- opt.termguicolors = true -- True color support -- Already in lua/aru/config/theme.lua
 -- opt.virtualedit = "block" -- Removed (not using virtual edit)
@@ -154,7 +154,7 @@ vim.g.loaded_node_provider = 0
 -- opt.shada = { "'10", "<0", "s10", "h" } -- Removed (using default shada settings)
 -- o.switchbuf = "useopen,uselast" -- Removed (not useful)
 -- opt.linebreak = true -- Removed (using default linebreak=false when wrap=true)
--- vim.diagnostic.config -- Moved to lua/aru/plugins/lsp/init.lua
+-- vim.diagnostic.config -- Moved to lua/aru/lsp/init.lua
 
 -- NOTE: This seems to break keeping the visual selection, among other things.
 -- opt.list = true -- invisible chars
