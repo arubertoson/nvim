@@ -9,6 +9,8 @@ return {
 					"saadparwaiz1/cmp_luasnip",
 				},
 				opts = function(_, opts)
+					-- Set completeopt here as it's related to nvim-cmp behavior
+					vim.opt.completeopt = "menu,menuone,noselect"
 					-- Enable luasnip to handle snippet expansion for nvim-cmp
 					opts.snippet = {
 						expand = function(args)

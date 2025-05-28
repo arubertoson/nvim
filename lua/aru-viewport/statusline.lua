@@ -8,7 +8,9 @@ return {
 			local subscribe = require("el.subscribe")
 			local sections = require("el.sections")
 
+			-- Set statusline related options
 			vim.opt.laststatus = 3
+			vim.opt.showmode = false
 
 			require("el").setup({
 				generator = function()
