@@ -4,7 +4,7 @@ local M = {}
 -- For the terminal keymaps, `utils` is still needed.
 -- If `utils.rootfs()` is from `require("aru.utils")`, then it's needed.
 -- Let's assume `require("aru.utils")` is still needed for the functions called within the keymaps.
-local utils = require("aru.utils")
+local helper = require("aru.helper")
 
 
 local collection = {
@@ -149,14 +149,14 @@ local collection = {
 		{ "n" },
 		"<leader>ft",
 		function()
-			require("aru.utils").terminal(nil, {})
+			require("aru.terminal")(nil, {})
 		end,
 	},
 	{
 		{ "n" },
 		"<leader>ft",
 		function()
-			require("aru.utils").terminal(nil, { cwd = utils.rootfs() })
+			require("aru.terminal")(nil, { cwd = helper.rootfs() })
 		end,
 	},
 	{ { "t" }, "<esc><esc>", "<c-\\><c-n>" },

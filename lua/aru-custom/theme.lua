@@ -1,7 +1,7 @@
 local theme = {}
 
 local aru = require("aru")
-local utils = require("aru.utils")
+local helper = require("aru.helper")
 
 local fmt = string.format
 local cache = fmt("%s/nvim-theme", os.getenv("XDG_CACHE_HOME"))
@@ -47,7 +47,7 @@ end
 function theme.setup()
 	-- Make sure that we regen the user highlights after we update
 	-- a theme
-	utils.create_augroup("UserColorTheme", {
+	helper.create_augroup("UserColorTheme", {
 		{
 			event = { "ColorScheme" },
 			command = function()

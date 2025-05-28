@@ -32,7 +32,10 @@ vim.opt.rtp:prepend(lazypath)
 ------------------------------------------------------------------------
 
 local fmt = string.format
--- local aru = require("aru.helper")
+local logging_module = require("aru.logging")
+local log = logging_module.get_logger("INFO") -- Or "DEBUG", "WARN", "ERROR" as needed
+
+log:info("Trying to setup env.")
 
 require("lazy").setup({
 	{ import = "aru-custom" },
@@ -49,4 +52,4 @@ require("lazy").setup({
 -- symbols in file
 -- symbols in workspace
 
--- aru.log:info("Done setting up aru configuration")
+log:info("Done setting up aru configuration")
