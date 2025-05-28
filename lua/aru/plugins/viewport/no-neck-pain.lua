@@ -48,7 +48,9 @@ end
 local function golden_ratio()
 	-- We check the current width of the existing window and
 	-- overwrite the no-neck-pain config
-	return math.floor(vim.o.columns / 1.618)
+	-- 
+	-- sort of golden ratio 1.618
+	return math.floor(vim.o.columns / 1.418)
 end
 
 return {

@@ -17,7 +17,6 @@ return {
 		},
 	},
 
-	"projekt0n/github-nvim-theme",
 	"rose-pine/neovim",
 	"slugbyte/lackluster.nvim",
 	"aktersnurra/no-clown-fiesta.nvim",

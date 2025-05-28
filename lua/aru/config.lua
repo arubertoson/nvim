@@ -9,7 +9,6 @@ local config = {
 		"keymaps",
 		"options",
 		"plugin",
-		"lsp",
 		-- "theme",
 	},
 	vscode = {
@@ -17,12 +16,6 @@ local config = {
 		"autocmds",
 		"keymaps",
 		"options",
-	},
-	plugin_modules = {
-		"core",
-		-- "editor",
-		-- "ui",
-		-- "completion",
 	},
 	log_level = "DEBUG",
 }

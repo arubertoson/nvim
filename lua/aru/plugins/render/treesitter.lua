@@ -1,85 +1,16 @@
 return {
 	{
 		"nvim-treesitter/nvim-treesitter",
+		lazy = false,
 		version = false,
-		build = ":TSUpdate",
-		event = { "BufWritePre", "BufReadPost", "InsertLeave", "VeryLazy" },
 		branch = "main",
-		lazy = vim.fn.argc(-1) == 0,
-		cmd = { "TSUpdateSync", "TSUpdate", "TSInstall" },
-		keys = {
-			{ "<c-space>", desc = "Increment Selection" },
-			{ "<bs>", desc = "Decrement Selection", mode = "x" },
-		},
-		opts_extend = { "ensure_installed" },
-		opts = {
-			highlight = { enable = true },
-			indent = { enable = true },
-			ensure_installed = {
-				"bash",
-				"c",
-				"diff",
-				"html",
-				"javascript",
-				"jsdoc",
-				"json",
-				"jsonc",
-				"lua",
-				"luadoc",
-				"luap",
-				"markdown",
-				"markdown_inline",
-				"printf",
-				"python",
-				"ninja",
-				"rst",
-				"query",
-				"regex",
-				"toml",
-				"tsx",
-				"typescript",
-				"vim",
-				"vimdoc",
-				"xml",
-				"yaml",
-			},
-			incremental_selection = {
-				enable = true,
-				keymaps = {
-					init_selection = "<C-space>",
-					node_incremental = "<C-space>",
-					scope_incremental = false,
-					node_decremental = "<bs>",
-				},
-			},
-			textobjects = {
-				move = {
-					enable = true,
-					goto_next_start = {
-						["]f"] = "@function.outer",
-						["]c"] = "@class.outer",
-						["]a"] = "@parameter.inner",
-					},
-					goto_next_end = {
-						["]F"] = "@function.outer",
-						["]C"] = "@class.outer",
-						["]A"] = "@parameter.inner",
-					},
-					goto_previous_start = {
-						["[f"] = "@function.outer",
-						["[c"] = "@class.outer",
-						["[a"] = "@parameter.inner",
-					},
-					goto_previous_end = {
-						["[F"] = "@function.outer",
-						["[C"] = "@class.outer",
-						["[A"] = "@parameter.inner",
-					},
-				},
-			},
-		},
+		build = ":TSUpdate",
 		config = function(opts)
-			require("nvim-treesitter").setup(opts)
+			require("nvim-treesitter").setup({
+				ensure_installed = {
+					"core", "stable"
+				}
+			})
 
 			require("aru.utils").create_augroup("aru-treesitter-grp", {
 				{
@@ -99,5 +30,53 @@ return {
 				},
 			})
 		end,
+	},
+	{
+		"windwp/nvim-ts-autotag",
+		dependencies = { "nvim-treesitter" }
+	},
+	{
+		"nvim-treesitter/nvim-treesitter-textobjects",
+		version = false,
+		branch = "main",
+		dependencies = { "nvim-treesitter" },
+		config = function(opts)
+			require("nvim-treesitter-textobjects").setup({
+				lookahead=true,
+				selection_modes = {
+					["@parameter.outer"] = "v",
+					["@function.outer"] = "v",
+					["@class.outer"] = "v",
+				},
+				move = { set_jumps = true },
+			})
+
+			-- keymaps
+			-- You can use the capture groups defined in `textobjects.scm`
+			vim.keymap.set({ "x", "o" }, "af", function()
+			  require "nvim-treesitter-textobjects.select".select_textobject("@function.outer", "textobjects")
+			end)
+			vim.keymap.set({ "x", "o" }, "if", function()
+			  require "nvim-treesitter-textobjects.select".select_textobject("@function.inner", "textobjects")
+			end)
+			vim.keymap.set({ "x", "o" }, "ac", function()
+			  require "nvim-treesitter-textobjects.select".select_textobject("@class.outer", "textobjects")
+			end)
+			vim.keymap.set({ "x", "o" }, "ic", function()
+			  require "nvim-treesitter-textobjects.select".select_textobject("@class.inner", "textobjects")
+			end)
+			-- You can also use captures from other query groups like `locals.scm`
+			vim.keymap.set({ "x", "o" }, "as", function()
+			  require "nvim-treesitter-textobjects.select".select_textobject("@local.scope", "locals")
+			end)
+
+			-- swaps
+			vim.keymap.set("n", "<leader>a", function()
+			  require("nvim-treesitter-textobjects.swap").swap_next "@parameter.inner"
+			end)
+			vim.keymap.set("n", "<leader>A", function()
+			  require("nvim-treesitter-textobjects.swap").swap_previous "@parameter.outer"
+			end)
+		end
 	},
 }
