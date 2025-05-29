@@ -4,26 +4,12 @@ return {
 		build = "make install_jsregexp",
 		dependencies = {
 			{
-				"nvim-cmp",
-				dependencies = {
-					"saadparwaiz1/cmp_luasnip",
-				},
-				opts = function(_, opts)
-					-- Set completeopt here as it's related to nvim-cmp behavior
-					vim.opt.completeopt = "menu,menuone,noselect"
-					-- Enable luasnip to handle snippet expansion for nvim-cmp
-					opts.snippet = {
-						expand = function(args)
-							vim.snippet.expand(args.body)
-						end,
-					}
-					table.insert(opts.sources, { name = "luasnip" })
-				end,
-			},
-			{
 				"rafamadriz/friendly-snippets",
 				config = function()
 					require("luasnip.loaders.from_vscode").lazy_load()
+					require("luasnip.loaders.from_vscode").lazy_load({
+						paths = { vim.fn.stdpath("config") .. "/snippets" },
+					})
 				end,
 			},
 		},

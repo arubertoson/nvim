@@ -1,6 +1,5 @@
 local helper = require("aru.helper")
-local log = require("aru.logging").get_logger("AruLSP", "INFO") -- Explicitly setting logger name and level
-
+local log = require("aru.logging").get_logger("AruLSP", "DEBUG")
 
 local function configure_keymaps(client, bufnr)
 	local bufmap = function(mode, rhs, lhs)
@@ -30,6 +29,7 @@ end
 local function configure_diagnostics()
 	vim.diagnostic.config({
 		virtual_text = false,
+		underline = false,
 		signs = {
 			text = {
 				[vim.diagnostic.severity.ERROR] = "",
@@ -62,6 +62,8 @@ return {
 				end
 			end
 
+			configure_diagnostics()
+
 			helper.create_augroup("AruLSP", {
 				{
 					event = { "LspAttach" },
@@ -70,15 +72,38 @@ return {
 						local client = assert(vim.lsp.get_client_by_id(event.data.client_id))
 						local bufnr = event.buf
 
+						configure_keymaps(client, bufnr)
+
 						if
 							client
 							and client.supports_method("textDocument/inlayHint", bufnr)
 						then
 							vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
+							helper.create_augroup("AruInlayHint_" .. bufnr, {
+								{
+									event = { "InsertEnter" },
+									buffer = bufnr,
+									command = function()
+										vim.lsp.inlay_hint.enable(
+											false,
+											{ bufnr = bufnr }
+										)
+									end,
+								},
+								{
+									event = { "InsertLeave" },
+									buffer = bufnr,
+									command = function()
+										vim.defer_fn(function()
+											vim.lsp.inlay_hint.enable(
+												true,
+												{ bufnr = bufnr }
+											)
+										end, 500)
+									end,
+								},
+							})
 						end
-
-						configure_keymaps(client, bufnr)
-						configure_diagnostics()
 					end,
 				},
 			})
