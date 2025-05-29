@@ -76,27 +76,4 @@ return {
 			}
 		end,
 	},
-
-	-- -- better yank/paste
-	{
-		"gbprod/yanky.nvim",
-		desc = "Better Yank/Paste",
-		dependencies = {
-			{ "kkharji/sqlite.lua" },
-		},
-		event = { "BufReadPost", "BufNewFile", "BufWritePre" },
-		opts = {
-			ring = { storage = "sqlite" },
-			highlight = {
-				timer = 100,
-			},
-		},
-		keys = {
-			{ "y", "<Plug>(YankyYank)", mode = { "n", "x" }, desc = "Yank Text" },
-			{ "p", "<Plug>(YankyPutAfter)", mode = { "n", "x" }, desc = "Put Yanked Text After Cursor" },
-			{ "P", "<Plug>(YankyPutBefore)", mode = { "n", "x" }, desc = "Put Yanked Text Before Cursor" },
-			{ "<c-p>", "<Plug>(YankPreviousEntry)", mode = { "n", "x" } },
-			{ "<c-n>", "<Plug>(YankNextEntry)", mode = { "n", "x" } },
-		},
-	},
 }

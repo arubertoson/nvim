@@ -10,21 +10,43 @@ return {
 	{
 		"saghen/blink.cmp",
 		version = "1.*",
+		dependencies = { "mikavilpas/blink-ripgrep.nvim" },
 		event = "InsertEnter",
 		opts = { ---@type blink.cmp.Config
 			signature = { enabled = true },
 			cmdline = { keymap = { preset = "inherit" }, completion = { menu = { auto_show = true } } },
 			fuzzy = { implementation = "prefer_rust_with_warning" },
 
+			appearance = {
+				use_nvim_cmp_as_default = false,
+				nerd_font_variant = "mono",
+			},
+
 			sources = {
-				default = { "lazydev", "lsp", "path", "buffer" },
+				default = { "lazydev", "lsp", "path", "buffer", "ripgrep" },
 				providers = {
+					ripgrep = {
+						module = "blink-ripgrep",
+						name = "Ripgrep",
+						---@module "blink-ripgrep"
+						---@type blink-ripgrep.Options
+						opts = {
+							prefix_min_len = 4,
+							score_offset = 10, -- should be lower priority
+							max_filesize = "300K",
+							search_casing = "--smart-case",
+						},
+					},
 					lazydev = {
 						name = "LazyDev",
 						module = "lazydev.integrations.blink",
 						score_offset = 100,
 					},
 				},
+			},
+
+			snippets = {
+				preset = "luasnip",
 			},
 
 			completion = {

@@ -15,6 +15,12 @@ return {
 		optional = true,
 		opts = { ensure_installed = { "sqlfluff", "sqls", "jinja-lsp" } },
 	},
+	{
+		"Kurren123/mssql.nvim",
+		opts = {},
+		-- optional. You also need to call set_keymaps (see below)
+		dependencies = { "folke/which-key.nvim" },
+	},
 
 	{ "tpope/vim-dadbod", cmd = "DB" },
 	{

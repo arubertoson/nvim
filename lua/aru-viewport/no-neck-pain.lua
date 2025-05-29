@@ -1,6 +1,5 @@
-
-local log = require("aru.logging").get_logger("NoNeckPain", "INFO")
 local helper = require("aru.helper")
+local log = require("aru.logging").get_logger("NoNeckPain", "INFO")
 
 local function layout_iter(col, winids)
 	local type_, value = unpack(col)
@@ -52,11 +51,10 @@ end
 local function golden_ratio()
 	-- We check the current width of the existing window and
 	-- overwrite the no-neck-pain config
-	-- 
+	--
 	-- sort of golden ratio 1.618
 	return math.floor(vim.o.columns / 1.418)
 end
-
 
 return {
 	{
@@ -66,10 +64,10 @@ return {
 		opts = {
 			debug = false,
 			minSideBufferWidth = 10,
-			disableOnLastBuffer = false,
-			killAllBuffersOnDisable = false,
-			fallbackOnBufferDelete = true,
 			buffers = {
+				right = {
+					enabled = false,
+				},
 				colors = {
 					background = "#1f1f28",
 					blend = -0.25,
@@ -81,45 +79,45 @@ return {
 
 			vim.keymap.set("n", "<leader>wo", function()
 				local nnp = require("no-neck-pain")
-
 				-- We need to ensure that only one windows before firing the
-					-- toggle to ensure that we don't screw up other windows. It's
-					-- better to start from a clean slate afterwards.
-					close_other_windows()
+				-- toggle to ensure that we don't screw up other windows. It's
+				-- better to start from a clean slate afterwards.
+				-- close_other_windows()
 
-					-- For some reason if we don't use the normal "command"
-					-- routes we have to set the options our selves.
-					if nnp.config == nil then
-						local opts = require("no-neck-pain.config")
-						nnp.config = opts.options
-					end
+				-- For some reason if we don't use the normal "command"
+				-- routes we have to set the options our selves.
+				if nnp.config == nil then
+					local opts = require("no-neck-pain.config")
+					nnp.config = opts.options
+				end
 
-					nnp.config.width = golden_ratio()
-					nnp.toggle()
-				end,
-				{
-					desc = "NoNeckPain Toggle",
-					silent = true, -- Added silent for good practice
-				}
-			)
+				nnp.config.width = golden_ratio()
+				nnp.toggle()
+			end, {
+				desc = "NoNeckPain Toggle",
+				silent = true, -- Added silent for good practice
+			})
 
 			-- To keep the window nice and centered in the correct ratio we add a little
 			-- sweet autocmd to operate on the window resize.
-			helper.create_augroup("NoNeckPainResize", { -- Changed name to PascalCase for consistency if desired
-				{
-					event = { "VimResized" },
-					command = function()
-						local nnp = require("no-neck-pain")
+			helper.create_augroup(
+				"NoNeckPainResize",
+				{ -- Changed name to PascalCase for consistency if desired
+					{
+						event = { "VimResized" },
+						command = function()
+							local nnp = require("no-neck-pain")
 
-						if nnp.state == nil then
-							log:debug("NoNeckPain state is nil, not resizing.")
-							return
-						end
-						log:debug("VimResized: Resizing NoNeckPain.")
-						nnp.resize(golden_ratio())
-					end,
-				},
-			})
+							if nnp.state == nil then
+								log:debug("NoNeckPain state is nil, not resizing.")
+								return
+							end
+							log:debug("VimResized: Resizing NoNeckPain.")
+							nnp.resize(golden_ratio())
+						end,
+					},
+				}
+			)
 		end,
 	},
 }
