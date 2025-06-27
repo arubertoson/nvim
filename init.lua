@@ -41,6 +41,13 @@ require("lazy").setup({
 	{ import = "aru-editor" },
 	{ import = "aru-viewport" },
 	{ import = "aru-lsp" },
+	{ import = "aru-llm" },
+	{ import = "aru-test" },
+}, {
+	profiling = {
+		loader = true,
+		require = true,
+	},
 })
 
 -- Setup the theme explicitly

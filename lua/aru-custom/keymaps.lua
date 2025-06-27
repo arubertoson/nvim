@@ -14,7 +14,7 @@ local collection = {
 	},
 	{
 		{ "n" },
-		"<localleader>c",
+		"<localleader>C",
 		":<C-u>bd<CR>",
 		{
 			desc = "delete buffer",
@@ -23,7 +23,7 @@ local collection = {
 	},
 	{
 		{ "n" },
-		"<localleader>C",
+		"<localleader>c",
 		":<C-u>wincmd c<CR>",
 		{
 			desc = "close window",

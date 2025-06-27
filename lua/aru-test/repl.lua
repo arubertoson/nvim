@@ -1,3 +1,7 @@
+local helper = require("aru.helper")
+local log = require("aru.logging").get_logger("NoNeckPain", "DEBUG")
+local fmt = string.format
+
 local function golden_ratio(is_vertical)
 	local ratio = 1.618
 
@@ -15,21 +19,37 @@ return {
 	{ "rafcamlet/nvim-luapad", config = true },
 	{
 		"milanglacier/yarepl.nvim",
+		event = "VeryLazy",
 		config = function()
 			local yarepl = require("yarepl")
 			yarepl.setup({
 				wincmd = function(bufnr, _)
-					local is_vertical = (vim.o.lines / vim.o.columns) > 0.35
-					local split_at = golden_ratio(is_vertical)
+					-- local is_vertical = (vim.o.lines / vim.o.columns) > 0.35
+					-- local split_at = golden_ratio(is_vertical)
+					--
+					-- local split_cmd = "vsplit"
+					-- if is_vertical then
+					-- 	split_cmd = "split"
+					-- end
+					--
+					-- vim.cmd("tabnew")
+					-- vim.api.nvim_set_current_buf(bufnr)
+					-- Open the REPL buffer in a new tab
+					vim.api.nvim_command("tabedit")
+					local tab_num = vim.api.nvim_get_current_tabpage()
 
-					local split_cmd = "vsplit"
-					if is_vertical then
-						split_cmd = "split"
-					end
-
-					local concat_cmd = split_at .. " " .. split_cmd
-					vim.cmd(concat_cmd)
-					vim.api.nvim_set_current_buf(bufnr)
+					-- Open the buffer in a floating window
+					-- vim.api.nvim_open_win(bufnr, true, {
+					-- 	relative = 'editor',
+					-- 	row = math.floor(vim.o.lines * 0.25),
+					-- 	col = math.floor(vim.o.columns * 0.25),
+					-- 	width = math.floor(vim.o.columns * 0.5),
+					-- 	height = math.floor(vim.o.lines * 0.5),
+					-- 	style = 'minimal',
+					-- 	border = 'rounded',
+					-- 	title = name,
+					-- 	title_pos = 'center',
+					-- })
 				end,
 			})
 
@@ -109,39 +129,30 @@ Send the current TreeSitter node (closest to root) to REPL `i` or the REPL that 
 				{ noremap = true, silent = true }
 			)
 
-			require("aru.utils").create_augroup("aru-repl-group", {
-				{
-					event = { "FileType" },
-					pattern = {
-						"python",
-						"sh",
-						"REPL",
-					},
-					command = function(args)
-						local ft_to_repl = {
-							python = "ipython",
-							sh = "bash",
-						}
-						local repl = ft_to_repl[vim.bo.filetype]
-						repl = repl and ("-" .. repl) or ""
+			-- stylua: ignore
+			local collection = {
+				{ { "n" }, "<CR>", "<Plug>(REPLSendTS)", { desc = "Send TreeSitter node to REPL" } },
+				{ { "v" }, "<CR>", "<Plug>(REPLSendVisual)", { desc = "Send visual region to REPL" } },
+				{ { "n" }, "<localleader>f", "<Plug>(REPLSendOperator)", { desc = "Send current line to REPL" } },
+				{ { "n" }, "<localleader>fa", "<Plug>(REPLSendBuffer)", { desc = "Send buffer to REPL" } },
 
-						-- stylua: ignore
-						require("aru.utils.keymaps").set_maps({
-							{ { "n" }, "<CR>", "<Plug>(REPLSendTS)", { desc = "Send TreeSitter node to REPL", buffer = args.buffer } },
-							{ { "v" }, "<CR>", "<Plug>(REPLSendVisual)", { desc = "Send visual region to REPL", buffer = args.buffer } },
-							{ { "n" }, "<localleader>f", "<Plug>(REPLSendOperator)", { desc = "Send current line to REPL", buffer = args.buffer } },
-							{ { "n" }, "<localleader>fa", "<Plug>(REPLSendBuffer)", { desc = "Send buffer to REPL", buffer = args.buffer } },
+				-- XXX: I can make this into a simple toggle button
+				{ { "n" }, "<localleader>rs", "<Plug>(REPLStart)", { desc = "Start an REPL" }, },
+				{ { "n" }, "<localleader>rh", "<Plug>(REPLHideOrFocus)", { desc = "Hide REPL"} },
 
-							-- XXX: I can make this into a simple toggle button
-							{ { "n" }, "<localleader>rs", string.format("<Plug>(REPLStart%s)", repl), { desc = "Start an REPL", buffer = args.buffer }, },
-							{ { "n" }, "<localleader>rh", "<Plug>(REPLHideOrFocus)", { desc = "Hide REPL", buffer = args.buffer} },
+				{ { "n" }, "<localleader>rc", "<CMD>REPLCleanup<CR>", { desc = "Clear REPLs."} },
+				{ { "n" }, "<localleader>rq", "<Plug>(REPLClose)", { desc = "Quit REPL" } },
+			}
 
-							{ { "n" }, "<localleader>rc", "<CMD>REPLCleanup<CR>", { desc = "Clear REPLs.", buffer = args.buffer} },
-							{ { "n" }, "<localleader>rq", "<Plug>(REPLClose)", { desc = "Quit REPL", buffer = args.buffer } },
-						})
-					end,
-				},
-			})
+			for _, keymap_spec in ipairs(collection) do
+				local modes = keymap_spec[1]
+				local lhs = keymap_spec[2]
+				local rhs = keymap_spec[3]
+				local opts = keymap_spec[4] or {}
+
+				log:debug(fmt("Setting keymap: Modes: [%s], LHS: %s", table.concat(modes, ", "), lhs))
+				vim.keymap.set(modes, lhs, rhs, opts)
+			end
 		end,
 	},
 }

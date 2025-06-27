@@ -95,7 +95,7 @@ return {
 				nnp.toggle()
 			end, {
 				desc = "NoNeckPain Toggle",
-				silent = true, -- Added silent for good practice
+					silent = true, -- Added silent for good practice
 			})
 
 			-- To keep the window nice and centered in the correct ratio we add a little

@@ -6,6 +6,7 @@ setlocal.number = false
 setlocal.relativenumber = false
 setlocal.smartindent = true
 setlocal.wrap = true
+setlocal.signcolumn = "auto"
 
 -- local ok, cmp = pcall(require, "cmp")
 -- if not ok then

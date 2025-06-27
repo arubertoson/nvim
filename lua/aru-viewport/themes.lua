@@ -1,4 +1,7 @@
 return {
+	{ "edeneast/nightfox.nvim" },
+	{ "rose-pine/neovim" },
+	{ "rebelot/kanagawa.nvim" },
 	{
 		"thesimonho/kanagawa-paper.nvim",
 		lazy = false,

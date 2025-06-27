@@ -25,6 +25,10 @@ vim.lsp.config("ruff", {
 	},
 })
 
+-- vim.lsp.config("pyrefly", {
+-- 	cmd = { "uvx", "pyrefly", "lsp" },
+-- })
+
 -- vim.lsp.config("ty", {
 --   cmd = { 'ty', 'server' },
 --   filetypes = { 'python' },

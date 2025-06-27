@@ -10,7 +10,9 @@ return {
 	{
 		"saghen/blink.cmp",
 		version = "1.*",
-		dependencies = { "mikavilpas/blink-ripgrep.nvim" },
+		dependencies = {
+			"mikavilpas/blink-ripgrep.nvim",
+		},
 		event = "InsertEnter",
 		opts = { ---@type blink.cmp.Config
 			signature = { enabled = true },
@@ -25,6 +27,11 @@ return {
 			sources = {
 				default = { "lazydev", "lsp", "path", "buffer", "ripgrep" },
 				providers = {
+					-- supermaven = {
+					-- 	name = "supermaven",
+					-- 	module = "blink-cmp-supermaven",
+					-- 	async = true,
+					-- },
 					ripgrep = {
 						module = "blink-ripgrep",
 						name = "Ripgrep",
@@ -135,26 +142,26 @@ return {
 			debug = false,
 		},
 	},
-	{
-		"mfussenegger/nvim-dap",
-		event = "LspAttach",
-		config = function()
-			local dap = require("dap")
-
-			---@param func fun(opts: any)
-			---@return fun()
-			local function bind(func)
-				return function()
-					func()
-				end
-			end
-
-			vim.keymap.set("n", "<leader>dB", bind(dap.clear_breakpoints), { desc = "Clear bps" })
-			vim.keymap.set("n", "<leader>db", bind(dap.toggle_breakpoint), { desc = "Breakpoint" })
-			vim.keymap.set("n", "<leader>dc", bind(dap.continue), { desc = "Continue" })
-			vim.keymap.set("n", "<leader>dt", bind(dap.terminate), { desc = "Terminate" })
-			vim.keymap.set("n", "<leader>ds", bind(dap.step_over), { desc = "Step next" })
-			vim.keymap.set("n", "<leader>dS", bind(dap.step_into), { desc = "Step back" })
-		end,
-	},
+	-- {
+	-- 	"mfussenegger/nvim-dap",
+	-- 	event = "LspAttach",
+	-- 	config = function()
+	-- 		local dap = require("dap")
+	--
+	-- 		---@param func fun(opts: any)
+	-- 		---@return fun()
+	-- 		local function bind(func)
+	-- 			return function()
+	-- 				func()
+	-- 			end
+	-- 		end
+	--
+	-- 		vim.keymap.set("n", "<leader>dB", bind(dap.clear_breakpoints), { desc = "Clear bps" })
+	-- 		vim.keymap.set("n", "<leader>db", bind(dap.toggle_breakpoint), { desc = "Breakpoint" })
+	-- 		vim.keymap.set("n", "<leader>dc", bind(dap.continue), { desc = "Continue" })
+	-- 		vim.keymap.set("n", "<leader>dt", bind(dap.terminate), { desc = "Terminate" })
+	-- 		vim.keymap.set("n", "<leader>ds", bind(dap.step_over), { desc = "Step next" })
+	-- 		vim.keymap.set("n", "<leader>dS", bind(dap.step_into), { desc = "Step back" })
+	-- 	end,
+	-- },
 }

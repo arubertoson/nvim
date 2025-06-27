@@ -2,8 +2,8 @@ local helper = require("aru.helper")
 local log = require("aru.logging").get_logger("AruLSP", "DEBUG")
 
 local function configure_keymaps(client, bufnr)
-	local bufmap = function(mode, rhs, lhs)
-		vim.keymap.set(mode, rhs, lhs, { buffer = bufnr })
+	local bufmap = function(mode, lhs, rhs)
+		vim.keymap.set(mode, lhs, rhs, { buffer = bufnr })
 	end
 
 	bufmap("n", "gd", Snacks.picker.lsp_definitions)
