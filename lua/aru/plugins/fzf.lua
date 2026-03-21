@@ -18,6 +18,7 @@ fzf.setup({
 	},
     actions = {
         files = {
+            ["default"] = fzf.actions.file_edit,
 			["ctrl-y"] = function(selected)
 				if #selected > 0 then
 					local msg = selected[1]
@@ -30,6 +31,7 @@ fzf.setup({
 	keymap = {
 		fzf = {
 			["ctrl-q"] = "select-all+accept",
+            ["ctrl-y"] = "accept",
 		},
 		builtin = {
 			true,
