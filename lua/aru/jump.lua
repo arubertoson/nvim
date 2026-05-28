@@ -36,25 +36,6 @@ local default_config = {
     namespace = vim.api.nvim_create_namespace("aru_smartjmp"),
 }
 
----@class SmartJmp.BufferState
----@field path string
----@field bufnr number?
----@field debounce uv.uv_timer_t
-
----@class SmartJmp.Module
----@field private history SmartJmp.History?
----@field private buffers table<string, SmartJmp.BufferState>
----@field private current_area SmartJmp.Area?
----@field private suppress_cursor_moved boolean
----@field private config SmartJmp.Config
-local M = {
-    history = nil,
-    buffers = {},
-    current_area = nil,
-    suppress_cursor_moved = false,
-    config = vim.tbl_extend("force", {}, default_config),
-}
-
 ---@class SmartJmp.Config
 ---@field debounce_ms number
 ---@field major_move_lines number
@@ -64,22 +45,15 @@ local M = {
 ---@field augroup_id number
 ---@field namespace  number
 
----@class SmartJmp.JumpPoint :   vim.fn.winrestview.dict
----@field path  string
----@field bufnr number?
----@field view  SmartJmp.View
----@field extmark_id number?
-
----@class SmartJmp.View :   vim.fn.winrestview.dict
----@field lnum        number
----@field col         number
----@field coladd      number
----@field curswant    number
----@field leftcol     number
----@field topline     number
----@field botline     number
----@field topfill     number
----@field skipcol     number
+---@class SmartJmp.Module
+---@field private buffers table<string, SmartJmp.BufferState>
+---@field private suppress_cursor_moved boolean
+---@field private config SmartJmp.Config
+local M = {
+    buffers = {},
+    suppress_cursor_moved = false,
+    config = vim.tbl_extend("force", {}, default_config),
+}
 
 ---@param fn fun(): any
 ---@return any
@@ -94,6 +68,17 @@ local function with_suppressed_cursor_moved(fn)
 
     return result
 end
+
+---@class SmartJmp.View :   vim.fn.winrestview.dict
+---@field lnum        number
+---@field col         number
+---@field coladd      number
+---@field curswant    number
+---@field leftcol     number
+---@field topline     number
+---@field botline     number
+---@field topfill     number
+---@field skipcol     number
 
 ---@return SmartJmp.View
 local function capture_view()
@@ -139,6 +124,12 @@ local function is_trackable_buffer(bufnr)
     return true
 end
 
+---@class SmartJmp.Area
+---@field path string
+---@field bufnr number?
+---@field view SmartJmp.View
+---@field latest_view SmartJmp.View
+
 ---@param bufnr number
 ---@param view SmartJmp.View
 ---@return SmartJmp.Area
@@ -151,6 +142,12 @@ local function area_from_view(bufnr, view)
     }
 end
 
+---@class SmartJmp.JumpPoint :   vim.fn.winrestview.dict
+---@field path  string
+---@field bufnr number?
+---@field view  SmartJmp.View
+---@field extmark_id number?
+
 ---@param area SmartJmp.Area
 ---@param source string
 ---@return SmartJmp.JumpPoint
@@ -161,106 +158,6 @@ local function jump_point_from_area(area, source)
         view = vim.tbl_extend("force", {}, area.view),
         source = source,
     }
-end
-
----@class SmartJmp.Area
----@field path string
----@field bufnr number?
----@field view SmartJmp.View
----@field latest_view SmartJmp.View
-
-local BufferState = {}
-BufferState.__index = BufferState
-
----@param bufnr number
----@return SmartJmp.BufferState
-function BufferState:new(bufnr)
-    local path = vim.api.nvim_buf_get_name(bufnr)
-    assert(type(path) == "string")
-    assert(path ~= "")
-
-    local timer = vim.uv.new_timer()
-    assert(timer)
-
-    return setmetatable({
-        path = path,
-        bufnr = bufnr,
-        debounce = timer,
-    }, BufferState)
-end
-
----@class SmartJmp.History
----@field entries SmartJmp.JumpPoint[]
----@field index number
----@field add fun(self: SmartJmp.History, point: SmartJmp.JumpPoint)
----@field move fun(self: SmartJmp.History, delta: number)
-
-local History = {}
-History.__index = History
-
----@return SmartJmp.History
-function History:new()
-    return setmetatable({
-        entries = {},
-        index = 0,
-    }, History)
-end
-
-M.history = History:new()
-
----@param point SmartJmp.JumpPoint
-function History:add(point)
-    self:truncate()
-
-    if not point.bufnr or not is_trackable_buffer(point.bufnr) then
-        log:warn(("add: invalid buffer for %s"):format(point.path))
-        return
-    end
-
-    local view = point.view
-
-    -- Naive check if we already have this view in history.
-    local last = self.entries[#self.entries]
-    if last and last.path == point.path and not is_major_move(last.view, point.view) then
-        if last.bufnr and last.extmark_id and vim.api.nvim_buf_is_valid(last.bufnr) then
-            pcall(vim.api.nvim_buf_del_extmark, last.bufnr, M.config.namespace, last.extmark_id)
-        end
-
-        self.entries[#self.entries] = nil
-    end
-
-    local line_count = vim.api.nvim_buf_line_count(point.bufnr)
-    local row = math.min(math.max(view.lnum - 1, 0), math.max(line_count - 1, 0))
-    local line = vim.api.nvim_buf_get_lines(point.bufnr, row, row + 1, false)[1] or ""
-    local col = math.min(math.max(view.col, 0), #line)
-
-    point.extmark_id = vim.api.nvim_buf_set_extmark(point.bufnr, M.config.namespace, row, col, {
-        right_gravity = true,
-        end_row = row,
-        end_col = math.min(#line, col + 1),
-    })
-
-    -- We add the point to history entries and if we exceed the max history we
-    -- prune the oldest entry. This ensures we don't grow unbounded.
-    table.insert(self.entries, point)
-    if #self.entries > M.config.max_history then
-        local removed = table.remove(self.entries, 1)
-        if
-            removed
-            and removed.bufnr
-            and removed.extmark_id
-            and vim.api.nvim_buf_is_valid(removed.bufnr)
-        then
-            pcall(
-                vim.api.nvim_buf_del_extmark,
-                removed.bufnr,
-                M.config.namespace,
-                removed.extmark_id
-            )
-        end
-    end
-
-    self.index = #self.entries
 end
 
 ---@param path string
@@ -331,6 +228,96 @@ local function load_buffer_view(point)
     return extmark_valid
 end
 
+---@class SmartJmp.History
+---@field entries SmartJmp.JumpPoint[]
+---@field index number
+---@field add fun(self: SmartJmp.History, point: SmartJmp.JumpPoint)
+---@field move fun(self: SmartJmp.History, delta: number)
+---@field commit_area fun(self: SmartJmp.History, area: SmartJmp.Area, source: string)
+
+local History = {}
+History.__index = History
+
+---@return SmartJmp.History
+function History:new()
+    return setmetatable({
+        entries = {},
+        index = 0,
+    }, History)
+end
+
+function History:truncate()
+    if self.index == #self.entries then return end
+
+    -- We have to do a reverse iteration to avoid modifying the table in place,
+    -- this ensures that we don't mess up the index.
+    for i = #self.entries, self.index + 1, -1 do
+        local point = self.entries[i]
+        if point.bufnr and point.extmark_id and vim.api.nvim_buf_is_valid(point.bufnr) then
+            pcall(vim.api.nvim_buf_del_extmark, point.bufnr, M.config.namespace, point.extmark_id)
+        end
+
+        table.remove(self.entries, i)
+    end
+
+    assert(self.index == #self.entries)
+end
+
+---@param point SmartJmp.JumpPoint
+function History:add(point)
+    self:truncate()
+
+    if not point.bufnr or not is_trackable_buffer(point.bufnr) then
+        log:warn(("add: invalid buffer for %s"):format(point.path))
+        return
+    end
+
+    local view = point.view
+
+    -- Naive check if we already have this view in history.
+    local last = self.entries[#self.entries]
+    if last and last.path == point.path and not is_major_move(last.view, point.view) then
+        if last.bufnr and last.extmark_id and vim.api.nvim_buf_is_valid(last.bufnr) then
+            pcall(vim.api.nvim_buf_del_extmark, last.bufnr, M.config.namespace, last.extmark_id)
+        end
+
+        self.entries[#self.entries] = nil
+    end
+
+    local line_count = vim.api.nvim_buf_line_count(point.bufnr)
+    local row = math.min(math.max(view.lnum - 1, 0), math.max(line_count - 1, 0))
+    local line = vim.api.nvim_buf_get_lines(point.bufnr, row, row + 1, false)[1] or ""
+    local col = math.min(math.max(view.col, 0), #line)
+
+    point.extmark_id = vim.api.nvim_buf_set_extmark(point.bufnr, M.config.namespace, row, col, {
+        right_gravity = true,
+        end_row = row,
+        end_col = math.min(#line, col + 1),
+    })
+
+    -- We add the point to history entries and if we exceed the max history we
+    -- prune the oldest entry. This ensures we don't grow unbounded.
+    table.insert(self.entries, point)
+    if #self.entries > M.config.max_history then
+        local removed = table.remove(self.entries, 1)
+        if
+            removed
+            and removed.bufnr
+            and removed.extmark_id
+            and vim.api.nvim_buf_is_valid(removed.bufnr)
+        then
+            pcall(
+                vim.api.nvim_buf_del_extmark,
+                removed.bufnr,
+                M.config.namespace,
+                removed.extmark_id
+            )
+        end
+    end
+
+    self.index = #self.entries
+end
+
 ---@param point SmartJmp.JumpPoint
 ---@return boolean restored
 function History:restore(point)
@@ -368,29 +355,11 @@ function History:restore(point)
     end)
     if point.extmark_id and not extmark_valid then point.extmark_id = nil end
 
-    M.current_area = area_from_view(point.bufnr, point.view)
-
     return true
 end
 
-function History:truncate()
-    if self.index == #self.entries then return end
-
-    -- We have to do a reverse iteration to avoid modifying the table in place,
-    -- this ensures that we don't mess up the index.
-    for i = #self.entries, self.index + 1, -1 do
-        local point = self.entries[i]
-        if point.bufnr and point.extmark_id and vim.api.nvim_buf_is_valid(point.bufnr) then
-            pcall(vim.api.nvim_buf_del_extmark, point.bufnr, M.config.namespace, point.extmark_id)
-        end
-
-        table.remove(self.entries, i)
-    end
-
-    assert(self.index == #self.entries)
-end
-
 ---@param delta number
+---@return SmartJmp.JumpPoint?
 function History:move(delta)
     log:trace(("move: jump idx=%d delta=%d"):format(self.index, delta))
 
@@ -420,11 +389,56 @@ function History:move(delta)
         if delta < 0 then self.index = math.max(0, self.index - 1) end
         self.index = math.min(self.index, #self.entries)
 
-        return
+        return nil
     end
 
     -- Only update the index if we've successfully restored the point, otherwise
     self.index = target_index
+
+    return point
+end
+
+---@param source string
+---@param area SmartJmp.Area
+---@return boolean success
+function History:commit_area(area, source)
+    local current = self.entries[self.index]
+    if current and current.path == area.path and not is_major_move(current.view, area.view) then
+        return false
+    end
+
+    self:add(jump_point_from_area(area, source))
+
+    return true
+end
+
+---@class SmartJmp.BufferState
+---@field path string
+---@field bufnr number?
+---@field debounce uv.uv_timer_t
+---@field history SmartJmp.History
+---@field area SmartJmp.Area?
+
+local BufferState = {}
+BufferState.__index = BufferState
+
+---@param bufnr number
+---@return SmartJmp.BufferState
+function BufferState:new(bufnr)
+    local path = vim.api.nvim_buf_get_name(bufnr)
+    assert(type(path) == "string")
+    assert(path ~= "")
+
+    local timer = vim.uv.new_timer()
+    assert(timer)
+
+    return setmetatable({
+        path = path,
+        bufnr = bufnr,
+        debounce = timer,
+        history = History:new(),
+        area = nil,
+    }, BufferState)
 end
 
 ---@param bufnr number
@@ -482,21 +496,21 @@ local function create_cursor_move_autocmd(bufnr)
 
                         -- If this is the first view we've captured we need to
                         -- create a new area and store it in our current area
-                        if not M.current_area then
-                            M.current_area = area_from_view(origin_buf, current)
+                        if not state.area then
+                            state.area = area_from_view(origin_buf, current)
                             return
                         end
 
                         if
-                            M.current_area.path ~= origin_path
-                            or is_major_move(M.current_area.view, current)
+                            state.area.path ~= origin_path
+                            or is_major_move(state.area.view, current)
                         then
-                            local old = assert(M.current_area)
-                            M.current_area = area_from_view(origin_buf, current)
+                            local old = assert(state.area)
+                            state.area = area_from_view(origin_buf, current)
 
-                            M.history:add(jump_point_from_area(old, "area-left"))
+                            state.history:add(jump_point_from_area(old, "area-left"))
                         else
-                            M.current_area.latest_view = current
+                            state.area.latest_view = current
                         end
                     end)
 
@@ -516,7 +530,9 @@ local function create_buf_wipeout_autocmd(bufnr)
             .. "We maintain all state throughout the session.",
         callback = function(ev)
             local state = M.buffers[vim.api.nvim_buf_get_name(ev.buf)]
-            if state and state.debounce then
+            if not state then return end
+
+            if state.debounce then
                 -- We stop the timer but keep the reference alive if we need to
                 -- reactivate it, which will happen in `on_buf_enter`.
                 stop_burst(state.debounce)
@@ -526,15 +542,15 @@ local function create_buf_wipeout_autocmd(bufnr)
             -- We also need to clean up the history points, not remove them but
             -- ensure that information that will change when we reload the buffer
             -- is cleared.
-            for _, point in ipairs(M.history.entries) do
+            for _, point in ipairs(state.history.entries) do
                 if point.bufnr == ev.buf then
                     point.bufnr = nil
                     point.extmark_id = nil
                 end
             end
 
-            if M.current_area and M.current_area.bufnr == ev.buf then
-                M.current_area.bufnr = nil
+            if state.area and state.area.bufnr == ev.buf then
+                state.area.bufnr = nil
             end
         end,
     })
@@ -592,15 +608,24 @@ local function on_buf_enter(bufnr)
     create_buf_leave_autocmd(bufnr)
 end
 
-function M.next() M.history:move(1) end
+local function move(delta)
+    local bufnr = vim.api.nvim_get_current_buf()
+    local state = M.buffers[vim.api.nvim_buf_get_name(bufnr)]
 
-function M.prev() M.history:move(-1) end
+    if state and state.area then
+        state.history:commit_area(state.area, "navigation")
+        local point = state.history:move(delta)
+        if not point then return end
+
+        state.area = area_from_view(point.bufnr, point.view)
+    end
+end
+
+function M.next() move(1) end
+function M.prev() move(-1) end
 
 function M.reset()
     log:trace(("reset: states for %d buffers"):format(vim.tbl_count(M.buffers)))
-
-    M.history = History:new()
-    M.current_area = nil
 
     for _, state in pairs(M.buffers) do
         if state and state.debounce and not state.debounce:is_closing() then
