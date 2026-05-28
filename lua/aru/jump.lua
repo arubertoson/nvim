@@ -21,6 +21,7 @@ local default_config = {
     major_move_lines = 7,
 
     max_history = 100,
+    max_file_lookback = 3,
 
     ---@type string[]
     exclude_filetypes = { "oil", "fzf" },
@@ -40,16 +41,19 @@ local default_config = {
 ---@field debounce_ms number
 ---@field major_move_lines number
 ---@field max_history number
+---@field max_file_lookback number
 ---@field exclude_filetypes string[]
 ---@field exclude_buftypes string[]
 ---@field augroup_id number
 ---@field namespace  number
 
 ---@class SmartJmp.Module
+---@field private f_hist SmartJmp.FileHistory?
 ---@field private buffers table<string, SmartJmp.BufferState>
 ---@field private suppress_cursor_moved boolean
 ---@field private config SmartJmp.Config
 local M = {
+    f_hist = nil,
     buffers = {},
     suppress_cursor_moved = false,
     config = vim.tbl_extend("force", {}, default_config),
@@ -162,7 +166,7 @@ end
 
 ---@param path string
 ---@param bufnr number?
----@return number?
+---@return number? bufnr
 ---@return boolean cache_valid
 local function ensure_buffer_loaded(path, bufnr)
     if not path or path == "" then return nil, false end
@@ -234,7 +238,6 @@ end
 ---@field add fun(self: SmartJmp.History, point: SmartJmp.JumpPoint)
 ---@field move fun(self: SmartJmp.History, delta: number)
 ---@field commit_area fun(self: SmartJmp.History, area: SmartJmp.Area, source: string)
-
 local History = {}
 History.__index = History
 
@@ -245,6 +248,9 @@ function History:new()
         index = 0,
     }, History)
 end
+
+---@return SmartJmp.JumpPoint?
+function History:current() return self.entries[self.index] end
 
 function History:truncate()
     if self.index == #self.entries then return end
@@ -412,13 +418,147 @@ function History:commit_area(area, source)
     return true
 end
 
+---@class SmartJmp.FileState
+---@field path string
+---@field bufnr number?
+
+---@class SmartJmp.FileHistory
+---@field index number
+---@field entries SmartJmp.FileState[]
+local FileHistory = {}
+FileHistory.__index = FileHistory
+
+---@return SmartJmp.FileHistory
+function FileHistory:new()
+    return setmetatable({
+        index = 0,
+        entries = {},
+    }, FileHistory)
+end
+
+M.f_hist = FileHistory:new()
+
+---@return SmartJmp.FileState?
+function FileHistory:current() return self.entries[self.index] end
+
+function FileHistory:truncate()
+    if self.index == #self.entries then return end
+
+    for i = #self.entries, self.index + 1, -1 do
+        table.remove(self.entries, i)
+    end
+
+    assert(self.index == #self.entries)
+end
+
+--- Scans the history stack backwards to see if a file path already exists.
+---
+---@param path string
+---@return boolean
+function FileHistory:contains(path)
+    if self.index == 0 then return false end
+
+    -- Ensure that we don't scan too far back in the history, by taking the
+    -- minimum of the configured `max_file_lookback` and the current index.
+    local steps = math.min(M.config.max_file_lookback, self.index)
+
+    for i = self.index, math.max(1, self.index - steps), -1 do
+        local entry = self.entries[i]
+        if entry.path == path then return true end
+    end
+
+    return false
+end
+
+---@param bufnr number
+---@return SmartJmp.FileState?
+function FileHistory:add(bufnr)
+    -- To ensure that our list is always sorted and does not carry
+    -- any stale entries, we truncate before adding new entries.
+    self:truncate()
+
+    local path = vim.api.nvim_buf_get_name(bufnr) or ""
+    if path == "" or not is_trackable_buffer(bufnr) then
+        log:warn(("add: invalid buffer, %d does not point to a path."):format(bufnr))
+        return nil
+    end
+
+    if self:contains(path) then return nil end
+
+    ---@type SmartJmp.FileState
+    local state = {
+        path = path,
+        bufnr = bufnr,
+    }
+
+    self.index = #self.entries + 1
+    self.entries[self.index] = state
+
+    return state
+end
+
+---@param bufnr number
+function FileHistory:add_if_current_differs(bufnr)
+    local current = self:current()
+    local path = vim.api.nvim_buf_get_name(bufnr)
+    if current and current.path == path then return end
+
+    self:add(bufnr)
+end
+
+---@param delta number
+---@return SmartJmp.FileState?
+function FileHistory:move(delta)
+    local target_index = self.index + delta
+    if target_index < 1 or target_index > #self.entries then
+        log:warn(("move: invalid index %d for %d entries"):format(target_index, #self.entries))
+        return nil
+    end
+
+    local state = self.entries[target_index]
+
+    -- After we've ensured that the point has a valid buffer we need to update
+    -- any point that has invalidated cache. If a invalid cache is found extmark_ids
+    -- needs to be cleared as they are memory bound and unusable after a reload.
+    local bufnr, cache_hit = ensure_buffer_loaded(state.path, state.bufnr)
+    if not bufnr then
+        log:warn(("restore: invalid buffer for %s"):format(state.path))
+
+        -- If we fail to restore the buffer we need to remove the entry from
+        -- history, it's stale and we only want to keep entries we can
+        -- successfully restore.
+        table.remove(self.entries, target_index)
+        if delta < 0 then self.index = math.max(0, self.index - 1) end
+
+        return nil
+    end
+
+    if not cache_hit then state.bufnr = bufnr end
+
+    -- Finally we have to focus the buffer in case it's not the current buffer.
+    if vim.api.nvim_get_current_buf() ~= state.bufnr then
+        vim.api.nvim_set_current_buf(state.bufnr)
+    end
+
+    -- To avoid messing with the `BufferState` we restore the "active" point
+    -- in the history, if there is one.
+    local buf_state = M.buffers[state.path]
+    if buf_state then
+        local point = buf_state.history:current()
+        if point then buf_state.history:restore(point) end
+    end
+
+    self.index = target_index
+
+    return state
+end
+
 ---@class SmartJmp.BufferState
 ---@field path string
 ---@field bufnr number?
 ---@field debounce uv.uv_timer_t
 ---@field history SmartJmp.History
 ---@field area SmartJmp.Area?
-
 local BufferState = {}
 BufferState.__index = BufferState
 
@@ -549,9 +689,7 @@ local function create_buf_wipeout_autocmd(bufnr)
                 end
             end
 
-            if state.area and state.area.bufnr == ev.buf then
-                state.area.bufnr = nil
-            end
+            if state.area and state.area.bufnr == ev.buf then state.area.bufnr = nil end
         end,
     })
 end
@@ -608,7 +746,26 @@ local function on_buf_enter(bufnr)
     create_buf_leave_autocmd(bufnr)
 end
 
-local function move(delta)
+---@param delta number
+local function file_move(delta)
+    -- We start by recording a navigation point for the current file. After we
+    -- have performed the navigation we try to add a new entry to the history
+    -- stack, this might fail if the current file is already in the history.
+    -- which is expected.
+
+    local bufnr = vim.api.nvim_get_current_buf()
+    local path = vim.api.nvim_buf_get_name(bufnr)
+
+    -- If we're moving back in the list we need to add the current buffer to the
+    -- history, this is expected and wanted.
+    if delta < 0 then M.f_hist:add_if_current_differs(bufnr) end
+
+    local trg_state = M.f_hist:move(delta)
+    if not trg_state then log:warn(("move: failed navigation to buffer %s"):format(path)) end
+end
+
+---@param delta number
+local function buffer_move(delta)
     local bufnr = vim.api.nvim_get_current_buf()
     local state = M.buffers[vim.api.nvim_buf_get_name(bufnr)]
 
@@ -621,8 +778,13 @@ local function move(delta)
     end
 end
 
-function M.next() move(1) end
-function M.prev() move(-1) end
+---@param bufnr number?
+function M.file_mark(bufnr) M.f_hist:add(bufnr or vim.api.nvim_get_current_buf()) end
+function M.file_next() file_move(1) end
+function M.file_prev() file_move(-1) end
+
+function M.next() buffer_move(1) end
+function M.prev() buffer_move(-1) end
 
 function M.reset()
     log:trace(("reset: states for %d buffers"):format(vim.tbl_count(M.buffers)))
@@ -642,6 +804,7 @@ function M.reset()
     end
 
     M.buffers = {}
+    M.f_hist = FileHistory:new()
 
     on_buf_enter(vim.api.nvim_get_current_buf())
 end
