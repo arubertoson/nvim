@@ -151,11 +151,11 @@ local M = {
 local function with_suppressed_cursor_moved(fn)
     M.suppress_cursor_moved = true
 
-    local ok, result = pcall(fn)
+    local ok, result = xpcall(fn, debug.traceback)
 
     M.suppress_cursor_moved = false
 
-    if not ok then error(result) end
+    if not ok then error(result, 0) end
 
     return result
 end
@@ -421,7 +421,7 @@ end
 
 ---@param point SmartJmp.JumpPoint
 ---@param extmark_id number?
----@return number extmark_id
+---@return number? extmark_id
 local function set_point_extmark(point, extmark_id)
     local view = point.view
 
@@ -437,7 +437,29 @@ local function set_point_extmark(point, extmark_id)
     }
     if extmark_id then opts.id = extmark_id end
 
-    return vim.api.nvim_buf_set_extmark(point.bufnr, M.config.namespace, row, col, opts)
+    local ok, extmark_id =
+        pcall(vim.api.nvim_buf_set_extmark, point.bufnr, M.config.namespace, row, col, opts)
+    if not ok then
+        log:warn(("set_point_extmark: failed to set extmark for %s"):format(point.path))
+        return nil
+    end
+
+    return extmark_id
+end
+
+---@param point SmartJmp.JumpPoint
+---@return boolean success
+local function delete_point_extmark(point)
+    if point.bufnr and point.extmark_id and vim.api.nvim_buf_is_valid(point.bufnr) then
+        return pcall(
+            vim.api.nvim_buf_del_extmark,
+            point.bufnr,
+            M.config.namespace,
+            point.extmark_id
+        )
+    end
+
+    return true
 end
 
 ---@param area SmartJmp.Area
@@ -474,7 +496,7 @@ local function ensure_buffer_loaded(path, bufnr)
     -- it in the current session to get a valid bufnr that we can use again.
     local stat = vim.uv.fs_stat(path)
     if not stat or stat.type ~= "file" then
-        log:warn(("restore: invalid file for %s"):format(path))
+        log:info(("restore: invalid file for %s"):format(path))
         return nil, false
     end
 
@@ -516,7 +538,7 @@ local function load_buffer_view(point)
 
             extmark_valid = true
         else
-            log:warn(("restore: extmark %d deleted for %s"):format(point.extmark_id, point.path))
+            log:trace(("restore: extmark %d deleted for %s"):format(point.extmark_id, point.path))
         end
     end
 
@@ -529,38 +551,38 @@ end
 -- Buffer-Local Semantic History
 -- ============================================================================
 
----@class SmartJmp.History
+---@class SmartJmp.BufferHistory
 --- Buffer-local semantic jump history.
 ---
 --- Entries are anchored with extmarks when possible, so edits can move a saved
 --- jump point without invalidating it.
 ---@field entries SmartJmp.JumpPoint[]
 ---@field index number
----@field add fun(self: SmartJmp.History, point: SmartJmp.JumpPoint)
----@field move fun(self: SmartJmp.History, delta: number): SmartJmp.JumpPoint?
-local History = {}
-History.__index = History
+---@field add fun(self: SmartJmp.BufferHistory, point: SmartJmp.JumpPoint)
+---@field move fun(self: SmartJmp.BufferHistory, delta: number): SmartJmp.JumpPoint?
+local BufferHistory = {}
+BufferHistory.__index = BufferHistory
 
----@return SmartJmp.History
-function History:new()
+---@return SmartJmp.BufferHistory
+function BufferHistory:new()
     return setmetatable({
         entries = {},
         index = 0,
-    }, History)
+    }, BufferHistory)
 end
 
 ---@return SmartJmp.JumpPoint?
-function History:current() return self.entries[self.index] end
+function BufferHistory:current() return self.entries[self.index] end
 
-function History:truncate()
+function BufferHistory:truncate()
     if self.index == #self.entries then return end
 
     -- We have to do a reverse iteration to avoid modifying the table in place,
     -- this ensures that we don't mess up the index.
     for i = #self.entries, self.index + 1, -1 do
         local point = self.entries[i]
-        if point.bufnr and point.extmark_id and vim.api.nvim_buf_is_valid(point.bufnr) then
-            pcall(vim.api.nvim_buf_del_extmark, point.bufnr, M.config.namespace, point.extmark_id)
+        if not delete_point_extmark(point) then
+            log:warn(("truncate: failed to remove extmark for %s"):format(point.path))
         end
 
         table.remove(self.entries, i)
@@ -571,7 +593,7 @@ end
 
 ---@param index number
 ---@param point SmartJmp.JumpPoint
-function History:update(index, point)
+function BufferHistory:update(index, point)
     if index < 1 or index > #self.entries then
         log:warn(("update: invalid index %d for %d entries"):format(index, #self.entries))
         return
@@ -584,19 +606,19 @@ function History:update(index, point)
 end
 
 ---@param point SmartJmp.JumpPoint
-function History:add(point)
+function BufferHistory:add(point)
     self:truncate()
 
     if not point.bufnr or not is_trackable_buffer(point.bufnr) then
-        log:warn(("add: invalid buffer for %s"):format(point.path))
+        log:trace(("add: invalid buffer for %s"):format(point.path))
         return
     end
 
     -- Naive check if we already have this view in history.
     local last = self.entries[#self.entries]
     if last and last.path == point.path and not is_major_move(last.view, point.view) then
-        if last.bufnr and last.extmark_id and vim.api.nvim_buf_is_valid(last.bufnr) then
-            pcall(vim.api.nvim_buf_del_extmark, last.bufnr, M.config.namespace, last.extmark_id)
+        if not delete_point_extmark(last) then
+            log:warn(("add: failed to remove extmark for %s"):format(last.path))
         end
 
         self.entries[#self.entries] = nil
@@ -609,18 +631,9 @@ function History:add(point)
     table.insert(self.entries, point)
     if #self.entries > M.config.max_history then
         local removed = table.remove(self.entries, 1)
-        if
-            removed
-            and removed.bufnr
-            and removed.extmark_id
-            and vim.api.nvim_buf_is_valid(removed.bufnr)
-        then
-            pcall(
-                vim.api.nvim_buf_del_extmark,
-                removed.bufnr,
-                M.config.namespace,
-                removed.extmark_id
-            )
+
+        if removed and not delete_point_extmark(removed) then
+            log:warn(("add: failed to remove extmark for %s"):format(removed.path))
         end
     end
 
@@ -629,7 +642,7 @@ end
 
 ---@param point SmartJmp.JumpPoint
 ---@return boolean restored
-function History:restore(point)
+function BufferHistory:restore(point)
     -- this will fail if the buffer doesn't exist or isn't loaded
     if not point or not point.view then
         log:warn("restore: invalid point / buffer")
@@ -651,7 +664,7 @@ end
 
 ---@param delta number
 ---@return SmartJmp.JumpPoint? point
-function History:move(delta)
+function BufferHistory:move(delta)
     log:trace(("move: jump idx=%d delta=%d"):format(self.index, delta))
 
     local target_index = self.index + delta
@@ -773,7 +786,7 @@ function FileHistory:add(bufnr)
 
     local path = vim.api.nvim_buf_get_name(bufnr) or ""
     if path == "" or not is_trackable_buffer(bufnr) then
-        log:warn(("add: invalid buffer, %d does not point to a path."):format(bufnr))
+        log:trace(("add: invalid buffer, %d does not point to a path."):format(bufnr))
         return nil
     end
 
@@ -805,7 +818,7 @@ end
 function FileHistory:move(delta)
     local target_index = self.index + delta
     if target_index < 1 or target_index > #self.entries then
-        log:warn(("move: invalid index %d for %d entries"):format(target_index, #self.entries))
+        log:info(("move: invalid index %d for %d entries"):format(target_index, #self.entries))
         return nil
     end
 
@@ -816,7 +829,7 @@ function FileHistory:move(delta)
     -- needs to be cleared as they are memory bound and unusable after a reload.
     local bufnr, cache_hit = ensure_buffer_loaded(state.path, state.bufnr)
     if not bufnr then
-        log:warn(("restore: invalid buffer for %s"):format(state.path))
+        log:info(("restore: invalid buffer for %s"):format(state.path))
 
         -- If we fail to restore the buffer we need to remove the entry from
         -- history, it's stale and we only want to keep entries we can
@@ -855,7 +868,7 @@ end
 ---@field path string
 ---@field bufnr number?
 ---@field debounce uv.uv_timer_t?
----@field history SmartJmp.History
+---@field history SmartJmp.BufferHistory
 ---@field area SmartJmp.Area?
 local BufferState = {}
 BufferState.__index = BufferState
@@ -874,9 +887,39 @@ function BufferState:new(bufnr)
         path = path,
         bufnr = bufnr,
         debounce = timer,
-        history = History:new(),
+        history = BufferHistory:new(),
         area = nil,
     }, BufferState)
+end
+
+---@param state SmartJmp.BufferState
+---@param bufnr number
+---@param view SmartJmp.View
+local function record_buffer_view(state, bufnr, view)
+    -- first capture establises the initial area
+    if not state.area then
+        state.area = area_from_view(bufnr, view)
+        state.history:add(jump_point_from_area(state.area, "area-entered"))
+
+        return
+    end
+
+    if area_matches_view(state.area, bufnr, view) then
+        state.area.latest_view = view
+
+        local current_point = state.history:current()
+        if current_point and jump_point_matches_area(current_point, state.area) then
+            state.history:update(
+                state.history.index,
+                jump_point_from_area(state.area, "area-updated")
+            )
+        end
+
+        return
+    end
+
+    state.area = area_from_view(bufnr, view)
+    state.history:add(jump_point_from_area(state.area, "area-entered"))
 end
 
 ---@param bufnr number
@@ -929,33 +972,11 @@ local function create_cursor_move_autocmd(bufnr)
                         return
                     end
 
-                    -- To the meat, if we've passed all checks we can now safely
-                    -- capture the current view and add it to our history.
-                    vim.api.nvim_win_call(origin_win, function()
-                        local current = capture_view()
-
-                        -- If this is the first view we've captured we need to
-                        -- create a new area and store it in our current area
-                        if not state.area then
-                            state.area = area_from_view(origin_buf, current)
-                            state.history:add(jump_point_from_area(state.area, "area-entered"))
-                        else
-                            if area_matches_view(state.area, origin_buf, current) then
-                                state.area.latest_view = current
-
-                                local current_point = state.history:current()
-                                if current_point and jump_point_matches_area(current_point, state.area) then
-                                    state.history:update(
-                                        state.history.index,
-                                        jump_point_from_area(state.area, "area-updated")
-                                    )
-                                end
-                            else
-                                state.area = area_from_view(origin_buf, current)
-                                state.history:add(jump_point_from_area(state.area, "area-entered"))
-                            end
-                        end
-                    end)
+                    -- capture_view() is window-local, so run it in the original window.
+                    vim.api.nvim_win_call(
+                        origin_win,
+                        function() record_buffer_view(state, origin_buf, capture_view()) end
+                    )
 
                     stop_burst(timer)
                 end)
@@ -1052,20 +1073,15 @@ end
 
 ---@param delta number
 local function file_move(delta)
-    -- We start by recording a navigation point for the current file. After we
-    -- have performed the navigation we try to add a new entry to the history
-    -- stack, this might fail if the current file is already in the history.
-    -- which is expected.
-
     local bufnr = vim.api.nvim_get_current_buf()
     local path = vim.api.nvim_buf_get_name(bufnr)
 
-    -- If we're moving back in the list we need to add the current buffer to the
-    -- history, this is expected and wanted.
+    -- Moving backward records the inspected file before returning to the mark.
+    -- That gives file_toggle() a forward entry to bounce back to.
     if delta < 0 then M.f_hist:add_if_current_differs(bufnr) end
 
     local trg_state = M.f_hist:move(delta)
-    if not trg_state then log:warn(("move: failed navigation to buffer %s"):format(path)) end
+    if not trg_state then log:info(("move: failed navigation to buffer %s"):format(path)) end
 end
 
 ---@param delta number
@@ -1078,7 +1094,7 @@ local function buffer_move(delta)
     local point = state.history:move(delta)
     if not point then return end
 
-    -- History:move restores first and may refresh point.view from its extmark,
+    -- BufferHistory:move restores first and may refresh point.view from its extmark,
     -- so rebuilding state.area here anchors tracking at the actual restored location.
     state.area = area_from_view(point.bufnr, point.view)
 end
