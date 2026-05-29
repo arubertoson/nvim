@@ -17,11 +17,19 @@
 local log = require("aru.log")
 
 local default_config = {
-    debounce_ms = 500,
+    debounce_ms = 250,
     major_move_lines = 7,
 
-    max_history = 100,
+    max_history = 20,
     max_file_lookback = 3,
+    min_block_lines = 15,
+
+    capture_priority = {
+        ["block.outer"] = 1,
+        ["function.outer"] = 2,
+        ["method.outer"] = 2,
+        ["class.outer"] = 4,
+    },
 
     ---@type string[]
     exclude_filetypes = { "oil", "fzf" },
@@ -33,7 +41,7 @@ local default_config = {
         "prompt",
         "acwrite",
     },
-    augroup_id = vim.api.nvim_create_augroup("aru_smartjmp", { clear = true }),
+    augroup_id = nil,
     namespace = vim.api.nvim_create_namespace("aru_smartjmp"),
 }
 
@@ -42,9 +50,11 @@ local default_config = {
 ---@field major_move_lines number
 ---@field max_history number
 ---@field max_file_lookback number
+---@field min_block_lines number
+---@field capture_priority table<string, number>
 ---@field exclude_filetypes string[]
 ---@field exclude_buftypes string[]
----@field augroup_id number
+---@field augroup_id number?
 ---@field namespace  number
 
 ---@class SmartJmp.Module
@@ -107,6 +117,7 @@ local function stop_burst(t)
 end
 
 ---@param bufnr number
+---@return boolean
 local function is_trackable_buffer(bufnr)
     if
         not bufnr
@@ -128,11 +139,168 @@ local function is_trackable_buffer(bufnr)
     return true
 end
 
+---@param semantic SmartJmp.SemanticArea
+---@param row number 0-indexed
+---@param col number 0-indexed
+---@return boolean
+local function semantic_contains_position(semantic, row, col)
+    if row < semantic.start_row or row > semantic.end_row then return false end
+    if row == semantic.start_row and col < semantic.start_col then return false end
+    if row == semantic.end_row and col > semantic.end_col then return false end
+
+    return true
+end
+
+---@param semantic SmartJmp.SemanticArea
+---@return number
+local function semantic_line_count(semantic) return semantic.end_row - semantic.start_row + 1 end
+
+---@class SmartJmp.SemanticCandidate
+---@field area SmartJmp.SemanticArea?
+---@field weight number
+---@field line_count number
+
+---@param candidate SmartJmp.SemanticCandidate
+---@param current SmartJmp.SemanticCandidate?
+---@return boolean
+local function is_better_semantic_candidate(candidate, current)
+    if not current then return true end
+    if candidate.weight < current.weight then return true end
+    if candidate.weight > current.weight then return false end
+
+    return candidate.line_count < current.line_count
+end
+
+---@alias SmartJmp.TreesitterCapture fun(end_line?: integer, end_col?: integer): integer, TSNode, vim.treesitter.query.TSMetadata, TSQueryMatch, TSTree
+
+---@class SmartJmp.TreesitterIterator
+---@field iter SmartJmp.TreesitterCapture
+---@field query vim.treesitter.Query
+
+---@param bufnr number
+---@return SmartJmp.TreesitterIterator?
+local function iter_textobj_captures(bufnr)
+    local lang = vim.treesitter.language.get_lang(vim.bo[bufnr].filetype)
+    if not lang then return nil end
+
+    local ok_parser, parser = pcall(vim.treesitter.get_parser, bufnr, lang)
+    if not ok_parser or not parser then return nil end
+
+    local ok_parse, trees = pcall(parser.parse, parser)
+    local tree = ok_parse and trees and trees[1] or nil
+    local root = tree and tree:root() or nil
+    if not root then return nil end
+
+    local ok_query, query = pcall(vim.treesitter.query.get, lang, "textobjects")
+    if not ok_query or not query then return nil end
+
+    local root_start, _, root_end, _ = root:range()
+
+    return {
+        iter = query:iter_captures(root, bufnr, root_start, root_end + 1),
+        query = query,
+    }
+end
+
+---@param bufnr number
+---@param view SmartJmp.View
+---@return SmartJmp.SemanticArea?
+local function semantic_area_at(bufnr, view)
+    ---@type SmartJmp.SemanticCandidate?
+    local best_match = nil
+    local row = math.max(view.lnum - 1, 0)
+    local col = math.max(view.col, 0)
+
+    local iterator = iter_textobj_captures(bufnr)
+    if not iterator then return nil end
+
+    for id, node, _, _ in iterator.iter do
+        local name = iterator.query.captures[id]
+
+        local weight = M.config.capture_priority[name]
+        if not weight then goto continue end
+
+        local sr, sc, er, ec = node:range()
+        local semantic = {
+            source = "textobject",
+            capture = name,
+            kind = node:type(),
+            start_row = sr,
+            start_col = sc,
+            end_row = er,
+            end_col = ec,
+        }
+
+        ---@type SmartJmp.SemanticCandidate
+        local candidate = {
+            area = semantic,
+            weight = weight,
+            line_count = semantic_line_count(semantic),
+        }
+
+        if
+            not (
+                semantic.capture == "block.outer"
+                and candidate.line_count < M.config.min_block_lines
+            ) and semantic_contains_position(semantic, row, col)
+        then
+            if is_better_semantic_candidate(candidate, best_match) then best_match = candidate end
+        end
+
+        ::continue::
+    end
+
+    if best_match then return best_match.area end
+
+    return nil
+end
+
+---@param area SmartJmp.SemanticArea
+---@param current SmartJmp.SemanticArea
+---@return boolean
+local function same_semantic_area(area, current)
+    if area.capture ~= current.capture then return false end
+    if area.kind ~= current.kind then return false end
+
+    if area.start_row <= current.start_row and current.start_row <= area.end_row then
+        return true
+    end
+    if current.start_row <= area.start_row and area.start_row <= current.end_row then
+        return true
+    end
+
+    return math.abs(area.start_row - current.start_row) <= 5
+end
+
+---@param area SmartJmp.Area
+---@param bufnr number
+---@param view SmartJmp.View
+---@return boolean
+local function area_matches_view(area, bufnr, view)
+    local current_semantic = semantic_area_at(bufnr, view)
+
+    if area.semantic and current_semantic then
+        return same_semantic_area(area.semantic, current_semantic)
+    end
+
+    return not is_major_move(area.view, view)
+end
+
+---@class SmartJmp.SemanticArea
+---@field source string "textobject"|"node"|"fallback"
+---@field capture string?
+---@field kind string
+---@field start_row number
+---@field start_col number
+---@field end_row number
+---@field end_col number
+
 ---@class SmartJmp.Area
 ---@field path string
 ---@field bufnr number?
 ---@field view SmartJmp.View
 ---@field latest_view SmartJmp.View
+---@field semantic SmartJmp.SemanticArea?
 
 ---@param bufnr number
 ---@param view SmartJmp.View
@@ -143,6 +311,7 @@ local function area_from_view(bufnr, view)
         bufnr = bufnr,
         view = vim.tbl_extend("force", {}, view),
         latest_view = vim.tbl_extend("force", {}, view),
+        semantic = semantic_area_at(bufnr, view),
     }
 end
 
@@ -151,6 +320,28 @@ end
 ---@field bufnr number?
 ---@field view  SmartJmp.View
 ---@field extmark_id number?
+---@field semantic SmartJmp.SemanticArea?
+
+---@param point SmartJmp.JumpPoint
+---@param extmark_id number?
+---@return number extmark_id
+local function set_point_extmark(point, extmark_id)
+    local view = point.view
+
+    local line_count = vim.api.nvim_buf_line_count(point.bufnr)
+    local row = math.min(math.max(view.lnum - 1, 0), math.max(line_count - 1, 0))
+    local line = vim.api.nvim_buf_get_lines(point.bufnr, row, row + 1, false)[1] or ""
+    local col = math.min(math.max(view.col, 0), #line)
+
+    local opts = {
+        right_gravity = true,
+        end_row = row,
+        end_col = math.min(#line, col + 1),
+    }
+    if extmark_id then opts.id = extmark_id end
+
+    return vim.api.nvim_buf_set_extmark(point.bufnr, M.config.namespace, row, col, opts)
+end
 
 ---@param area SmartJmp.Area
 ---@param source string
@@ -159,7 +350,8 @@ local function jump_point_from_area(area, source)
     return {
         path = area.path,
         bufnr = area.bufnr,
-        view = vim.tbl_extend("force", {}, area.view),
+        view = vim.tbl_extend("force", {}, area.latest_view or area.view),
+        semantic = area.semantic,
         source = source,
     }
 end
@@ -236,8 +428,7 @@ end
 ---@field entries SmartJmp.JumpPoint[]
 ---@field index number
 ---@field add fun(self: SmartJmp.History, point: SmartJmp.JumpPoint)
----@field move fun(self: SmartJmp.History, delta: number)
----@field commit_area fun(self: SmartJmp.History, area: SmartJmp.Area, source: string)
+---@field move fun(self: SmartJmp.History, delta: number): SmartJmp.JumpPoint?
 local History = {}
 History.__index = History
 
@@ -269,6 +460,20 @@ function History:truncate()
     assert(self.index == #self.entries)
 end
 
+---@param index number
+---@param point SmartJmp.JumpPoint
+function History:update(index, point)
+    if index < 1 or index > #self.entries then
+        log:warn(("update: invalid index %d for %d entries"):format(index, #self.entries))
+        return
+    end
+
+    local existing = self.entries[index]
+    point.extmark_id = set_point_extmark(point, existing.extmark_id)
+
+    self.entries[index] = point
+end
+
 ---@param point SmartJmp.JumpPoint
 function History:add(point)
     self:truncate()
@@ -277,8 +482,6 @@ function History:add(point)
         log:warn(("add: invalid buffer for %s"):format(point.path))
         return
     end
-
-    local view = point.view
 
     -- Naive check if we already have this view in history.
     local last = self.entries[#self.entries]
@@ -290,16 +493,7 @@ function History:add(point)
         self.entries[#self.entries] = nil
     end
 
-    local line_count = vim.api.nvim_buf_line_count(point.bufnr)
-    local row = math.min(math.max(view.lnum - 1, 0), math.max(line_count - 1, 0))
-    local line = vim.api.nvim_buf_get_lines(point.bufnr, row, row + 1, false)[1] or ""
-    local col = math.min(math.max(view.col, 0), #line)
-
-    point.extmark_id = vim.api.nvim_buf_set_extmark(point.bufnr, M.config.namespace, row, col, {
-        right_gravity = true,
-        end_row = row,
-        end_col = math.min(#line, col + 1),
-    })
+    point.extmark_id = set_point_extmark(point)
 
     -- We add the point to history entries and if we exceed the max history we
     -- prune the oldest entry. This ensures we don't grow unbounded.
@@ -333,39 +527,21 @@ function History:restore(point)
         return false
     end
 
-    -- After we've ensured that the point has a valid buffer we need to update
-    -- any point that has invalidated cache. If a invalid cache is found extmark_ids
-    -- needs to be cleared as they are memory bound and unusable after a reload.
-    local bufnr, buf_cache_valid = ensure_buffer_loaded(point.path, point.bufnr)
-    if not bufnr then
-        log:warn(("restore: invalid buffer for %s"):format(point.path))
-        return false
-    end
-
     -- update the point to reflect whatever buffer we've just loaded, if the buffer
     -- is the same or changed doesn't really matter, we just update it regardless.
-    point.bufnr = bufnr
-    if not buf_cache_valid then point.extmark_id = nil end
+    local bufnr = vim.api.nvim_get_current_buf()
+    if point.bufnr ~= bufnr then point.bufnr = bufnr end
 
-    -- Finally we have to focus the buffer in case it's not the current buffer.
-    if vim.api.nvim_get_current_buf() ~= point.bufnr then
-        vim.api.nvim_set_current_buf(point.bufnr)
-    end
-
-    local extmark_valid = with_suppressed_cursor_moved(function()
-        if vim.api.nvim_get_current_buf() ~= point.bufnr then
-            vim.api.nvim_set_current_buf(point.bufnr)
-        end
-
-        return load_buffer_view(point)
-    end)
+    local extmark_valid = with_suppressed_cursor_moved(
+        function() return load_buffer_view(point) end
+    )
     if point.extmark_id and not extmark_valid then point.extmark_id = nil end
 
     return true
 end
 
 ---@param delta number
----@return SmartJmp.JumpPoint?
+---@return SmartJmp.JumpPoint? point
 function History:move(delta)
     log:trace(("move: jump idx=%d delta=%d"):format(self.index, delta))
 
@@ -404,18 +580,17 @@ function History:move(delta)
     return point
 end
 
----@param source string
+---@param point SmartJmp.JumpPoint
 ---@param area SmartJmp.Area
----@return boolean success
-function History:commit_area(area, source)
-    local current = self.entries[self.index]
-    if current and current.path == area.path and not is_major_move(current.view, area.view) then
-        return false
+---@return boolean
+local function jump_point_matches_area(point, area)
+    if point.path ~= area.path then return false end
+
+    if point.semantic and area.semantic then
+        return same_semantic_area(point.semantic, area.semantic)
     end
 
-    self:add(jump_point_from_area(area, source))
-
-    return true
+    return not is_major_move(point.view, area.latest_view or area.view)
 end
 
 ---@class SmartJmp.FileState
@@ -460,9 +635,9 @@ function FileHistory:contains(path)
 
     -- Ensure that we don't scan too far back in the history, by taking the
     -- minimum of the configured `max_file_lookback` and the current index.
-    local steps = math.min(M.config.max_file_lookback, self.index)
+    local lower = math.max(1, self.index - M.config.max_file_lookback + 1)
 
-    for i = self.index, math.max(1, self.index - steps), -1 do
+    for i = self.index, lower, -1 do
         local entry = self.entries[i]
         if entry.path == path then return true end
     end
@@ -556,7 +731,7 @@ end
 ---@class SmartJmp.BufferState
 ---@field path string
 ---@field bufnr number?
----@field debounce uv.uv_timer_t
+---@field debounce uv.uv_timer_t?
 ---@field history SmartJmp.History
 ---@field area SmartJmp.Area?
 local BufferState = {}
@@ -594,9 +769,9 @@ local function create_cursor_move_autocmd(bufnr)
             -- are tracking, if we're not tracking the buffer we can just bail.
             if not is_trackable_buffer(ev.buf) then return end
 
-            -- First thing is the setup, we need to ensure that we create a new
-            -- buffer state for the current buffer, if we have one already we
-            -- should just update it, if necessary.
+            -- If we don't have a state at this point something is wrong, this
+            -- should be setup in the `on_buf_enter` callback. Essentially, this
+            -- shouldn't happen, but we are defensive!
             local state = M.buffers[vim.api.nvim_buf_get_name(ev.buf)]
             if not state then return end
 
@@ -605,6 +780,7 @@ local function create_cursor_move_autocmd(bufnr)
             local origin_path = vim.api.nvim_buf_get_name(origin_buf)
 
             local timer = state.debounce
+            if not timer then return end
             if timer:is_active() then timer:stop() end
 
             timer:start(M.config.debounce_ms, 0, function()
@@ -619,7 +795,8 @@ local function create_cursor_move_autocmd(bufnr)
 
                     -- Ensure that we are still in the original window and that
                     -- nothing has changed with the buffer in the meantime. It's
-                    -- defeinsive but better safe than sorry.
+                    -- should be handled by our `BufferLeave` event, but we are
+                    -- defensive!
                     if
                         not vim.api.nvim_win_is_valid(origin_win)
                         or vim.api.nvim_win_get_buf(origin_win) ~= origin_buf
@@ -638,19 +815,22 @@ local function create_cursor_move_autocmd(bufnr)
                         -- create a new area and store it in our current area
                         if not state.area then
                             state.area = area_from_view(origin_buf, current)
-                            return
-                        end
-
-                        if
-                            state.area.path ~= origin_path
-                            or is_major_move(state.area.view, current)
-                        then
-                            local old = assert(state.area)
-                            state.area = area_from_view(origin_buf, current)
-
-                            state.history:add(jump_point_from_area(old, "area-left"))
+                            state.history:add(jump_point_from_area(state.area, "area-entered"))
                         else
-                            state.area.latest_view = current
+                            if area_matches_view(state.area, origin_buf, current) then
+                                state.area.latest_view = current
+
+                                local current_point = state.history:current()
+                                if current_point and jump_point_matches_area(current_point, state.area) then
+                                    state.history:update(
+                                        state.history.index,
+                                        jump_point_from_area(state.area, "area-updated")
+                                    )
+                                end
+                            else
+                                state.area = area_from_view(origin_buf, current)
+                                state.history:add(jump_point_from_area(state.area, "area-entered"))
+                            end
                         end
                     end)
 
@@ -676,6 +856,9 @@ local function create_buf_wipeout_autocmd(bufnr)
                 -- We stop the timer but keep the reference alive if we need to
                 -- reactivate it, which will happen in `on_buf_enter`.
                 stop_burst(state.debounce)
+                state.debounce:close()
+
+                state.debounce = nil
                 state.bufnr = nil
             end
 
@@ -769,19 +952,35 @@ local function buffer_move(delta)
     local bufnr = vim.api.nvim_get_current_buf()
     local state = M.buffers[vim.api.nvim_buf_get_name(bufnr)]
 
-    if state and state.area then
-        state.history:commit_area(state.area, "navigation")
-        local point = state.history:move(delta)
-        if not point then return end
+    if not (state and state.area) then return end
 
-        state.area = area_from_view(point.bufnr, point.view)
-    end
+    local point = state.history:move(delta)
+    if not point then return end
+
+    -- History:move restores first and may refresh point.view from its extmark,
+    -- so rebuilding state.area here anchors tracking at the actual restored location.
+    state.area = area_from_view(point.bufnr, point.view)
 end
 
 ---@param bufnr number?
 function M.file_mark(bufnr) M.f_hist:add(bufnr or vim.api.nvim_get_current_buf()) end
 function M.file_next() file_move(1) end
 function M.file_prev() file_move(-1) end
+
+function M.with_file_mark(fn)
+    return function()
+        M.file_mark(vim.api.nvim_get_current_buf())
+        return fn()
+    end
+end
+
+function M.file_toggle()
+    if M.f_hist.index < #M.f_hist.entries then
+        file_move(1)
+    else
+        file_move(-1)
+    end
+end
 
 function M.next() buffer_move(1) end
 function M.prev() buffer_move(-1) end
@@ -810,11 +1009,17 @@ function M.reset()
 end
 
 function M.setup()
-    vim.api.nvim_create_autocmd("BufEnter", {
-        group = M.config.augroup_id,
-        desc = "",
-        callback = function(ev) on_buf_enter(ev.buf) end,
-    })
+    if not M.config.augroup_id then
+        M.config.augroup_id = vim.api.nvim_create_augroup("aru_smartjmp", { clear = true })
+
+        vim.api.nvim_create_autocmd("BufEnter", {
+            group = M.config.augroup_id,
+            desc = "",
+            callback = function(ev) on_buf_enter(ev.buf) end,
+        })
+
+        on_buf_enter(vim.api.nvim_get_current_buf())
+    end
 end
 
 return M
