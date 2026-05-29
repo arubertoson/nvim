@@ -2,8 +2,12 @@
 ---@brief Session-aware jump history tuned for Neovim nightly
 ---@description
 --- SmartJmp exists as the lightweight middle ground between the jumplist and
---- manual marks. It remembers the views you actually care about, ignores noise,
---- and survives a whole session.
+--- manual marks. It keeps two separate histories:
+---
+--- 1. buffer-local semantic jump history, captured automatically after cursor
+---    movement settles.
+--- 2. deliberate file history, marked explicitly before actions that may leave
+---    the current work area.
 ---
 --- We treat navigation as bursts, fast hops stay invisible while real leaps
 --- are captured after a debounce window. The history feels intentional rather
@@ -16,14 +20,55 @@
 
 local log = require("aru.log")
 
+-- ============================================================================
+-- Configuration
+-- ============================================================================
+
+---@type SmartJmp.Config
 local default_config = {
+    -- Cursor movement is captured after it has been quiet for this long.
+    --
+    -- Raise this if normal scrolling or repeated motions create too many jump
+    -- points. Lower it if SmartJmp feels slow to notice intentional movement.
     debounce_ms = 250,
-    major_move_lines = 7,
 
-    max_history = 20,
+    -- Minimum line distance that counts as a meaningful move when Treesitter
+    -- cannot identify a semantic area.
+    --
+    -- This is the non-semantic fallback used for buffers without textobject
+    -- queries, unsupported filetypes, or places where no configured capture
+    -- contains the cursor. Raise it to capture fewer small movements; lower it
+    -- if fallback jump history misses useful locations.
+    major_move_lines = 15,
+
+    -- Maximum number of semantic jump points kept per buffer.
+    --
+    -- Larger values preserve deeper in-file history at the cost of more extmarks
+    -- and slightly more state. Smaller values keep the history focused on recent
+    -- work and make next/prev cycling easier to reason about.
+    max_history = 10,
+
+    -- Number of recent file-history entries checked before adding a new mark.
+    --
+    -- This keeps deliberate file history from becoming A/B/A/B noise when you
+    -- repeatedly inspect the same temporary target. Raise it to deduplicate more
+    -- aggressively; lower it if revisiting a file should create a fresh mark
+    -- sooner.
     max_file_lookback = 3,
-    min_block_lines = 15,
 
+    -- Minimum size required for block.outer captures.
+    --
+    -- Small blocks are usually local control-flow noise rather than useful jump
+    -- destinations. This threshold only affects block.outer; functions, methods,
+    -- and classes remain eligible regardless of size.
+    min_block_lines = 20,
+
+    -- Textobject captures that SmartJmp treats as semantic areas.
+    --
+    -- Lower numbers win when multiple configured captures contain the cursor;
+    -- ties are resolved by selecting the smaller area. Add captures here to make
+    -- more textobjects navigable, remove captures to make history less granular,
+    -- or adjust weights to prefer broader/narrower semantic anchors.
     capture_priority = {
         ["block.outer"] = 1,
         ["function.outer"] = 2,
@@ -32,7 +77,18 @@ local default_config = {
     },
 
     ---@type string[]
+    -- Filetypes ignored by both semantic and file history.
+    --
+    -- Use this for plugin buffers that have normal names but are not meaningful
+    -- editing targets, such as pickers, file explorers, dashboards, or scratch
+    -- interfaces.
     exclude_filetypes = { "oil", "fzf" },
+
+    -- Buftypes ignored by both semantic and file history.
+    --
+    -- These buffers are usually transient or controlled by another subsystem.
+    -- Tracking them would create dead jump points or pull temporary UI into the
+    -- deliberate file history.
     exclude_buftypes = {
         "help",
         "nofile",
@@ -41,9 +97,17 @@ local default_config = {
         "prompt",
         "acwrite",
     },
+
+    -- Created during setup. Kept in config so reset/setup share the same group.
     augroup_id = nil,
+
+    -- Namespace used for extmarks that keep jump points stable across edits.
     namespace = vim.api.nvim_create_namespace("aru_smartjmp"),
 }
+
+-- ============================================================================
+-- Module State
+-- ============================================================================
 
 ---@class SmartJmp.Config
 ---@field debounce_ms number
@@ -62,12 +126,25 @@ local default_config = {
 ---@field private buffers table<string, SmartJmp.BufferState>
 ---@field private suppress_cursor_moved boolean
 ---@field private config SmartJmp.Config
+---@field file_mark fun(bufnr?: number)
+---@field file_next fun()
+---@field file_prev fun()
+---@field with_file_mark fun(fn: fun(...): any): fun(...): any
+---@field file_toggle fun()
+---@field next fun()
+---@field prev fun()
+---@field reset fun()
+---@field setup fun()
 local M = {
     f_hist = nil,
     buffers = {},
     suppress_cursor_moved = false,
     config = vim.tbl_extend("force", {}, default_config),
 }
+
+-- ============================================================================
+-- Generic Helpers
+-- ============================================================================
 
 ---@param fn fun(): any
 ---@return any
@@ -111,7 +188,7 @@ local function is_major_move(origin, current)
     return false
 end
 
----@param t uv.uv_timer_t
+---@param t uv.uv_timer_t?
 local function stop_burst(t)
     if t and not t:is_closing() then t:stop() end
 end
@@ -139,6 +216,10 @@ local function is_trackable_buffer(bufnr)
     return true
 end
 
+-- ============================================================================
+-- Semantic Area Detection
+-- ============================================================================
+
 ---@param semantic SmartJmp.SemanticArea
 ---@param row number 0-indexed
 ---@param col number 0-indexed
@@ -156,7 +237,7 @@ end
 local function semantic_line_count(semantic) return semantic.end_row - semantic.start_row + 1 end
 
 ---@class SmartJmp.SemanticCandidate
----@field area SmartJmp.SemanticArea?
+---@field area SmartJmp.SemanticArea
 ---@field weight number
 ---@field line_count number
 
@@ -171,7 +252,7 @@ local function is_better_semantic_candidate(candidate, current)
     return candidate.line_count < current.line_count
 end
 
----@alias SmartJmp.TreesitterCapture fun(end_line?: integer, end_col?: integer): integer, TSNode, vim.treesitter.query.TSMetadata, TSQueryMatch, TSTree
+---@alias SmartJmp.TreesitterCapture fun(...): integer?, TSNode?
 
 ---@class SmartJmp.TreesitterIterator
 ---@field iter SmartJmp.TreesitterCapture
@@ -205,6 +286,11 @@ end
 ---@param bufnr number
 ---@param view SmartJmp.View
 ---@return SmartJmp.SemanticArea?
+--- Finds the best configured textobject capture containing the saved view.
+---
+--- Small block.outer captures are ignored to avoid local-control-flow noise.
+--- When several captures contain the cursor, capture_priority decides first;
+--- ties choose the smaller semantic area.
 local function semantic_area_at(bufnr, view)
     ---@type SmartJmp.SemanticCandidate?
     local best_match = nil
@@ -269,6 +355,8 @@ local function same_semantic_area(area, current)
         return true
     end
 
+    -- Treesitter ranges can shift after edits; nearby starts still represent
+    -- the same practical area for jump-history purposes.
     return math.abs(area.start_row - current.start_row) <= 5
 end
 
@@ -276,6 +364,8 @@ end
 ---@param bufnr number
 ---@param view SmartJmp.View
 ---@return boolean
+--- Semantic matching wins when both sides have textobject data. If not, we use
+--- the original viewport/line-distance heuristic as a fallback.
 local function area_matches_view(area, bufnr, view)
     local current_semantic = semantic_area_at(bufnr, view)
 
@@ -286,8 +376,12 @@ local function area_matches_view(area, bufnr, view)
     return not is_major_move(area.view, view)
 end
 
+-- ============================================================================
+-- Area And Jump Point Construction
+-- ============================================================================
+
 ---@class SmartJmp.SemanticArea
----@field source string "textobject"|"node"|"fallback"
+---@field source "textobject"
 ---@field capture string?
 ---@field kind string
 ---@field start_row number
@@ -315,12 +409,15 @@ local function area_from_view(bufnr, view)
     }
 end
 
----@class SmartJmp.JumpPoint :   vim.fn.winrestview.dict
+---@alias SmartJmp.JumpPointSource "area-entered"|"area-updated"
+
+---@class SmartJmp.JumpPoint
 ---@field path  string
 ---@field bufnr number?
 ---@field view  SmartJmp.View
 ---@field extmark_id number?
 ---@field semantic SmartJmp.SemanticArea?
+---@field source SmartJmp.JumpPointSource
 
 ---@param point SmartJmp.JumpPoint
 ---@param extmark_id number?
@@ -344,7 +441,7 @@ local function set_point_extmark(point, extmark_id)
 end
 
 ---@param area SmartJmp.Area
----@param source string
+---@param source SmartJmp.JumpPointSource
 ---@return SmartJmp.JumpPoint
 local function jump_point_from_area(area, source)
     return {
@@ -394,6 +491,10 @@ local function ensure_buffer_loaded(path, bufnr)
     return new_bufnr, false
 end
 
+-- ============================================================================
+-- View Restore
+-- ============================================================================
+
 ---@param point SmartJmp.JumpPoint
 ---@return boolean extmark_valid
 local function load_buffer_view(point)
@@ -424,7 +525,15 @@ local function load_buffer_view(point)
     return extmark_valid
 end
 
+-- ============================================================================
+-- Buffer-Local Semantic History
+-- ============================================================================
+
 ---@class SmartJmp.History
+--- Buffer-local semantic jump history.
+---
+--- Entries are anchored with extmarks when possible, so edits can move a saved
+--- jump point without invalidating it.
 ---@field entries SmartJmp.JumpPoint[]
 ---@field index number
 ---@field add fun(self: SmartJmp.History, point: SmartJmp.JumpPoint)
@@ -593,6 +702,16 @@ local function jump_point_matches_area(point, area)
     return not is_major_move(point.view, area.latest_view or area.view)
 end
 
+-- ============================================================================
+-- Deliberate File History
+-- ============================================================================
+
+--- File history is intentionally explicit. It is not a buffer list.
+---
+--- Callers mark the current file before an action that may leave the current
+--- work area. file_toggle() can then bounce between the marked file and the
+--- inspected file without making every visited buffer part of the workspace.
+
 ---@class SmartJmp.FileState
 ---@field path string
 ---@field bufnr number?
@@ -728,6 +847,10 @@ function FileHistory:move(delta)
     return state
 end
 
+-- ============================================================================
+-- Buffer State And Autocmd Lifecycle
+-- ============================================================================
+
 ---@class SmartJmp.BufferState
 ---@field path string
 ---@field bufnr number?
@@ -761,7 +884,7 @@ local function create_cursor_move_autocmd(bufnr)
     vim.api.nvim_create_autocmd("CursorMoved", {
         group = M.config.augroup_id,
         buffer = bufnr,
-        desc = "",
+        desc = "SmartJmp: capture semantic jump after cursor settles",
         callback = function(ev)
             if M.suppress_cursor_moved then return end
 
@@ -846,15 +969,13 @@ local function create_buf_wipeout_autocmd(bufnr)
     vim.api.nvim_create_autocmd("BufWipeout", {
         group = M.config.augroup_id,
         buffer = bufnr,
-        desc = "Cleanup our buffer timer when a buffer get's wiped."
-            .. "We maintain all state throughout the session.",
+        desc = "SmartJmp: release buffer timer and volatile jump anchors",
         callback = function(ev)
             local state = M.buffers[vim.api.nvim_buf_get_name(ev.buf)]
             if not state then return end
 
             if state.debounce then
-                -- We stop the timer but keep the reference alive if we need to
-                -- reactivate it, which will happen in `on_buf_enter`.
+                -- Wiped buffers lose memory-bound anchors; keep durable path/view state.
                 stop_burst(state.debounce)
                 state.debounce:close()
 
@@ -882,7 +1003,7 @@ local function create_buf_leave_autocmd(bufnr)
     vim.api.nvim_create_autocmd({ "BufLeave", "WinLeave" }, {
         group = M.config.augroup_id,
         buffer = bufnr,
-        desc = "Cancel any pending jumps when a buffer or window is left.",
+        desc = "SmartJmp: cancel pending cursor-move capture",
         callback = function()
             local state = M.buffers[vim.api.nvim_buf_get_name(bufnr)]
             if state then stop_burst(state.debounce) end
@@ -962,18 +1083,33 @@ local function buffer_move(delta)
     state.area = area_from_view(point.bufnr, point.view)
 end
 
+-- ============================================================================
+-- Public API
+-- ============================================================================
+
 ---@param bufnr number?
+--- Mark a file as a deliberate return point for cross-file inspection.
 function M.file_mark(bufnr) M.f_hist:add(bufnr or vim.api.nvim_get_current_buf()) end
+
+--- Move forward through deliberate file history.
 function M.file_next() file_move(1) end
+
+--- Move backward through deliberate file history.
 function M.file_prev() file_move(-1) end
 
+---@param fn fun(...): any
+---@return fun(...): any
+--- Wrap an action so the current file is marked before the action runs.
+---
+--- Intended for LSP/fuzzy actions that may jump outside the current work area.
 function M.with_file_mark(fn)
-    return function()
+    return function(...)
         M.file_mark(vim.api.nvim_get_current_buf())
-        return fn()
+        return fn(...)
     end
 end
 
+--- Toggle between the current file and the most recent deliberate file mark.
 function M.file_toggle()
     if M.f_hist.index < #M.f_hist.entries then
         file_move(1)
@@ -982,9 +1118,13 @@ function M.file_toggle()
     end
 end
 
+--- Move forward through semantic jump history in the current buffer.
 function M.next() buffer_move(1) end
+
+--- Move backward through semantic jump history in the current buffer.
 function M.prev() buffer_move(-1) end
 
+--- Reset all SmartJmp state and restart tracking for the current buffer.
 function M.reset()
     log:trace(("reset: states for %d buffers"):format(vim.tbl_count(M.buffers)))
 
@@ -1008,13 +1148,14 @@ function M.reset()
     on_buf_enter(vim.api.nvim_get_current_buf())
 end
 
+--- Initialize SmartJmp autocmds and tracking for the current buffer.
 function M.setup()
     if not M.config.augroup_id then
         M.config.augroup_id = vim.api.nvim_create_augroup("aru_smartjmp", { clear = true })
 
         vim.api.nvim_create_autocmd("BufEnter", {
             group = M.config.augroup_id,
-            desc = "",
+            desc = "SmartJmp: initialize tracking for entered buffer",
             callback = function(ev) on_buf_enter(ev.buf) end,
         })
 
