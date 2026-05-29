@@ -6,11 +6,24 @@
 
 local map = vim.keymap.set
 
+
 -- ============================================================================
 -- Leaders
 -- ============================================================================
 vim.g.mapleader = ";"
 vim.g.maplocalleader = ","
+
+-- ============================================================================
+-- Debug
+-- ============================================================================
+map("n", "<leader>jt", function()
+    require("aru.helpers").debug_textobjects()
+end)
+
+vim.keymap.set("n", "<leader>jn", function()
+    require("aru.helpers").debug_ts()
+end)
+
 
 -- ============================================================================
 -- Nops (disable defaults)
@@ -64,6 +77,22 @@ map("n", "<localleader>c", ":<C-u>wincmd c<CR>", { desc = "Close split" })
 map("n", "<leader>;", "<CMD>:noh<CR>", { desc = "Clear search highlight", silent = true })
 map("n", "<localleader>r", ":%s:<C-R><C-w>::g<left><left>", { desc = "Replace word under cursor" })
 map("n", "<localleader>R", ":%s:<C-R><C-w>:<C-r><C-w>:<Left>", { desc = "Replace word under cursor" })
+
+-- Map Ctrl+n to Next match in search mode
+map('c', '<C-n>', function()
+  if vim.fn.getcmdtype() == '/' or vim.fn.getcmdtype() == '?' then
+    return '<C-g>'
+  end
+  return '<C-n>'
+end, { expr = true })
+
+-- Map Ctrl+p to Previous match in search mode
+map('c', '<C-p>', function()
+  if vim.fn.getcmdtype() == '/' or vim.fn.getcmdtype() == '?' then
+    return '<C-t>'
+  end
+  return '<C-p>'
+end, { expr = true })
 
 -- ============================================================================
 -- LSP (set in LspAttach autocmd, but documented here)

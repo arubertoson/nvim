@@ -140,7 +140,7 @@ no matter if it's been updated from other sources or not.
             -- Checktime detects external changes to the file, if 'autoread' is set and there are no
             -- unsaved changes it will auto-reload. Otherwise it will prompt the user to save changes
             -- or discard them.
-            vim.cmd("checktime")
+            vim.cmd("silent! checktime")
         end
     end,
 })
@@ -161,7 +161,8 @@ local function empty(item)
     return true
 end
 
-vim.api.nvim_create_autocmd({ "InsertLeave", "BufLeave", "CursorHold" }, {
+-- vim.api.nvim_create_autocmd({ "InsertLeave", "BufLeave", "CursorHold" }, {
+vim.api.nvim_create_autocmd({ "InsertLeave", "BufLeave" }, {
     desc = [[
 Save on insert, buffer leave, cursor hold--we want to save as often as
 possible, be it manual or automatic.",

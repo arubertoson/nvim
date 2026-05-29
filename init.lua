@@ -63,7 +63,7 @@ vim.loader.enable()
 --
 -- vim._extui affects the rendering pipeline. Loading it first prevents
 -- visual artifacts and ensures consistent UI behavior.
-require("vim._extui").enable({})
+require("vim._core.ui2").enable({})
 
 -- Core infrastructure - timing and loading utilities
 local log = require("aru.log").configure({

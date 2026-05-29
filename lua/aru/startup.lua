@@ -29,11 +29,7 @@ end
 --- Check if the current environment is running in a SSH shell
 ---@return boolean
 function M.is_ssh_shell()
-    return (
-        vim.env.SSH_CLIENT ~= nil
-        or vim.env.SSH_CONNECTION ~= nil
-        or vim.env.SSH_TTY ~= nil
-    )
+    return (vim.env.SSH_CLIENT ~= nil or vim.env.SSH_CONNECTION ~= nil or vim.env.SSH_TTY ~= nil)
 end
 
 --- Measures wall time using vim.uv.hrtime() and returns ms.
@@ -63,9 +59,7 @@ end
 local function load_file(path)
     local modname = module_path(path)
     local ok, err = pcall(require, modname)
-    if not ok then
-        return false, ("require error %s: %s"):format(modname, err)
-    end
+    if not ok then return false, ("require error %s: %s"):format(modname, err) end
     return true
 end
 
@@ -144,11 +138,29 @@ end
 function M.flush_startup_errors()
     if #_errors == 0 then return end
 
-    vim.notify(
-        "Deferred load errors:\n" .. table.concat(_errors, "\n"),
-        vim.log.levels.ERROR
-    )
+    vim.notify("Deferred load errors:\n" .. table.concat(_errors, "\n"), vim.log.levels.ERROR)
     _errors = {}
+end
+
+-- Create a global print function for debugging
+_G.P = function(...)
+    -- Inspect all arguments
+    local objects = vim.tbl_map(vim.inspect, { ... })
+    local lines = vim.split(table.concat(objects, "\n"), "\n")
+
+    -- Create a true scratch buffer (unlisted, no file)
+    local buf = vim.api.nvim_create_buf(false, true)
+
+    -- Dump the lines into the buffer
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+
+    -- Set buffer options: wipe out when hidden, treat as Lua for syntax highlighting
+    vim.bo[buf].bufhidden = "wipe"
+    vim.bo[buf].filetype = "lua"
+
+    -- Open a vertical split and set the buffer
+    vim.cmd("vsplit")
+    vim.api.nvim_win_set_buf(0, buf)
 end
 
 return M

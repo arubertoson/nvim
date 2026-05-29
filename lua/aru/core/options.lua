@@ -25,6 +25,7 @@ vim.g.loaded_spellfile_plugin = 1
 
 -- Better UX
 vim.opt.autowriteall = true
+vim.opt.autoread = true
 vim.opt.splitright = true
 vim.opt.splitbelow = true
 vim.opt.swapfile = false
@@ -46,6 +47,7 @@ vim.opt.showcmd = false
 vim.o.winborder = "rounded"
 vim.opt.number = true
 vim.opt.relativenumber = true
+vim.opt.colorcolumn = "100"
 vim.opt.showtabline = 1
 vim.opt.signcolumn = "yes"
 vim.opt.breakindent = true
