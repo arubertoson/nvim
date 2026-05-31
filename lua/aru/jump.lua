@@ -29,7 +29,7 @@ local default_config = {
     -- Cursor movement is captured after it has been quiet for this long.
     --
     -- Raise this if normal scrolling or repeated motions create too many jump
-    -- points. Lower it if SmartJmp feels slow to notice intentional movement.
+    -- areas. Lower it if SmartJmp feels slow to notice intentional movement.
     debounce_ms = 250,
 
     -- Minimum line distance that counts as a meaningful move when Treesitter
@@ -39,9 +39,11 @@ local default_config = {
     -- queries, unsupported filetypes, or places where no configured capture
     -- contains the cursor. Raise it to capture fewer small movements; lower it
     -- if fallback jump history misses useful locations.
-    major_move_lines = 15,
+    major_move_lines = 38,
 
-    -- Maximum number of semantic jump points kept per buffer.
+    max_ts_field_len = 10,
+
+    -- Maximum number of semantic jump areas kept per buffer.
     --
     -- Larger values preserve deeper in-file history at the cost of more extmarks
     -- and slightly more state. Smaller values keep the history focused on recent
@@ -70,10 +72,9 @@ local default_config = {
     -- more textobjects navigable, remove captures to make history less granular,
     -- or adjust weights to prefer broader/narrower semantic anchors.
     capture_priority = {
-        ["block.outer"] = 1,
-        ["function.outer"] = 2,
+        ["function.outer"] = 1,
         ["method.outer"] = 2,
-        ["class.outer"] = 4,
+        ["class.outer"] = 3,
     },
 
     ---@type string[]
@@ -87,7 +88,7 @@ local default_config = {
     -- Buftypes ignored by both semantic and file history.
     --
     -- These buffers are usually transient or controlled by another subsystem.
-    -- Tracking them would create dead jump points or pull temporary UI into the
+    -- Tracking them would create dead jump areas or pull temporary UI into the
     -- deliberate file history.
     exclude_buftypes = {
         "help",
@@ -101,7 +102,7 @@ local default_config = {
     -- Created during setup. Kept in config so reset/setup share the same group.
     augroup_id = nil,
 
-    -- Namespace used for extmarks that keep jump points stable across edits.
+    -- Namespace used for extmarks that keep jump areas stable across edits.
     namespace = vim.api.nvim_create_namespace("aru_smartjmp"),
 }
 
@@ -112,6 +113,7 @@ local default_config = {
 ---@class SmartJmp.Config
 ---@field debounce_ms number
 ---@field major_move_lines number
+---@field max_ts_field_len number
 ---@field max_history number
 ---@field max_file_lookback number
 ---@field min_block_lines number
@@ -174,18 +176,6 @@ end
 ---@return SmartJmp.View
 local function capture_view()
     return vim.tbl_extend("force", {}, vim.fn.winsaveview(), { botline = vim.fn.line("w$") })
-end
-
----@param origin SmartJmp.View
----@param current SmartJmp.View
----@return boolean
-local function is_major_move(origin, current)
-    if math.abs(origin.lnum - current.lnum) > M.config.major_move_lines then return true end
-
-    -- We check whether the current cursor position is within the original viewport
-    if origin.botline < current.lnum or current.lnum < origin.topline then return true end
-
-    return false
 end
 
 ---@param t uv.uv_timer_t?
@@ -283,6 +273,33 @@ local function iter_textobj_captures(bufnr)
     }
 end
 
+---@param node TSNode
+---@param field string
+---@param bufnr number
+---@return string?
+local function ts_node_field_text(node, field, bufnr)
+    local field_node = node:field(field)[1]
+
+    local name = nil
+    if field_node then name = vim.treesitter.get_node_text(field_node, bufnr) end
+
+    if not name then
+        -- fallback to get a snippet of the node starting string in case
+        -- node doesn't have a field. This will give us something to work
+        -- with.
+        local sr, sc = node:range()
+        local line = vim.api.nvim_buf_get_lines(bufnr, sr, sr + 1, false)[1] or ""
+
+        local end_col = math.min(#line, sc + M.config.max_ts_field_len)
+
+        return vim.api.nvim_buf_get_text(bufnr, sr, sc, sr, end_col, {})[1]
+    end
+
+    if not name or name == "" then return nil end
+
+    return name
+end
+
 ---@param bufnr number
 ---@param view SmartJmp.View
 ---@return SmartJmp.SemanticArea?
@@ -301,16 +318,19 @@ local function semantic_area_at(bufnr, view)
     if not iterator then return nil end
 
     for id, node, _, _ in iterator.iter do
-        local name = iterator.query.captures[id]
+        local capture_name = iterator.query.captures[id]
 
-        local weight = M.config.capture_priority[name]
+        local weight = M.config.capture_priority[capture_name]
         if not weight then goto continue end
+
+        local name = ts_node_field_text(node, "name", bufnr)
 
         local sr, sc, er, ec = node:range()
         local semantic = {
             source = "textobject",
-            capture = name,
+            capture = capture_name,
             kind = node:type(),
+            name = name,
             start_row = sr,
             start_col = sc,
             end_row = er,
@@ -341,47 +361,51 @@ local function semantic_area_at(bufnr, view)
     return nil
 end
 
+--- XXX: This logic needs to be revisited
 ---@param area SmartJmp.SemanticArea
----@param current SmartJmp.SemanticArea
+---@param other SmartJmp.SemanticArea
 ---@return boolean
-local function same_semantic_area(area, current)
-    if area.capture ~= current.capture then return false end
-    if area.kind ~= current.kind then return false end
+local function same_semantic_area(area, other)
+    if area.capture ~= other.capture then return false end
+    if area.kind ~= other.kind then return false end
+    if area.name ~= other.name then return false end
 
-    if area.start_row <= current.start_row and current.start_row <= area.end_row then
-        return true
-    end
-    if current.start_row <= area.start_row and area.start_row <= current.end_row then
-        return true
-    end
+    if area.start_row <= other.start_row and other.start_row <= area.end_row then return true end
+    if other.start_row <= area.start_row and area.start_row <= other.end_row then return true end
 
     -- Treesitter ranges can shift after edits; nearby starts still represent
     -- the same practical area for jump-history purposes.
-    return math.abs(area.start_row - current.start_row) <= 5
+    return math.abs(area.start_row - other.start_row) <= 5
+end
+
+---@param view SmartJmp.View
+---@param other SmartJmp.View
+---@return boolean
+local function is_fallback_major_move(view, other)
+    return math.abs(view.lnum - other.lnum) > M.config.major_move_lines
 end
 
 ---@param area SmartJmp.Area
----@param bufnr number
+---@param candidate SmartJmp.SemanticArea?
 ---@param view SmartJmp.View
 ---@return boolean
---- Semantic matching wins when both sides have textobject data. If not, we use
---- the original viewport/line-distance heuristic as a fallback.
-local function area_matches_view(area, bufnr, view)
-    local current_semantic = semantic_area_at(bufnr, view)
+local function area_matches_candidate(area, candidate, view)
+    if area.semantic and candidate then return same_semantic_area(area.semantic, candidate) end
 
-    if area.semantic and current_semantic then
-        return same_semantic_area(area.semantic, current_semantic)
+    if not area.semantic and not candidate then
+        return not is_fallback_major_move(area.view, view)
     end
 
-    return not is_major_move(area.view, view)
+    return false
 end
 
 -- ============================================================================
--- Area And Jump Point Construction
+-- Area Construction
 -- ============================================================================
 
 ---@class SmartJmp.SemanticArea
 ---@field source "textobject"
+---@field name string?
 ---@field capture string?
 ---@field kind string
 ---@field start_row number
@@ -390,44 +414,29 @@ end
 ---@field end_col number
 
 ---@class SmartJmp.Area
----@field path string
----@field bufnr number?
+---@field extmark_id number?
 ---@field view SmartJmp.View
----@field latest_view SmartJmp.View
 ---@field semantic SmartJmp.SemanticArea?
 
----@param bufnr number
 ---@param view SmartJmp.View
+---@param semantic SmartJmp.SemanticArea?
 ---@return SmartJmp.Area
-local function area_from_view(bufnr, view)
+local function area_from_view(view, semantic)
     return {
-        path = vim.api.nvim_buf_get_name(bufnr),
-        bufnr = bufnr,
+        extmark_id = nil,
         view = vim.tbl_extend("force", {}, view),
-        latest_view = vim.tbl_extend("force", {}, view),
-        semantic = semantic_area_at(bufnr, view),
+        semantic = semantic,
     }
 end
 
----@alias SmartJmp.JumpPointSource "area-entered"|"area-updated"
-
----@class SmartJmp.JumpPoint
----@field path  string
----@field bufnr number?
----@field view  SmartJmp.View
----@field extmark_id number?
----@field semantic SmartJmp.SemanticArea?
----@field source SmartJmp.JumpPointSource
-
----@param point SmartJmp.JumpPoint
+---@param bufnr number
+---@param view SmartJmp.View
 ---@param extmark_id number?
 ---@return number? extmark_id
-local function set_point_extmark(point, extmark_id)
-    local view = point.view
-
-    local line_count = vim.api.nvim_buf_line_count(point.bufnr)
+local function set_area_extmark(bufnr, view, extmark_id)
+    local line_count = vim.api.nvim_buf_line_count(bufnr)
     local row = math.min(math.max(view.lnum - 1, 0), math.max(line_count - 1, 0))
-    local line = vim.api.nvim_buf_get_lines(point.bufnr, row, row + 1, false)[1] or ""
+    local line = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1] or ""
     local col = math.min(math.max(view.col, 0), #line)
 
     local opts = {
@@ -438,41 +447,29 @@ local function set_point_extmark(point, extmark_id)
     if extmark_id then opts.id = extmark_id end
 
     local ok, extmark_id =
-        pcall(vim.api.nvim_buf_set_extmark, point.bufnr, M.config.namespace, row, col, opts)
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, M.config.namespace, row, col, opts)
     if not ok then
-        log:warn(("set_point_extmark: failed to set extmark for %s"):format(point.path))
+        log:warn(
+            ("set_area_extmark: failed to set extmark for buffer %d (%s)"):format(
+                bufnr,
+                vim.api.nvim_buf_get_name(bufnr)
+            )
+        )
         return nil
     end
 
     return extmark_id
 end
 
----@param point SmartJmp.JumpPoint
+---@param bufnr number
+---@param extmark_id number
 ---@return boolean success
-local function delete_point_extmark(point)
-    if point.bufnr and point.extmark_id and vim.api.nvim_buf_is_valid(point.bufnr) then
-        return pcall(
-            vim.api.nvim_buf_del_extmark,
-            point.bufnr,
-            M.config.namespace,
-            point.extmark_id
-        )
+local function delete_area_extmark(bufnr, extmark_id)
+    if bufnr and extmark_id and vim.api.nvim_buf_is_valid(bufnr) then
+        return pcall(vim.api.nvim_buf_del_extmark, bufnr, M.config.namespace, extmark_id)
     end
 
     return true
-end
-
----@param area SmartJmp.Area
----@param source SmartJmp.JumpPointSource
----@return SmartJmp.JumpPoint
-local function jump_point_from_area(area, source)
-    return {
-        path = area.path,
-        bufnr = area.bufnr,
-        view = vim.tbl_extend("force", {}, area.latest_view or area.view),
-        semantic = area.semantic,
-        source = source,
-    }
 end
 
 ---@param path string
@@ -517,34 +514,133 @@ end
 -- View Restore
 -- ============================================================================
 
----@param point SmartJmp.JumpPoint
+---@param bufnr number
+---@param extmark_id number
+---@param view SmartJmp.View
+---@return boolean ok
 ---@return boolean extmark_valid
-local function load_buffer_view(point)
+local function load_buffer_view(bufnr, extmark_id, view)
     local extmark_valid = false
 
-    if point.extmark_id then
-        local ok, pos = pcall(
-            vim.api.nvim_buf_get_extmark_by_id,
-            point.bufnr,
-            M.config.namespace,
-            point.extmark_id,
-            {}
-        )
+    if extmark_id then
+        local ok, pos =
+            pcall(vim.api.nvim_buf_get_extmark_by_id, bufnr, M.config.namespace, extmark_id, {})
         if ok and pos[1] then
             -- remember, neovim extmarks are 0-indexed, so we add +1 to match
             -- other editor behaviour.
-            point.view.lnum = pos[1] + 1
-            point.view.col = pos[2]
+            view.lnum = pos[1] + 1
+            view.col = pos[2]
 
             extmark_valid = true
         else
-            log:trace(("restore: extmark %d deleted for %s"):format(point.extmark_id, point.path))
+            log:trace(("restore: extmark %d deleted in %d"):format(extmark_id, bufnr))
         end
     end
 
-    vim.fn.winrestview(point.view)
+    -- Do we need to wrap this in a pcall?
+    local ok = pcall(vim.fn.winrestview, view)
+    if not ok then return false, extmark_valid end
 
-    return extmark_valid
+    return true, extmark_valid
+end
+
+---@param state SmartJmp.BufferState
+---@param area SmartJmp.Area
+---@return boolean updated
+local function refresh_area_view_from_extmark(state, area)
+    if not area.extmark_id then return false end
+
+    local ok, pos = pcall(
+        vim.api.nvim_buf_get_extmark_by_id,
+        state.bufnr,
+        M.config.namespace,
+        area.extmark_id,
+        {}
+    )
+
+    if not ok or type(pos) ~= "table" or not pos[1] then
+        area.extmark_id = nil
+        return false
+    end
+
+    area.view.lnum = pos[1] + 1
+    area.view.col = pos[2]
+
+    return true
+end
+
+---@param state SmartJmp.BufferState
+local function sanitize_history(state)
+    for _, area in ipairs(state.history.entries) do
+        local updated = refresh_area_view_from_extmark(state, area)
+        if updated then
+            local semantic = semantic_area_at(state.bufnr, area.view)
+            if semantic then area.semantic = semantic end
+        end
+    end
+end
+
+---@param state SmartJmp.BufferState
+---@return boolean sanitized
+local function maybe_sanitize_history(state)
+    local tick = vim.api.nvim_buf_get_changedtick(state.bufnr)
+    if tick == state.changetick then return false end
+
+    sanitize_history(state)
+    state.changetick = tick
+
+    return true
+end
+
+---@param bufnr number
+---@param area SmartJmp.Area
+---@return boolean restored
+---@return SmartJmp.Area?
+local function restore_area(bufnr, area)
+    local ok, result = pcall(function()
+        return with_suppressed_cursor_moved(function()
+            local restored, extmark_valid = load_buffer_view(bufnr, area.extmark_id, area.view)
+            return {
+                restored = restored,
+                extmark_valid = extmark_valid,
+            }
+        end)
+    end)
+
+    if not ok or not result.restored then
+        local path = vim.api.nvim_buf_get_name(bufnr)
+        log:warn(("restore: failed to restore area for %s"):format(path))
+        return false, nil
+    end
+
+    if area.extmark_id and not result.extmark_valid then area.extmark_id = nil end
+
+    return true, area
+end
+
+---@param bufnr number
+---@param delta number
+---@pram history SmartJmp.BufferHistory
+---@return SmartJmp.Area? area
+local function move(bufnr, delta, history)
+    log:trace(("move: jump idx=%d delta=%d"):format(history.index, delta))
+
+    local target_index, target_area = history:target(delta)
+    if not target_area then return nil end
+
+    -- We get the area that we want to restore and try to restore it, if it fails
+    -- we have a "stale" area, and it needs to be removed from the history to ensure
+    -- we don't end up with dead areas that can't be used.
+    local ok, area = restore_area(bufnr, target_area)
+    if not ok then
+        history:remove(target_index)
+
+        return nil
+    end
+
+    history.index = target_index
+
+    return area
 end
 
 -- ============================================================================
@@ -555,164 +651,124 @@ end
 --- Buffer-local semantic jump history.
 ---
 --- Entries are anchored with extmarks when possible, so edits can move a saved
---- jump point without invalidating it.
----@field entries SmartJmp.JumpPoint[]
+--- jump areas without invalidating it.
 ---@field index number
----@field add fun(self: SmartJmp.BufferHistory, point: SmartJmp.JumpPoint)
----@field move fun(self: SmartJmp.BufferHistory, delta: number): SmartJmp.JumpPoint?
+---@field entries SmartJmp.Area[]
 local BufferHistory = {}
 BufferHistory.__index = BufferHistory
 
 ---@return SmartJmp.BufferHistory
 function BufferHistory:new()
     return setmetatable({
-        entries = {},
         index = 0,
+        entries = {},
     }, BufferHistory)
 end
 
----@return SmartJmp.JumpPoint?
+---@return SmartJmp.Area?
 function BufferHistory:current() return self.entries[self.index] end
 
+---@param index number
+---@return SmartJmp.Area
+function BufferHistory:get(index)
+    assert(index <= #self.entries)
+    return self.entries[index]
+end
+
+---@return SmartJmp.Area[] pruned
 function BufferHistory:truncate()
-    if self.index == #self.entries then return end
+    if self.index == #self.entries then return {} end
+
+    local pruned = {}
 
     -- We have to do a reverse iteration to avoid modifying the table in place,
     -- this ensures that we don't mess up the index.
     for i = #self.entries, self.index + 1, -1 do
-        local point = self.entries[i]
-        if not delete_point_extmark(point) then
-            log:warn(("truncate: failed to remove extmark for %s"):format(point.path))
-        end
-
-        table.remove(self.entries, i)
+        table.insert(pruned, table.remove(self.entries, i))
     end
 
     assert(self.index == #self.entries)
+
+    return pruned
 end
 
 ---@param index number
----@param point SmartJmp.JumpPoint
-function BufferHistory:update(index, point)
+---@param patch? table<string, any>
+function BufferHistory:reactivate(index, patch)
     if index < 1 or index > #self.entries then
         log:warn(("update: invalid index %d for %d entries"):format(index, #self.entries))
         return
     end
 
-    local existing = self.entries[index]
-    point.extmark_id = set_point_extmark(point, existing.extmark_id)
-
-    self.entries[index] = point
-end
-
----@param point SmartJmp.JumpPoint
-function BufferHistory:add(point)
-    self:truncate()
-
-    if not point.bufnr or not is_trackable_buffer(point.bufnr) then
-        log:trace(("add: invalid buffer for %s"):format(point.path))
-        return
-    end
-
-    -- Naive check if we already have this view in history.
-    local last = self.entries[#self.entries]
-    if last and last.path == point.path and not is_major_move(last.view, point.view) then
-        if not delete_point_extmark(last) then
-            log:warn(("add: failed to remove extmark for %s"):format(last.path))
-        end
-
-        self.entries[#self.entries] = nil
-    end
-
-    point.extmark_id = set_point_extmark(point)
-
-    -- We add the point to history entries and if we exceed the max history we
-    -- prune the oldest entry. This ensures we don't grow unbounded.
-    table.insert(self.entries, point)
-    if #self.entries > M.config.max_history then
-        local removed = table.remove(self.entries, 1)
-
-        if removed and not delete_point_extmark(removed) then
-            log:warn(("add: failed to remove extmark for %s"):format(removed.path))
-        end
+    local area = nil
+    -- If the index we want to reactivate is no the last entry, we want to
+    -- move it to the end of the list and reuse the extmark_id.
+    if index < #self.entries then
+        area = table.remove(self.entries, index)
+        table.insert(self.entries, area)
+    else
+        area = self.entries[index]
     end
 
     self.index = #self.entries
+
+    -- Update the area with the whatever the patch provides.
+    vim.tbl_extend("force", area, patch or {})
 end
 
----@param point SmartJmp.JumpPoint
----@return boolean restored
-function BufferHistory:restore(point)
-    -- this will fail if the buffer doesn't exist or isn't loaded
-    if not point or not point.view then
-        log:warn("restore: invalid point / buffer")
-        return false
+---@param semantic SmartJmp.SemanticArea?
+---@param view SmartJmp.View
+---@return number?
+function BufferHistory:find_match(semantic, view)
+    for idx, entry in ipairs(self.entries) do
+        if entry and area_matches_candidate(entry, semantic, view) then return idx end
     end
 
-    -- update the point to reflect whatever buffer we've just loaded, if the buffer
-    -- is the same or changed doesn't really matter, we just update it regardless.
-    local bufnr = vim.api.nvim_get_current_buf()
-    if point.bufnr ~= bufnr then point.bufnr = bufnr end
-
-    local extmark_valid = with_suppressed_cursor_moved(
-        function() return load_buffer_view(point) end
-    )
-    if point.extmark_id and not extmark_valid then point.extmark_id = nil end
-
-    return true
+    return nil
 end
 
 ---@param delta number
----@return SmartJmp.JumpPoint? point
-function BufferHistory:move(delta)
-    log:trace(("move: jump idx=%d delta=%d"):format(self.index, delta))
-
+---@return number?, SmartJmp.Area?
+function BufferHistory:target(delta)
     local target_index = self.index + delta
 
     -- We don't want to move outside the bounds of the history.
     if target_index < 1 or target_index > #self.entries then
         log:trace(("move: invalid index %d for %d entries"):format(target_index, #self.entries))
-        return
+        return nil, nil
     end
 
-    -- We get the point that we want to restore and try to restore it, if it fails
-    -- we have a "stale" point, and it needs to be removed from the history to ensure
-    -- we don't end up with dead points that can't be used.
-    --
-    -- This means we have a bit of a dirty side effect here, but it's a decent tradeoff
-    -- to avoid having to deal with stale points.
-    local point = self.entries[target_index]
-    local ok = self:restore(point)
-    if not ok then
-        log:trace(("move: failed to restore %s"):format(point and point.path or "<invalid>"))
-        table.remove(self.entries, target_index)
-
-        -- After removing a stale point we need to ensure that our internal index
-        -- maintains it's current position, if we remove +1 self.index is maintained,
-        -- if we remove -1 self.index will need to be decremented.
-        if delta < 0 then self.index = math.max(0, self.index - 1) end
-        self.index = math.min(self.index, #self.entries)
-
-        return nil
-    end
-
-    -- Only update the index if we've successfully restored the point, otherwise
-    self.index = target_index
-
-    return point
+    return target_index, self.entries[target_index]
 end
 
----@param point SmartJmp.JumpPoint
+---@param target_index number
+function BufferHistory:remove(target_index)
+    table.remove(self.entries, target_index)
+
+    -- After removing an area we need to ensure that our internal index
+    -- maintains it's current position, essentially if our `target_index`
+    -- is smaller than our `index` we need to decrement it.
+    if target_index < self.index then self.index = math.max(0, self.index - 1) end
+end
+
 ---@param area SmartJmp.Area
----@return boolean
-local function jump_point_matches_area(point, area)
-    if point.path ~= area.path then return false end
+function BufferHistory:append(area)
+    -- We add the areas to history entries and if we exceed the max history we
+    -- prune the oldest entry. This ensures we don't grow unbounded.
+    table.insert(self.entries, area)
+    self.index = #self.entries
+end
 
-    if point.semantic and area.semantic then
-        return same_semantic_area(point.semantic, area.semantic)
-    end
+---@param area SmartJmp.Area
+---@return SmartJmp.Area?
+function BufferHistory:append_capped(area)
+    self:append(area)
+    if #self.entries <= M.config.max_history then return nil end
 
-    return not is_major_move(point.view, area.latest_view or area.view)
+    local pruned = table.remove(self.entries, 1)
+    self.index = #self.entries
+
+    return pruned
 end
 
 -- ============================================================================
@@ -824,8 +880,8 @@ function FileHistory:move(delta)
 
     local state = self.entries[target_index]
 
-    -- After we've ensured that the point has a valid buffer we need to update
-    -- any point that has invalidated cache. If a invalid cache is found extmark_ids
+    -- After we've ensured that the areas has a valid buffer we need to update
+    -- any area that has invalidated cache. If a invalid cache is found extmark_ids
     -- needs to be cleared as they are memory bound and unusable after a reload.
     local bufnr, cache_hit = ensure_buffer_loaded(state.path, state.bufnr)
     if not bufnr then
@@ -847,13 +903,11 @@ function FileHistory:move(delta)
         vim.api.nvim_set_current_buf(state.bufnr)
     end
 
-    -- To avoid messing with the `BufferState` we restore the "active" point
+    -- To avoid messing with the `BufferState` we restore the "active" area
     -- in the history, if there is one.
     local buf_state = M.buffers[state.path]
-    if buf_state then
-        local point = buf_state.history:current()
-        if point then buf_state.history:restore(point) end
-    end
+    local area = buf_state.history:current()
+    if area then restore_area(buf_state.bufnr, area) end
 
     self.index = target_index
 
@@ -867,9 +921,9 @@ end
 ---@class SmartJmp.BufferState
 ---@field path string
 ---@field bufnr number?
+---@field changetick number
 ---@field debounce uv.uv_timer_t?
 ---@field history SmartJmp.BufferHistory
----@field area SmartJmp.Area?
 local BufferState = {}
 BufferState.__index = BufferState
 
@@ -886,40 +940,63 @@ function BufferState:new(bufnr)
     return setmetatable({
         path = path,
         bufnr = bufnr,
+        changetick = vim.api.nvim_buf_get_changedtick(bufnr),
         debounce = timer,
         history = BufferHistory:new(),
-        area = nil,
     }, BufferState)
 end
 
 ---@param state SmartJmp.BufferState
----@param bufnr number
 ---@param view SmartJmp.View
-local function record_buffer_view(state, bufnr, view)
-    -- first capture establises the initial area
-    if not state.area then
-        state.area = area_from_view(bufnr, view)
-        state.history:add(jump_point_from_area(state.area, "area-entered"))
+local function record_buffer_area(state, view)
+    maybe_sanitize_history(state)
 
+    local semantic = semantic_area_at(state.bufnr, view)
+
+    if #state.history.entries == 0 then
+        local area = area_from_view(view, semantic)
+        area.extmark_id = set_area_extmark(state.bufnr, view)
+
+        state.history:append(area)
         return
     end
 
-    if area_matches_view(state.area, bufnr, view) then
-        state.area.latest_view = view
-
-        local current_point = state.history:current()
-        if current_point and jump_point_matches_area(current_point, state.area) then
-            state.history:update(
-                state.history.index,
-                jump_point_from_area(state.area, "area-updated")
-            )
+    -- Before we append/update any areas we need to ensure that if we are in the
+    -- middle of the history, we start a new branch and remove the stale areas.
+    -- Each area contains an extmark_id that we need to clean up.
+    local pruned_areas = state.history:truncate()
+    for _, pruned_area in ipairs(pruned_areas) do
+        if not delete_area_extmark(state.bufnr, pruned_area.extmark_id) then
+            log:warn(("truncate: failed to remove extmark for %s"):format(state.path))
         end
+    end
+
+    local index = state.history:find_match(semantic, view)
+    if index then
+        local area = state.history:get(index)
+
+        state.history:reactivate(index, {
+            extmark_id = set_area_extmark(state.bufnr, view, area.extmark_id),
+            view = vim.tbl_extend("force", {}, view),
+            semantic = semantic,
+        })
 
         return
     end
 
-    state.area = area_from_view(bufnr, view)
-    state.history:add(jump_point_from_area(state.area, "area-entered"))
+    local new_area = area_from_view(view, semantic)
+    new_area.extmark_id = set_area_extmark(state.bufnr, view)
+
+    local pruned = state.history:append_capped(new_area)
+    if pruned and not delete_area_extmark(state.bufnr, pruned.extmark_id) then
+        log:warn(
+            ("add: failed to remove extmark_id (%d) in buffer: %s (%d)"):format(
+                pruned.extmark_id,
+                state.path,
+                state.bufnr
+            )
+        )
+    end
 end
 
 ---@param bufnr number
@@ -959,6 +1036,10 @@ local function create_cursor_move_autocmd(bufnr)
                     local timer = state.debounce
                     if not timer then return end
 
+                    if state.bufnr ~= origin_buf then
+                        if state.path == origin_path then state.bufnr = origin_buf end
+                    end
+
                     -- Ensure that we are still in the original window and that
                     -- nothing has changed with the buffer in the meantime. It's
                     -- should be handled by our `BufferLeave` event, but we are
@@ -975,7 +1056,7 @@ local function create_cursor_move_autocmd(bufnr)
                     -- capture_view() is window-local, so run it in the original window.
                     vim.api.nvim_win_call(
                         origin_win,
-                        function() record_buffer_view(state, origin_buf, capture_view()) end
+                        function() record_buffer_area(state, capture_view()) end
                     )
 
                     stop_burst(timer)
@@ -1004,17 +1085,12 @@ local function create_buf_wipeout_autocmd(bufnr)
                 state.bufnr = nil
             end
 
-            -- We also need to clean up the history points, not remove them but
+            -- We also need to clean up the history areas, not remove them but
             -- ensure that information that will change when we reload the buffer
             -- is cleared.
-            for _, point in ipairs(state.history.entries) do
-                if point.bufnr == ev.buf then
-                    point.bufnr = nil
-                    point.extmark_id = nil
-                end
+            for _, area in ipairs(state.history.entries) do
+                area.extmark_id = nil
             end
-
-            if state.area and state.area.bufnr == ev.buf then state.area.bufnr = nil end
         end,
     })
 end
@@ -1035,7 +1111,7 @@ end
 ---@param bufnr number
 local function on_buf_enter(bufnr)
     -- We go fairly hard in our exclusion, we don't want to mess with buffers
-    -- that shouldn't have any jump points.
+    -- that shouldn't have any jump areas.
     local path = vim.api.nvim_buf_get_name(bufnr)
     if not is_trackable_buffer(bufnr) then
         log:trace(("on_buf_enter: excluded %s"):format(path))
@@ -1088,15 +1164,16 @@ end
 local function buffer_move(delta)
     local bufnr = vim.api.nvim_get_current_buf()
     local state = M.buffers[vim.api.nvim_buf_get_name(bufnr)]
+    assert(state)
 
-    if not (state and state.area) then return end
+    maybe_sanitize_history(state)
 
-    local point = state.history:move(delta)
-    if not point then return end
-
-    -- BufferHistory:move restores first and may refresh point.view from its extmark,
-    -- so rebuilding state.area here anchors tracking at the actual restored location.
-    state.area = area_from_view(point.bufnr, point.view)
+    local ok = move(state.bufnr, delta, state.history)
+    if not ok then
+        log:trace(
+            ("move: failed to move: %s in buffer: %d (%s)"):format(delta, state.bufnr, state.path)
+        )
+    end
 end
 
 -- ============================================================================
@@ -1106,11 +1183,7 @@ end
 ---@param bufnr number?
 --- Mark a file as a deliberate return point for cross-file inspection.
 function M.file_mark(bufnr) M.f_hist:add(bufnr or vim.api.nvim_get_current_buf()) end
-
---- Move forward through deliberate file history.
 function M.file_next() file_move(1) end
-
---- Move backward through deliberate file history.
 function M.file_prev() file_move(-1) end
 
 ---@param fn fun(...): any
@@ -1125,7 +1198,6 @@ function M.with_file_mark(fn)
     end
 end
 
---- Toggle between the current file and the most recent deliberate file mark.
 function M.file_toggle()
     if M.f_hist.index < #M.f_hist.entries then
         file_move(1)
@@ -1134,10 +1206,7 @@ function M.file_toggle()
     end
 end
 
---- Move forward through semantic jump history in the current buffer.
 function M.next() buffer_move(1) end
-
---- Move backward through semantic jump history in the current buffer.
 function M.prev() buffer_move(-1) end
 
 --- Reset all SmartJmp state and restart tracking for the current buffer.
