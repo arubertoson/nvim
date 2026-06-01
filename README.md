@@ -1,4 +1,4 @@
-# aru's nvim config
+# 🐉 here be dragons -- aru's nvim config
 
 > **Disclaimer:** This is my personal Neovim configuration. It's built around
 > how I work, on the machines I use, for the languages I write. It will most
