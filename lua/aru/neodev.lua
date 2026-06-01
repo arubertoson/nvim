@@ -5,6 +5,27 @@
 
 local M = {}
 
+-- Global print function for debugging
+_G.P = function(...)
+    -- Inspect all arguments
+    local objects = vim.tbl_map(vim.inspect, { ... })
+    local lines = vim.split(table.concat(objects, "\n"), "\n")
+
+    -- Create a true scratch buffer (unlisted, no file)
+    local buf = vim.api.nvim_create_buf(false, true)
+
+    -- Dump the lines into the buffer
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+
+    -- Set buffer options: wipe out when hidden, treat as Lua for syntax highlighting
+    vim.bo[buf].bufhidden = "wipe"
+    vim.bo[buf].filetype = "lua"
+
+    -- Open a vertical split and set the buffer
+    vim.cmd("vsplit")
+    vim.api.nvim_win_set_buf(0, buf)
+end
+
 local state = {
     scratch_buf = nil,
     output_buf = nil,

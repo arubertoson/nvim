@@ -4,6 +4,8 @@
 --- When adding a keymap anywhere, come here and document it.
 --- Grep this file to check for conflicts.
 
+local with_file_mark = require("aru.jump").with_file_mark
+
 local map = vim.keymap.set
 
 -- ============================================================================
@@ -133,12 +135,11 @@ map("n", "<leader>li", "<cmd>checkhealth vim.lsp<CR>", { desc = "LSP info" })
 -- FZF-Lua (fuzzy finding)
 -- ============================================================================
 -- <leader>f* namespace (find):
-local with_file_mark = require("aru.jump").with_file_mark
 
 map(
     "n",
     "<leader>ff",
-     with_file_mark(function() require("fzf-lua").files({ cwd = vim.uv.cwd() }) end),
+    with_file_mark(function() require("fzf-lua").files({ cwd = vim.uv.cwd() }) end),
     { desc = "Find files" }
 )
 
@@ -175,9 +176,9 @@ map("n", "<C-t>", function() require("aru.jump").file_toggle() end)
 -- ============================================================================
 -- Harpoon (quick file switching)
 -- ============================================================================
-map("n", "<C-h>", function() require("harpoon"):list():select(1) end, { desc = "Harpoon 1" })
-map("n", "<C-n>", function() require("harpoon"):list():select(2) end, { desc = "Harpoon 2" })
-map("n", "<C-y>", function() require("harpoon"):list():select(3) end, { desc = "Harpoon 3" })
+map("n", "<C-h>", with_file_mark(function() require("harpoon"):list():select(1) end), { desc = "Harpoon 1" })
+map("n", "<C-n>", with_file_mark(function() require("harpoon"):list():select(2) end), { desc = "Harpoon 2" })
+map("n", "<C-y>", with_file_mark(function() require("harpoon"):list():select(3) end), { desc = "Harpoon 3" })
 
 map(
     "n",

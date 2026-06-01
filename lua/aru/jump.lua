@@ -942,10 +942,12 @@ function FileHistory:move(delta)
         vim.api.nvim_set_current_buf(state.bufnr)
     end
 
-    -- Restore the target buffer's active local area, if one exists.
-    local buf_state = M.buffers[state.path]
-    local area = buf_state.history:current()
-    if area then restore_area(buf_state.bufnr, area) end
+    vim.defer_fn(function()
+        -- Restore the target buffer's active local area, if one exists.
+        local buf_state = M.buffers[state.path]
+        local area = buf_state.history:current()
+        if area then restore_area(buf_state.bufnr, area) end
+    end, 10)
 
     self.index = target_index
 
