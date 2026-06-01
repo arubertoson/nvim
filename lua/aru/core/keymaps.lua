@@ -6,24 +6,11 @@
 
 local map = vim.keymap.set
 
-
 -- ============================================================================
 -- Leaders
 -- ============================================================================
 vim.g.mapleader = ";"
 vim.g.maplocalleader = ","
-
--- ============================================================================
--- Debug
--- ============================================================================
-map("n", "<leader>jt", function()
-    require("aru.helpers").debug_textobjects()
-end)
-
-vim.keymap.set("n", "<leader>jn", function()
-    require("aru.helpers").debug_ts()
-end)
-
 
 -- ============================================================================
 -- Nops (disable defaults)
@@ -76,22 +63,23 @@ map("n", "<localleader>c", ":<C-u>wincmd c<CR>", { desc = "Close split" })
 -- ============================================================================
 map("n", "<leader>;", "<CMD>:noh<CR>", { desc = "Clear search highlight", silent = true })
 map("n", "<localleader>r", ":%s:<C-R><C-w>::g<left><left>", { desc = "Replace word under cursor" })
-map("n", "<localleader>R", ":%s:<C-R><C-w>:<C-r><C-w>:<Left>", { desc = "Replace word under cursor" })
+map(
+    "n",
+    "<localleader>R",
+    ":%s:<C-R><C-w>:<C-r><C-w>:<Left>",
+    { desc = "Replace word under cursor" }
+)
 
 -- Map Ctrl+n to Next match in search mode
-map('c', '<C-n>', function()
-  if vim.fn.getcmdtype() == '/' or vim.fn.getcmdtype() == '?' then
-    return '<C-g>'
-  end
-  return '<C-n>'
+map("c", "<C-n>", function()
+    if vim.fn.getcmdtype() == "/" or vim.fn.getcmdtype() == "?" then return "<C-g>" end
+    return "<C-n>"
 end, { expr = true })
 
 -- Map Ctrl+p to Previous match in search mode
-map('c', '<C-p>', function()
-  if vim.fn.getcmdtype() == '/' or vim.fn.getcmdtype() == '?' then
-    return '<C-t>'
-  end
-  return '<C-p>'
+map("c", "<C-p>", function()
+    if vim.fn.getcmdtype() == "/" or vim.fn.getcmdtype() == "?" then return "<C-t>" end
+    return "<C-p>"
 end, { expr = true })
 
 -- ============================================================================
@@ -127,27 +115,46 @@ end, { expr = true })
 -- <leader>tv = toggle virtual text diagnostics
 
 map("n", "<leader>lf", vim.lsp.buf.format, { desc = "LSP format buffer" })
-map("n", "<leader>ld", function()
-	vim.diagnostic.enable(not vim.diagnostic.is_enabled())
-end, { desc = "Toggle diagnostics" })
-map("n", "<leader>lh", function()
-	vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())
-end, { desc = "Toggle inlay hints" })
+map(
+    "n",
+    "<leader>ld",
+    function() vim.diagnostic.enable(not vim.diagnostic.is_enabled()) end,
+    { desc = "Toggle diagnostics" }
+)
+map(
+    "n",
+    "<leader>lh",
+    function() vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled()) end,
+    { desc = "Toggle inlay hints" }
+)
 map("n", "<leader>li", "<cmd>checkhealth vim.lsp<CR>", { desc = "LSP info" })
 
 -- ============================================================================
 -- FZF-Lua (fuzzy finding)
 -- ============================================================================
 -- <leader>f* namespace (find):
-map("n", "<leader>ff", function()
-	require("fzf-lua").files()
-end, { desc = "Find files" })
-map("n", "<leader>fs", function()
-	require("fzf-lua").live_grep()
-end, { desc = "Find string (live grep)" })
-map("n", "<leader>k", function()
-	require("fzf-lua").help_tags()
-end, { desc = "Find help tags" })
+local with_file_mark = require("aru.jump").with_file_mark
+
+map(
+    "n",
+    "<leader>ff",
+     with_file_mark(function() require("fzf-lua").files({ cwd = vim.uv.cwd() }) end),
+    { desc = "Find files" }
+)
+
+map(
+    "n",
+    "<leader>fs",
+    function() require("fzf-lua").lgrep_curbuf() end,
+    { desc = "Find string (live grep)" }
+)
+map(
+    "n",
+    "<leader>fS",
+    with_file_mark(function() require("fzf-lua").live_grep() end),
+    { desc = "Find string (live grep)" }
+)
+map("n", "<leader>k", function() require("fzf-lua").help_tags() end, { desc = "Find help tags" })
 
 -- LSP pickers (set in LspAttach, documented here):
 -- fs = lsp_document_symbols
@@ -161,40 +168,35 @@ end, { desc = "Find help tags" })
 -- gy = lsp_typedefs
 
 --
-map("n", "<C-i>", function()
-	require("aru.jump").prev()
-end)
-map("n", "<C-o>", function()
-	require("aru.jump").next()
-end)
+map("n", "<C-o>", function() require("aru.jump").prev() end)
+map("n", "<C-i>", function() require("aru.jump").next() end)
+map("n", "<C-t>", function() require("aru.jump").file_toggle() end)
 
 -- ============================================================================
 -- Harpoon (quick file switching)
 -- ============================================================================
-map("n", "<C-h>", function()
-	require("harpoon"):list():select(1)
-end, { desc = "Harpoon 1" })
-map("n", "<C-n>", function()
-	require("harpoon"):list():select(2)
-end, { desc = "Harpoon 2" })
-map("n", "<C-y>", function()
-	require("harpoon"):list():select(3)
-end, { desc = "Harpoon 3" })
+map("n", "<C-h>", function() require("harpoon"):list():select(1) end, { desc = "Harpoon 1" })
+map("n", "<C-n>", function() require("harpoon"):list():select(2) end, { desc = "Harpoon 2" })
+map("n", "<C-y>", function() require("harpoon"):list():select(3) end, { desc = "Harpoon 3" })
 
-map("n", "<localleader>a", function()
-	require("harpoon"):list():add()
-end, { desc = "Harpoon add" })
-map("n", "<localleader>m", function()
-	require("harpoon").ui:toggle_quick_menu(require("harpoon"):list())
-end, { desc = "Harpoon menu" })
+map(
+    "n",
+    "<localleader>a",
+    function() require("harpoon"):list():add() end,
+    { desc = "Harpoon add" }
+)
+map(
+    "n",
+    "<localleader>m",
+    function() require("harpoon").ui:toggle_quick_menu(require("harpoon"):list()) end,
+    { desc = "Harpoon menu" }
+)
 map("n", "<localleader>d", function()
-	local list = require("harpoon"):list()
+    local list = require("harpoon"):list()
 
-	local rel_path = vim.fs.relpath(vim.uv.cwd() or "", vim.api.nvim_buf_get_name(0))
-	local item, idx = list:get_by_value(rel_path)
-	if item then
-		list:remove_at(idx)
-	end
+    local rel_path = vim.fs.relpath(vim.uv.cwd() or "", vim.api.nvim_buf_get_name(0))
+    local item, idx = list:get_by_value(rel_path)
+    if item then list:remove_at(idx) end
 end, { desc = "Harpoon remove current" })
 
 -- ============================================================================
@@ -203,12 +205,12 @@ end, { desc = "Harpoon remove current" })
 
 vim.keymap.set({ "n", "x", "o" }, "s", "<Plug>(leap)")
 vim.keymap.set({ "x", "o" }, "R", function()
-	require("leap.treesitter").select({
-		-- To increase/decrease the selection in a clever-f-like manner,
-		-- with the trigger key itself (vRRRRrr...). The default keys
-		-- (<enter>/<backspace>) also work, so feel free to skip this.
-		opts = require("leap.user").with_traversal_keys("R", "r"),
-	})
+    require("leap.treesitter").select({
+        -- To increase/decrease the selection in a clever-f-like manner,
+        -- with the trigger key itself (vRRRRrr...). The default keys
+        -- (<enter>/<backspace>) also work, so feel free to skip this.
+        opts = require("leap.user").with_traversal_keys("R", "r"),
+    })
 end)
 
 -- ============================================================================
@@ -237,21 +239,21 @@ vim.keymap.set({ "i", "s" }, "<C-l>", cmp.smart_accept, { silent = true })
 -- Oil (file explorer)
 -- ============================================================================
 map("n", "<leader>n", function()
-	if vim.bo[0].filetype == "oil" then
-		require("oil").discard_all_changes()
-		require("oil").close()
-	else
-		require("oil").open_float()
-	end
+    if vim.bo[0].filetype == "oil" then
+        require("oil").discard_all_changes()
+        require("oil").close()
+    else
+        require("oil").open_float()
+    end
 end, { desc = "Toggle Oil (current dir)" })
 
 map("n", "<leader>N", function()
-	if vim.bo[0].filetype == "oil" then
-		require("oil").discard_all_changes()
-		require("oil").close()
-	else
-		require("oil").open_float(vim.fn.getcwd())
-	end
+    if vim.bo[0].filetype == "oil" then
+        require("oil").discard_all_changes()
+        require("oil").close()
+    else
+        require("oil").open_float(vim.fn.getcwd())
+    end
 end, { desc = "Toggle Oil (cwd)" })
 
 -- Oil internal mappings (set in oil.setup):
@@ -273,9 +275,12 @@ end, { desc = "Toggle Oil (cwd)" })
 -- ============================================================================
 -- No-Neck-Pain (centered buffer)
 -- ============================================================================
-map("n", "<leader>wo", function()
-	require("no-neck-pain").toggle()
-end, { desc = "Toggle no-neck-pain" })
+map(
+    "n",
+    "<leader>wo",
+    function() require("no-neck-pain").toggle() end,
+    { desc = "Toggle no-neck-pain" }
+)
 
 -- ============================================================================
 -- Logging & Development

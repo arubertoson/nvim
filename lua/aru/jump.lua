@@ -15,7 +15,7 @@
 
 --- The module favors observable buffer paths over ephemeral numbers to keep
 --- continuity across reloads, clamps history to a tiny ring to stay cache-hot,
---- and leans on LuaJIT- friendly data structures so you never notice it’s
+--- and leans on LuaJIT-friendly data structures so you never notice it’s
 --- watching.
 
 local log = require("aru.log")
@@ -41,7 +41,19 @@ local default_config = {
     -- if fallback jump history misses useful locations.
     major_move_lines = 38,
 
+    -- Maximum number of characters used when a Treesitter node has no `name` field.
+    --
+    -- SmartJmp normally labels semantic areas from a node's `name` field. Some
+    -- captures do not expose one, so we fall back to a short snippet from the
+    -- node start. Keep this small; it is for logs/debug labels, not display UI.
     max_ts_field_len = 10,
+
+    -- How existing history entries behave when the current settled area matches them.
+    --
+    -- `stack` preserves chronological prev/next navigation: revisiting B in
+    -- [A, B, C] updates B in place and keeps C available as the next target.
+    -- `mru` treats revisited areas as most-recently-used and moves them to the end.
+    stack_mode = "stack",
 
     -- Maximum number of semantic jump areas kept per buffer.
     --
@@ -110,10 +122,13 @@ local default_config = {
 -- Module State
 -- ============================================================================
 
+---@alias SmartJmp.StackMode "stack" | "mru"
+
 ---@class SmartJmp.Config
 ---@field debounce_ms number
 ---@field major_move_lines number
 ---@field max_ts_field_len number
+---@field stack_mode SmartJmp.StackMode
 ---@field max_history number
 ---@field max_file_lookback number
 ---@field min_block_lines number
@@ -148,6 +163,9 @@ local M = {
 -- Generic Helpers
 -- ============================================================================
 
+--- Suppress SmartJmp's own restore movement long enough for deferred
+--- CursorMoved events from winrestview() to pass without starting a capture.
+---
 ---@param fn fun(): any
 ---@return any
 local function with_suppressed_cursor_moved(fn)
@@ -155,7 +173,7 @@ local function with_suppressed_cursor_moved(fn)
 
     local ok, result = xpcall(fn, debug.traceback)
 
-    M.suppress_cursor_moved = false
+    vim.defer_fn(function() M.suppress_cursor_moved = false end, M.config.debounce_ms + 25)
 
     if not ok then error(result, 0) end
 
@@ -181,6 +199,29 @@ end
 ---@param t uv.uv_timer_t?
 local function stop_burst(t)
     if t and not t:is_closing() then t:stop() end
+end
+
+---@param history SmartJmp.BufferHistory
+---@return string
+local function history_debug(history)
+    local parts = {}
+
+    for i, area in ipairs(history.entries) do
+        local semantic = area.semantic
+        local label = semantic and (semantic.name or semantic.kind or semantic.capture)
+            or "fallback"
+
+        parts[#parts + 1] = ("%s%d:%s@%d:%d%s"):format(
+            i == history.index and "*" or "",
+            i,
+            label or "area",
+            area.view.lnum,
+            area.view.col,
+            area.extmark_id and ("#" .. area.extmark_id) or ""
+        )
+    end
+
+    return table.concat(parts, " ")
 end
 
 ---@param bufnr number
@@ -361,7 +402,7 @@ local function semantic_area_at(bufnr, view)
     return nil
 end
 
---- XXX: This logic needs to be revisited
+--- Treat two Treesitter captures as the same practical editing area.
 ---@param area SmartJmp.SemanticArea
 ---@param other SmartJmp.SemanticArea
 ---@return boolean
@@ -483,23 +524,19 @@ local function ensure_buffer_loaded(path, bufnr)
         return bufnr, true
     end
 
-    -- We have to check whether the buffer path exists in the current session,
-    -- if we get here we know that the bufnr is not valid anymore. But we have
-    -- to guarantee that we don't have the same buffer loaded twice.
+    -- Prefer an already loaded buffer for this path so restore does not create
+    -- duplicate buffers after cached buffer numbers become stale.
     local existing = vim.fn.bufnr(path)
     if existing ~= -1 and vim.api.nvim_buf_is_loaded(existing) then return existing, false end
 
-    -- Now it's whether the file even exists anymore, if it does we have to load
-    -- it in the current session to get a valid bufnr that we can use again.
+    -- If the file still exists, load it into this session and use the new buffer.
     local stat = vim.uv.fs_stat(path)
     if not stat or stat.type ~= "file" then
         log:info(("restore: invalid file for %s"):format(path))
         return nil, false
     end
 
-    -- At this point we know that the file exists and we can load it in the current
-    -- session, we just have to ensure that it loaded successfully to avoid any
-    -- race conditions.
+    -- Verify loading succeeded before the caller attempts to restore a view.
     local new_bufnr = vim.fn.bufadd(path)
     vim.fn.bufload(new_bufnr)
 
@@ -526,20 +563,28 @@ local function load_buffer_view(bufnr, extmark_id, view)
         local ok, pos =
             pcall(vim.api.nvim_buf_get_extmark_by_id, bufnr, M.config.namespace, extmark_id, {})
         if ok and pos[1] then
-            -- remember, neovim extmarks are 0-indexed, so we add +1 to match
-            -- other editor behaviour.
+            -- Neovim extmarks are 0-indexed, so add one for view line numbers.
             view.lnum = pos[1] + 1
             view.col = pos[2]
 
             extmark_valid = true
         else
-            log:trace(("restore: extmark %d deleted in %d"):format(extmark_id, bufnr))
+            extmark_valid = false
         end
     end
 
-    -- Do we need to wrap this in a pcall?
     local ok = pcall(vim.fn.winrestview, view)
-    if not ok then return false, extmark_valid end
+    if not ok then
+        log:warn(
+            ("restore winrestview failed bufnr=%d extmark=%s view=%d:%d"):format(
+                bufnr,
+                tostring(extmark_id),
+                view.lnum,
+                view.col
+            )
+        )
+        return false, extmark_valid
+    end
 
     return true, extmark_valid
 end
@@ -609,7 +654,13 @@ local function restore_area(bufnr, area)
 
     if not ok or not result.restored then
         local path = vim.api.nvim_buf_get_name(bufnr)
-        log:warn(("restore: failed to restore area for %s"):format(path))
+        log:warn(
+            ("restore: failed to restore area for %s ok=%s result=%s"):format(
+                path,
+                tostring(ok),
+                vim.inspect(result)
+            )
+        )
         return false, nil
     end
 
@@ -620,17 +671,13 @@ end
 
 ---@param bufnr number
 ---@param delta number
----@pram history SmartJmp.BufferHistory
+---@param history SmartJmp.BufferHistory
 ---@return SmartJmp.Area? area
 local function move(bufnr, delta, history)
-    log:trace(("move: jump idx=%d delta=%d"):format(history.index, delta))
-
     local target_index, target_area = history:target(delta)
-    if not target_area then return nil end
+    if not target_index or not target_area then return nil end
 
-    -- We get the area that we want to restore and try to restore it, if it fails
-    -- we have a "stale" area, and it needs to be removed from the history to ensure
-    -- we don't end up with dead areas that can't be used.
+    -- Remove only entries that cannot be restored; valid entries keep their order.
     local ok, area = restore_area(bufnr, target_area)
     if not ok then
         history:remove(target_index)
@@ -650,8 +697,8 @@ end
 ---@class SmartJmp.BufferHistory
 --- Buffer-local semantic jump history.
 ---
---- Entries are anchored with extmarks when possible, so edits can move a saved
---- jump areas without invalidating it.
+--- Entries are anchored with extmarks when possible, so edits can move saved
+--- jump areas without invalidating them.
 ---@field index number
 ---@field entries SmartJmp.Area[]
 local BufferHistory = {}
@@ -681,8 +728,7 @@ function BufferHistory:truncate()
 
     local pruned = {}
 
-    -- We have to do a reverse iteration to avoid modifying the table in place,
-    -- this ensures that we don't mess up the index.
+    -- Remove forward entries from the end so the active index remains stable.
     for i = #self.entries, self.index + 1, -1 do
         table.insert(pruned, table.remove(self.entries, i))
     end
@@ -700,20 +746,17 @@ function BufferHistory:reactivate(index, patch)
         return
     end
 
-    local area = nil
-    -- If the index we want to reactivate is no the last entry, we want to
-    -- move it to the end of the list and reuse the extmark_id.
-    if index < #self.entries then
-        area = table.remove(self.entries, index)
+    -- Stack mode updates the matched entry in place. MRU mode moves it to the
+    -- end, turning local history into a recency list instead of a prev/next stack.
+    local target_index = index
+    if M.config.stack_mode == "mru" and index < #self.entries then
+        local area = table.remove(self.entries, index)
         table.insert(self.entries, area)
-    else
-        area = self.entries[index]
+        target_index = #self.entries
     end
 
-    self.index = #self.entries
-
-    -- Update the area with the whatever the patch provides.
-    vim.tbl_extend("force", area, patch or {})
+    self.index = target_index
+    self.entries[target_index] = vim.tbl_extend("force", self.entries[target_index], patch or {})
 end
 
 ---@param semantic SmartJmp.SemanticArea?
@@ -745,9 +788,7 @@ end
 function BufferHistory:remove(target_index)
     table.remove(self.entries, target_index)
 
-    -- After removing an area we need to ensure that our internal index
-    -- maintains it's current position, essentially if our `target_index`
-    -- is smaller than our `index` we need to decrement it.
+    -- Keep the active index pointing at the same logical position after removal.
     if target_index < self.index then self.index = math.max(0, self.index - 1) end
 end
 
@@ -880,16 +921,14 @@ function FileHistory:move(delta)
 
     local state = self.entries[target_index]
 
-    -- After we've ensured that the areas has a valid buffer we need to update
-    -- any area that has invalidated cache. If a invalid cache is found extmark_ids
-    -- needs to be cleared as they are memory bound and unusable after a reload.
+    -- Refresh stale buffer-number caches before focusing the target file. Extmark
+    -- ids are memory-bound and are cleared separately when buffers are wiped.
     local bufnr, cache_hit = ensure_buffer_loaded(state.path, state.bufnr)
     if not bufnr then
         log:info(("restore: invalid buffer for %s"):format(state.path))
 
-        -- If we fail to restore the buffer we need to remove the entry from
-        -- history, it's stale and we only want to keep entries we can
-        -- successfully restore.
+        -- Drop stale paths when encountered; file history should contain only
+        -- targets that can be restored.
         table.remove(self.entries, target_index)
         if delta < 0 then self.index = math.max(0, self.index - 1) end
 
@@ -898,13 +937,12 @@ function FileHistory:move(delta)
 
     if not cache_hit then state.bufnr = bufnr end
 
-    -- Finally we have to focus the buffer in case it's not the current buffer.
+    -- Focus the target buffer if another buffer is currently active.
     if vim.api.nvim_get_current_buf() ~= state.bufnr then
         vim.api.nvim_set_current_buf(state.bufnr)
     end
 
-    -- To avoid messing with the `BufferState` we restore the "active" area
-    -- in the history, if there is one.
+    -- Restore the target buffer's active local area, if one exists.
     local buf_state = M.buffers[state.path]
     local area = buf_state.history:current()
     if area then restore_area(buf_state.bufnr, area) end
@@ -961,16 +999,6 @@ local function record_buffer_area(state, view)
         return
     end
 
-    -- Before we append/update any areas we need to ensure that if we are in the
-    -- middle of the history, we start a new branch and remove the stale areas.
-    -- Each area contains an extmark_id that we need to clean up.
-    local pruned_areas = state.history:truncate()
-    for _, pruned_area in ipairs(pruned_areas) do
-        if not delete_area_extmark(state.bufnr, pruned_area.extmark_id) then
-            log:warn(("truncate: failed to remove extmark for %s"):format(state.path))
-        end
-    end
-
     local index = state.history:find_match(semantic, view)
     if index then
         local area = state.history:get(index)
@@ -980,8 +1008,18 @@ local function record_buffer_area(state, view)
             view = vim.tbl_extend("force", {}, view),
             semantic = semantic,
         })
-
         return
+    end
+
+    if state.history.index < #state.history.entries then
+        -- Recording a genuinely new area from the middle creates a new branch,
+        -- so forward entries are no longer reachable and their extmarks can go.
+        local pruned_areas = state.history:truncate()
+        for _, pruned_area in ipairs(pruned_areas) do
+            if not delete_area_extmark(state.bufnr, pruned_area.extmark_id) then
+                log:warn(("truncate: failed to remove extmark for %s"):format(state.path))
+            end
+        end
     end
 
     local new_area = area_from_view(view, semantic)
@@ -1008,13 +1046,11 @@ local function create_cursor_move_autocmd(bufnr)
         callback = function(ev)
             if M.suppress_cursor_moved then return end
 
-            -- We only want to handle cursor moved events for buffers that we
-            -- are tracking, if we're not tracking the buffer we can just bail.
+            -- Ignore plugin/scratch buffers before starting debounce work.
             if not is_trackable_buffer(ev.buf) then return end
 
-            -- If we don't have a state at this point something is wrong, this
-            -- should be setup in the `on_buf_enter` callback. Essentially, this
-            -- shouldn't happen, but we are defensive!
+            -- on_buf_enter creates state for every trackable buffer; if it is
+            -- missing here, a race or manual autocmd triggered us, so bail.
             local state = M.buffers[vim.api.nvim_buf_get_name(ev.buf)]
             if not state then return end
 
@@ -1028,9 +1064,8 @@ local function create_cursor_move_autocmd(bufnr)
 
             timer:start(M.config.debounce_ms, 0, function()
                 vim.schedule(function()
-                    -- Things might change between the time we start the debounce
-                    -- and the time we stop it, so we need to ensure that we have
-                    -- a valid state and timer.
+                    -- State can change while debounce waits; re-read it before
+                    -- touching timers, buffers, or windows.
                     local state = M.buffers[origin_path]
                     if not state then return end
                     local timer = state.debounce
@@ -1040,10 +1075,9 @@ local function create_cursor_move_autocmd(bufnr)
                         if state.path == origin_path then state.bufnr = origin_buf end
                     end
 
-                    -- Ensure that we are still in the original window and that
-                    -- nothing has changed with the buffer in the meantime. It's
-                    -- should be handled by our `BufferLeave` event, but we are
-                    -- defensive!
+                    -- Ensure we are still in the original window and buffer.
+                    -- BufLeave should normally cancel this, but delayed callbacks
+                    -- are defensive because window state can change at any time.
                     if
                         not vim.api.nvim_win_is_valid(origin_win)
                         or vim.api.nvim_win_get_buf(origin_win) ~= origin_buf
@@ -1053,7 +1087,7 @@ local function create_cursor_move_autocmd(bufnr)
                         return
                     end
 
-                    -- capture_view() is window-local, so run it in the original window.
+                    -- capture_view() is window-local; run it in the original window.
                     vim.api.nvim_win_call(
                         origin_win,
                         function() record_buffer_area(state, capture_view()) end
@@ -1085,9 +1119,7 @@ local function create_buf_wipeout_autocmd(bufnr)
                 state.bufnr = nil
             end
 
-            -- We also need to clean up the history areas, not remove them but
-            -- ensure that information that will change when we reload the buffer
-            -- is cleared.
+            -- Keep durable path/view history, but clear memory-bound extmarks.
             for _, area in ipairs(state.history.entries) do
                 area.extmark_id = nil
             end
@@ -1110,8 +1142,7 @@ end
 
 ---@param bufnr number
 local function on_buf_enter(bufnr)
-    -- We go fairly hard in our exclusion, we don't want to mess with buffers
-    -- that shouldn't have any jump areas.
+    -- Special buffers should never create semantic areas or file-history marks.
     local path = vim.api.nvim_buf_get_name(bufnr)
     if not is_trackable_buffer(bufnr) then
         log:trace(("on_buf_enter: excluded %s"):format(path))
@@ -1133,8 +1164,7 @@ local function on_buf_enter(bufnr)
             return
         end
 
-        -- If we don't have a debounce timer or it's closing we need to create
-        -- a new one. This shouldn't really be happening, but we are defensive!
+        -- Recreate the timer if a previously tracked buffer was wiped and reopened.
         if not state.debounce or state.debounce:is_closing() then
             state.debounce = assert(vim.uv.new_timer())
         end
@@ -1208,6 +1238,13 @@ end
 
 function M.next() buffer_move(1) end
 function M.prev() buffer_move(-1) end
+
+if vim.g.aru_test then
+    M._test = {
+        history_debug = history_debug,
+        record_buffer_area = record_buffer_area,
+    }
+end
 
 --- Reset all SmartJmp state and restart tracking for the current buffer.
 function M.reset()
