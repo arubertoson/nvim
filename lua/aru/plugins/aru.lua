@@ -6,3 +6,4 @@
 
 require("aru.jump").setup()
 require("aru.lsp").setup()
+require("aru.neodev").setup()
