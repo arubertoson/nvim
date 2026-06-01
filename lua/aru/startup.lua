@@ -1,11 +1,10 @@
 ---@module 'aru.startup'
 ---
---- Core utilities for file loading and performance measurement
+--- Startup loading and performance measurement
 ---
---- Utilities for loading Lua files and measuring performance in Neovim.
---- Supports immediate loading and deferred, staggered synchronous loading.
---- Deferred loading schedules files with a small delay and runs them
---- one-by-one (no parallel execution), reducing startup contention.
+--- Loads critical Lua modules synchronously, then staggers deferred modules
+--- one-by-one with a short delay. Deferred startup errors are collected and
+--- reported once before runtime notifications are enabled.
 ---
 --- Features:
 --- - Synchronous file loading with error handling and timing
@@ -19,21 +18,7 @@ local M = {}
 local _errors = {}
 local DEFER_DELAY_MS = 2
 
---- Check if the current environment is running on Windows Subsystem for Linux
----@return boolean
-function M.is_wsl_shell()
-    local release = vim.uv.os_uname().release
-    return release:find("WSL", 1, true) ~= nil
-end
-
---- Check if the current environment is running in a SSH shell
----@return boolean
-function M.is_ssh_shell()
-    return (vim.env.SSH_CLIENT ~= nil or vim.env.SSH_CONNECTION ~= nil or vim.env.SSH_TTY ~= nil)
-end
-
 --- Measures wall time using vim.uv.hrtime() and returns ms.
----
 ---@param fn fun(): any Function to time
 ---@return any result The function's return
 ---@return number time_ms Elapsed time in milliseconds (monotonic clock)
@@ -44,29 +29,33 @@ function M.timeit_ms(fn)
     return result, time
 end
 
----@return string
+--- Extracts the module name from a path
+---@param path string
+---@return boolean, string|nil
 local function module_path(path)
     local mod = path:match("lua/(.+)%.lua$")
-    return mod and mod:gsub("/", ".")
+    if not mod then return false, ("invalid lua runtime path: %s"):format(path) end
+    return true, mod and mod:gsub("/", ".")
 end
 
---- Loads and executes a Lua file immediately in the global environment.
---- Logs errors and traces load duration in milliseconds.
----
+--- Requires the Lua module represented by a runtime file path.
 ---@param path string Absolute or relative path to a Lua file
 ---@return boolean success True if the file was loaded successfully
 ---@return string|nil error Error message if the file failed to load
 local function load_file(path)
-    local modname = module_path(path)
+    local ok, modname = module_path(path)
+    if not ok then
+        log:error(modname)
+        return false, modname
+    end
+
     local ok, err = pcall(require, modname)
     if not ok then return false, ("require error %s: %s"):format(modname, err) end
     return true
 end
 
---- Schedules a single file to run after defer_delay_ms, then yields
---- the caller coroutine until completion. Execution is still synchronous
---- per file; loads are staggered, not parallel.
----
+--- Schedules a single file after defer_delay_ms, then yields until completion.
+--- Execution is synchronous per file; loads are staggered, not parallel.
 ---@param path string Path to a Lua file
 ---@param defer_delay_ms number Delay in ms before running the file
 local function defer_load_file(path, defer_delay_ms)
@@ -92,7 +81,6 @@ end
 --- Wraps the loading logic and errors on a failed load.
 --- The critical path can't fail, if it does we should
 --- stop execution and notify the user.
----
 ---@param path string Absolute or relative path to a Lua file
 local function must(path)
     local ok, err = load_file(path)
@@ -101,9 +89,8 @@ end
 
 --- Loads groups sequentially; each group and file is processed in order.
 --- Use for core config that must be available immediately.
----
 ---@param groups string[][] Ordered groups of file paths to load
-function M.load_files(groups)
+function M.load_critical_paths(groups)
     for _, files in ipairs(groups) do
         for _, path in ipairs(files) do
             local _, elapsed = M.timeit_ms(function() must(path) end)
@@ -114,10 +101,10 @@ end
 
 --- Staggers loading across files using coroutine yield/resume so the UI
 --- remains responsive between files. Execution per file is synchronous.
----
 ---@param groups string[][] Ordered groups of file paths to load
 ---@param defer_delay_ms? number Delay in ms between each file (default 2)
-function M.defer_load_files(groups, defer_delay_ms)
+---@param on_finish? fun() Callback to run after all deferred files finish
+function M.load_deferred_paths(groups, defer_delay_ms, on_finish)
     if defer_delay_ms == nil then defer_delay_ms = DEFER_DELAY_MS end
 
     coroutine.wrap(function()
@@ -129,38 +116,72 @@ function M.defer_load_files(groups, defer_delay_ms)
                 log:trace(("loaded %s in %.3f ms"):format(path, elapsed))
             end
         end
+
+        if on_finish then
+            local ok, err = pcall(on_finish)
+            if not ok then
+                log:error(("deferred on_finish failed: %s"):format(err))
+            end
+        end
     end)()
 end
 
---- During our startup execution, when we are working on deferred methods,
---- errors are collected instead of spamming the message log. When the
---- startup is complete, we flush the errors to the user.
-function M.flush_startup_errors()
+local function flush_startup_errors()
     if #_errors == 0 then return end
 
     vim.notify("Deferred load errors:\n" .. table.concat(_errors, "\n"), vim.log.levels.ERROR)
+
     _errors = {}
 end
 
--- Create a global print function for debugging
-_G.P = function(...)
-    -- Inspect all arguments
-    local objects = vim.tbl_map(vim.inspect, { ... })
-    local lines = vim.split(table.concat(objects, "\n"), "\n")
+--- Attach user-facing notifications after startup loading is complete.
+local function attach_notify_sink()
+    local ok, err = pcall(
+        function()
+            require("aru.log"):add({
+                type = "notify",
+                level = vim.log.levels.INFO,
+            })
+        end
+    )
+    if not ok then vim.notify("log notify sink attach failed:\n" .. err, vim.log.levels.ERROR) end
+end
 
-    -- Create a true scratch buffer (unlisted, no file)
-    local buf = vim.api.nvim_create_buf(false, true)
+---@param critical string[][] Ordered groups of file paths to load
+---@param deferred string[][]
+function M.load(critical, deferred)
+    -- Module loading with performance tracking
+    --
+    -- Everything is timed so I can see what's slow and replace it.
+    -- The split between immediate and deferred loading creates the illusion
+    -- of instant startup while still getting all features eventually.
+    local _, total_time = M.timeit_ms(function()
+        -- Immediate loading - critical path for UI responsiveness
+        --
+        -- These must load synchronously because I need them working immediately
+        -- when the editor appears. The order matters for dependencies.
+        local _, direct_load_time = M.timeit_ms(function() M.load_critical_paths(critical) end)
+        log:trace(string.format("Critical path load time: %.3f ms", direct_load_time))
 
-    -- Dump the lines into the buffer
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+        -- Deferred loading - plugins
+        --
+        -- These load after 2ms delay to let UI render first. At this point order is
+        -- not important, we just want everything... eventually.
+        local _, defer_load_time = M.timeit_ms(function()
+            M.load_deferred_paths(deferred, 2, function()
+                -- Flush startup errors before enabling user-facing runtime logs.
+                flush_startup_errors()
+                attach_notify_sink()
+            end)
+        end)
+        log:trace(string.format("Deferred load time: %.3f ms", defer_load_time))
+    end)
 
-    -- Set buffer options: wipe out when hidden, treat as Lua for syntax highlighting
-    vim.bo[buf].bufhidden = "wipe"
-    vim.bo[buf].filetype = "lua"
-
-    -- Open a vertical split and set the buffer
-    vim.cmd("vsplit")
-    vim.api.nvim_win_set_buf(0, buf)
+    -- Performance summary
+    --
+    -- Total synchronous time here excludes the deferred work itself; that runs
+    -- later through scheduled callbacks.
+    log:trace(string.format("total load time: %.3f ms", total_time))
 end
 
 return M

@@ -75,7 +75,7 @@ vim.o.foldexpr = ""
 vim.opt.foldcolumn = "0"
 vim.opt.fillchars:append({ fold = " " })
 
-if require("aru.startup").is_ssh_shell() then
+if require("aru.env").is_ssh_shell() then
     vim.g.clipboard = {
         name = "osc52-ssh",
         copy = {
