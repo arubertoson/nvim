@@ -2,7 +2,7 @@ local log = require("aru.log")
 
 local ok, oil = pcall(require, "oil")
 if not ok then
-    log:error(("Failed to load oil.nvim: %s, oil features will be disabled"):format(oil))
+    log:error("Failed to load oil.nvim: %s, oil features will be disabled", oil)
 end
 
 local function toggle_oil()

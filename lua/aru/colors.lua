@@ -37,7 +37,7 @@ end
 function M.shade_highlight(base_group, target_group, opts)
     local hl = vim.api.nvim_get_hl(0, { name = base_group, link = false })
     if not hl or (not hl.bg and not hl.fg) then
-        log:debug(("Could not find hlgroup %s"):format(base_group))
+        log:debug("Could not find hlgroup %s", base_group)
         return false
     end
 

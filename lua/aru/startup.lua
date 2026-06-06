@@ -94,7 +94,7 @@ function M.load_critical_paths(groups)
     for _, files in ipairs(groups) do
         for _, path in ipairs(files) do
             local _, elapsed = M.timeit_ms(function() must(path) end)
-            log:trace(("loaded %s in %.3f ms"):format(path, elapsed))
+            log:trace("loaded %s in %.3f ms", path, elapsed)
         end
     end
 end
@@ -113,14 +113,14 @@ function M.load_deferred_paths(groups, defer_delay_ms, on_finish)
                 local _, elapsed = M.timeit_ms(
                     function() defer_load_file(path, defer_delay_ms) end
                 )
-                log:trace(("loaded %s in %.3f ms"):format(path, elapsed))
+                log:trace("loaded %s in %.3f ms", path, elapsed)
             end
         end
 
         if on_finish then
             local ok, err = pcall(on_finish)
             if not ok then
-                log:error(("deferred on_finish failed: %s"):format(err))
+                log:error("deferred on_finish failed: %s", err)
             end
         end
     end)()

@@ -2,7 +2,7 @@
 ---
 --- Git state tracking, I know there are tools out there for things like this, but
 
-local log = require("aru.log"):bind("git")
+local log = require("aru.log")
 local M = {}
 local state = {}
 
@@ -64,7 +64,7 @@ local function ensure_watcher(root)
 
     local ok = handle:start(entry.head, {}, function(watch_err)
         if watch_err then
-            log:error("HEAD watch error: %s", watch_err)
+            log:error("fs_event failed: %s", watch_err)
             return
         end
         entry.branch = nil
@@ -123,34 +123,3 @@ vim.api.nvim_create_autocmd("VimLeavePre", {
 })
 
 return M
-
--- vim.api.nvim_create_autocmd({ "DirChanged", "BufEnter", "VimEnter" }, {
--- 	group = "aru_statusline",
--- 	callback = function(event)
--- 		local root = find_workspace_root(event.buf)
--- 		if not root then
--- 			schedule_statusline_cache("workspace_root", nil)
--- 			return
--- 		end
---
--- 		vim.system({ "git", "branch", "--show-current" }, { cwd = root, text = true }, function(branch_result)
--- 			local branch_ok = (branch_result.code == 0)
--- 			if not branch_ok then
--- 				schedule_statusline_cache("workspace_root", nil)
--- 				return
--- 			end
---
--- 			local branch_name = vim.trim(branch_result.stdout) or nil
--- 			if not branch_name or branch_name == "" then
--- 				schedule_statusline_cache("workspace_root", nil)
--- 				return
--- 			end
---
--- 			schedule_statusline_cache("workspace_root", branch_name)
--- 			vim.system({ "git", "diff", "--quiet", "HEAD" }, { cwd = root, text = true }, function(diff_result)
--- 				local star = (diff_result.code == 1) and "*" or " "
--- 				schedule_statusline_cache("workspace_dirty", star)
--- 			end)
--- 		end)
--- 	end,
--- })

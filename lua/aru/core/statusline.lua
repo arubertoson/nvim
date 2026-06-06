@@ -121,7 +121,7 @@ local highlights = {
 
 local ok = colors.shade_highlight("Comment", highlights.comment, { fg = -0.25 })
 if not ok then
-    log:error(("Failed to create hlgroup %s"):format(highlights.comment))
+    log:error("Failed to create hlgroup %s", highlights.comment)
 end
 
 ---@param hlgroup string

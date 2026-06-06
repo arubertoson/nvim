@@ -18,6 +18,8 @@
 ---@field name string|nil buffer name
 
 ---@class NotifySinkConfig : BasicSinkConfig
+---@field title string|nil Notification title
+---@field format string|nil Notify-specific message format
 
 ---@alias SinkConfig FileSinkConfig|BufferSinkConfig|NotifySinkConfig
 
@@ -350,7 +352,13 @@ function Logger:add(config)
         buffer = function()
             return create_buffer_sink(config.name or LOG_BUFFER_NAME)
         end,
-        notify = function() return { type = "notify" } end,
+        notify = function()
+            return {
+                type = "notify",
+                title = config.title,
+                format = config.format,
+            }
+        end,
     }
     local fn = actions[config.type]
 
@@ -360,7 +368,7 @@ function Logger:add(config)
     sink.level = config.level or self._level
     table.insert(self.sinks, sink)
 
-    if config.level < self._level then self._level = sink.level end
+    if sink.level < self._level then self._level = sink.level end
 end
 
 ---Send a message to a buffer sink.
@@ -397,7 +405,11 @@ local function emit(logger, msg, level)
             elseif sink.type == "buffer" then
                 emit_to_buffer(sink.buffer, outstr)
             elseif sink.type == "notify" then
-                vim.notify(outstr, level)
+                local notify_format = sink.format or "[{level}] {module}:{linenr}\n{msg}"
+                local notify_msg = render(notify_format, msg, level)
+                vim.schedule(function()
+                    vim.notify(notify_msg, level, { title = sink.title or "aru.log" })
+                end)
             end
         end
     end
@@ -407,7 +419,12 @@ end
 ---Users can call `log:info()` with minimal ceremony, which keeps incidental
 ---logging lightweight and reflects our preference for terse APIs.
 for level, name in pairs(LEVEL_NAMES) do
-    Logger[name:lower()] = function(self, msg) emit(self, msg, level) end
+    Logger[name:lower()] = function(self, msg, ...)
+        if select("#", ...) > 0 then
+            msg = msg:format(...)
+        end
+        emit(self, msg, level)
+    end
 end
 
 -- Module singleton

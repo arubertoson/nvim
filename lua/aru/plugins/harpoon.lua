@@ -43,7 +43,7 @@ harpoon:extend({
     -- be lean and focused on what matters. A huge buffer list is a curse that needs to
     -- be cleansed.
     REMOVE = function(list_item)
-        log:debug(("removing %s"):format(vim.inspect(list_item)))
+        log:debug("removing %s", vim.inspect(list_item))
         local buf = vim.api.nvim_get_current_buf()
         if vim.api.nvim_buf_is_loaded(buf) then
             vim.api.nvim_buf_delete(buf, { force = true })

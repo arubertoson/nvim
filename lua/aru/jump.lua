@@ -532,7 +532,7 @@ local function ensure_buffer_loaded(path, bufnr)
     -- If the file still exists, load it into this session and use the new buffer.
     local stat = vim.uv.fs_stat(path)
     if not stat or stat.type ~= "file" then
-        log:info(("restore: invalid file for %s"):format(path))
+        log:info("restore: invalid file for %s", path)
         return nil, false
     end
 
@@ -742,7 +742,7 @@ end
 ---@param patch? table<string, any>
 function BufferHistory:reactivate(index, patch)
     if index < 1 or index > #self.entries then
-        log:warn(("update: invalid index %d for %d entries"):format(index, #self.entries))
+        log:warn("update: invalid index %d for %d entries", index, #self.entries)
         return
     end
 
@@ -777,7 +777,7 @@ function BufferHistory:target(delta)
 
     -- We don't want to move outside the bounds of the history.
     if target_index < 1 or target_index > #self.entries then
-        log:trace(("move: invalid index %d for %d entries"):format(target_index, #self.entries))
+        log:trace("move: invalid index %d for %d entries", target_index, #self.entries)
         return nil, nil
     end
 
@@ -883,7 +883,7 @@ function FileHistory:add(bufnr)
 
     local path = vim.api.nvim_buf_get_name(bufnr) or ""
     if path == "" or not is_trackable_buffer(bufnr) then
-        log:trace(("add: invalid buffer, %d does not point to a path."):format(bufnr))
+        log:trace("add: invalid buffer, %d does not point to a path.", bufnr)
         return nil
     end
 
@@ -915,7 +915,7 @@ end
 function FileHistory:move(delta)
     local target_index = self.index + delta
     if target_index < 1 or target_index > #self.entries then
-        log:info(("move: invalid index %d for %d entries"):format(target_index, #self.entries))
+        log:info("move: invalid index %d for %d entries", target_index, #self.entries)
         return nil
     end
 
@@ -925,7 +925,7 @@ function FileHistory:move(delta)
     -- ids are memory-bound and are cleared separately when buffers are wiped.
     local bufnr, cache_hit = ensure_buffer_loaded(state.path, state.bufnr)
     if not bufnr then
-        log:info(("restore: invalid buffer for %s"):format(state.path))
+        log:info("restore: invalid buffer for %s", state.path)
 
         -- Drop stale paths when encountered; file history should contain only
         -- targets that can be restored.
@@ -1019,7 +1019,7 @@ local function record_buffer_area(state, view)
         local pruned_areas = state.history:truncate()
         for _, pruned_area in ipairs(pruned_areas) do
             if not delete_area_extmark(state.bufnr, pruned_area.extmark_id) then
-                log:warn(("truncate: failed to remove extmark for %s"):format(state.path))
+                log:warn("truncate: failed to remove extmark for %s", state.path)
             end
         end
     end
@@ -1147,7 +1147,7 @@ local function on_buf_enter(bufnr)
     -- Special buffers should never create semantic areas or file-history marks.
     local path = vim.api.nvim_buf_get_name(bufnr)
     if not is_trackable_buffer(bufnr) then
-        log:trace(("on_buf_enter: excluded %s"):format(path))
+        log:trace("on_buf_enter: excluded %s", path)
         return
     end
 
@@ -1189,7 +1189,7 @@ local function file_move(delta)
     if delta < 0 then M.f_hist:add_if_current_differs(bufnr) end
 
     local trg_state = M.f_hist:move(delta)
-    if not trg_state then log:info(("move: failed navigation to buffer %s"):format(path)) end
+    if not trg_state then log:info("move: failed navigation to buffer %s", path) end
 end
 
 ---@param delta number
@@ -1250,7 +1250,7 @@ end
 
 --- Reset all SmartJmp state and restart tracking for the current buffer.
 function M.reset()
-    log:trace(("reset: states for %d buffers"):format(vim.tbl_count(M.buffers)))
+    log:trace("reset: states for %d buffers", vim.tbl_count(M.buffers))
 
     for _, state in pairs(M.buffers) do
         if state and state.debounce and not state.debounce:is_closing() then
