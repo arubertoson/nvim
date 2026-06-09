@@ -17,5 +17,6 @@ lsp-update:
 lsp-bin:
     @echo "{{justfile_directory()}}/tools/lsp/node_modules/.bin"
 
-test-jump:
-    nvim --headless --noplugin -u tests/init.lua -c "lua MiniTest.run_file('tests/test_jump.lua')"
+reset:
+    rm -rf $XDG_DATA_HOME/nvim
+    rm -rf $XDG_CACHE_HOME/nvim
