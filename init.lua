@@ -76,6 +76,11 @@ require("aru.log").configure({
     },
 })
 
+local lsp_bin = vim.fs.joinpath(vim.fn.stdpath("config"), "tools", "lsp", "node_modules", ".bin")
+if vim.fn.isdirectory(lsp_bin) == 1 then
+    vim.env.PATH = lsp_bin .. ":" .. (vim.env.PATH or "")
+end
+
 require("aru.startup").load({
     -- Install and add plugins to the runtime path before we start working
     -- on other parts of the setup. This should be a fairly fast setup as

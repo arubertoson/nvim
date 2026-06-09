@@ -1,0 +1,13 @@
+{
+  "name": "nvim-lsp-tools",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@biomejs/biome": "latest",
+    "@tailwindcss/language-server": "latest",
+    "prettier": "latest",
+    "typescript": "latest",
+    "typescript-language-server": "latest",
+    "vscode-langservers-extracted": "latest"
+  }
+}
