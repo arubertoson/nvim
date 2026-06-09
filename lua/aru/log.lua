@@ -342,6 +342,18 @@ function Logger:apply_config(config)
     return self
 end
 
+---Create a lightweight child logger that shares this logger's sinks but uses
+---an explicit module label in formatted output.
+---@param name string
+---@return Logger
+function Logger:bind(name)
+    return setmetatable({
+        _level = self._level,
+        format = self.format:gsub("{module}", tostring(name)),
+        sinks = self.sinks,
+    }, Logger)
+end
+
 ---Attach an additional sink to the logger.
 ---Each sink is materialised lazily to keep startup lean; this mirrors our
 ---tendency to defer work until a feature is explicitly requested.

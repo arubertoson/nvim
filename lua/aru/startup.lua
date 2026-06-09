@@ -120,7 +120,9 @@ function M.load_deferred_paths(groups, defer_delay_ms, on_finish)
         if on_finish then
             local ok, err = pcall(on_finish)
             if not ok then
-                log:error("deferred on_finish failed: %s", err)
+                local errmsg = ("deferred on_finish failed: %s"):format(err)
+                log:error(errmsg)
+                table.insert(_errors, errmsg)
             end
         end
     end)()
@@ -146,6 +148,15 @@ local function attach_notify_sink()
     )
     if not ok then vim.notify("log notify sink attach failed:\n" .. err, vim.log.levels.ERROR) end
 end
+
+M._test = {
+    module_path = module_path,
+    load_file = load_file,
+    flush_startup_errors = flush_startup_errors,
+    attach_notify_sink = attach_notify_sink,
+    errors = function() return _errors end,
+    reset = function() _errors = {} end,
+}
 
 ---@param critical string[][] Ordered groups of file paths to load
 ---@param deferred string[][]
