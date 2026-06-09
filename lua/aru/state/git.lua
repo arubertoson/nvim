@@ -52,8 +52,8 @@ local function find_workspace_root(bufnr)
     return root
 end
 
-local function ensure_watcher(root)
-    local entry = state[root]
+---@param entry table
+local function ensure_watcher(entry)
     if entry.watcher or not entry.head_exists then return end
 
     local handle, err = vim.uv.new_fs_event()
@@ -79,32 +79,71 @@ local function ensure_watcher(root)
     entry.watcher = handle
 end
 
----Determine the current branch for a given root, and cache the result to
----avoid recompute.
+local function entry_for(root)
+    local head = vim.fs.joinpath(root, ".git", "HEAD")
+    local entry = state[root]
+    if not entry then
+        entry = { head = head, head_exists = vim.uv.fs_stat(head) ~= nil }
+        state[root] = entry
+    else
+        entry.head = head
+        entry.head_exists = vim.uv.fs_stat(head) ~= nil
+    end
+    return entry
+end
+
+---Refresh the branch cache asynchronously.
+---@param root string
+---@param cb fun(branch: string?)|nil
+function M.refresh(root, cb)
+    local entry = entry_for(root)
+    if not entry.head_exists then
+        entry.branch = nil
+        if cb then cb(nil) end
+        return
+    end
+
+    ensure_watcher(entry)
+    if entry.pending then
+        if cb then
+            entry.callbacks = entry.callbacks or {}
+            table.insert(entry.callbacks, cb)
+        end
+        return
+    end
+    entry.pending = true
+    entry.callbacks = cb and { cb } or {}
+
+    vim.system(
+        { "git", "symbolic-ref", "--short", "HEAD" },
+        { cwd = root, text = true },
+        function(result)
+            local branch = nil
+            if result.code == 0 then branch = vim.trim(result.stdout) end
+
+            vim.schedule(function()
+                entry.pending = false
+                entry.branch = branch
+                local callbacks = entry.callbacks or {}
+                entry.callbacks = nil
+                for _, callback in ipairs(callbacks) do
+                    callback(branch)
+                end
+            end)
+        end
+    )
+end
+
+---Determine the current branch for a given root from cache only.
+---If no value has been cached yet, an asynchronous refresh is started.
 ---@param root string
 ---@return string?
 function M.branch_for(root)
-    if not root then return nil end
-
     local entry = state[root]
-    if entry and entry.branch then return entry.branch end
+    if entry and entry.branch ~= nil then return entry.branch end
 
-    local branch = nil
-    local head = vim.fs.joinpath(root, ".git", "HEAD")
-    if vim.uv.fs_stat(head) then
-        local result = vim.system(
-            { "git", "symbolic-ref", "--short", "HEAD" },
-            { cwd = root, text = true }
-        ):wait()
-        if result.code == 0 then branch = vim.trim(result.stdout) end
-    end
-
-    state[root] = state[root]
-        or { head = head, head_exists = vim.uv.fs_stat(head) ~= nil }
-    state[root].branch = branch
-    ensure_watcher(root)
-
-    return branch
+    M.refresh(root)
+    return entry and entry.branch or nil
 end
 
 ---When we exit neovim, we have to stop the watchers that we spun up.
@@ -117,9 +156,26 @@ vim.api.nvim_create_autocmd("VimLeavePre", {
             if entry.watcher then
                 entry.watcher:stop()
                 entry.watcher:close()
+                entry.watcher = nil
             end
         end
     end,
 })
+
+M._test = {
+    state = state,
+    reset = function()
+        for _, entry in pairs(state) do
+            if entry.watcher then
+                pcall(function() entry.watcher:stop() end)
+                pcall(function() entry.watcher:close() end)
+            end
+        end
+        for k in pairs(state) do
+            state[k] = nil
+        end
+    end,
+    ensure_watcher = ensure_watcher,
+}
 
 return M

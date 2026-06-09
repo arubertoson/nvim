@@ -214,17 +214,22 @@ vim.api.nvim_create_autocmd({ "DirChanged", "BufEnter", "VimEnter" }, {
         -- XXX: this should be cached somewhere :)
         local root = vim.fs.root(0, { ".git" })
         if not root then root = vim.uv.cwd() or "" end
-        local branch = require("aru.state.git").branch_for(root) or "-"
+        local git = require("aru.state.git")
+        local branch = git.branch_for(root) or "-"
 
-        -- Ensure that our cache is up to date. Launc in a schedule to avoid blocking.
-        vim.schedule(function()
-            local branch_hl = hlstring(highlights.comment, branch or "no-head")
+        local function cache_branch(value)
+            vim.schedule(function()
+                local branch_hl = hlstring(highlights.comment, value or "-")
 
-            StatusLine.cache("workspace_root", root)
-            StatusLine.cache("workspace_branch", branch_hl)
+                StatusLine.cache("workspace_root", root)
+                StatusLine.cache("workspace_branch", branch_hl)
 
-            vim.cmd.redrawstatus()
-        end)
+                vim.cmd.redrawstatus()
+            end)
+        end
+
+        cache_branch(branch)
+        git.refresh(root, cache_branch)
     end,
 })
 
