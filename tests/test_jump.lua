@@ -3,10 +3,6 @@ pcall(vim.cmd, "packadd mini.nvim")
 local MiniTest = _G.MiniTest or require("mini.test")
 if not _G.MiniTest then MiniTest.setup({ silent = true }) end
 
-require("aru.log").configure({
-    level = vim.log.levels.ERROR,
-    sinks = {},
-})
 
 local T = MiniTest.new_set({
     hooks = {
