@@ -132,28 +132,32 @@ map(
 map("n", "<leader>li", "<cmd>checkhealth vim.lsp<CR>", { desc = "LSP info" })
 
 -- ============================================================================
--- FZF-Lua (fuzzy finding)
+-- File/content search
 -- ============================================================================
+-- fff owns file search and project-wide content search. fzf-lua remains for
+-- generic picker workflows that fff cannot currently replace.
 -- <leader>f* namespace (find):
 
 map(
     "n",
     "<leader>ff",
-    with_file_mark(function() require("fzf-lua").files({ cwd = vim.uv.cwd() }) end),
+    with_file_mark(function() require("fff").find_files({ cwd = vim.uv.cwd() }) end),
     { desc = "Find files" }
+)
+map(
+    "n",
+    "<leader>fc",
+    with_file_mark(function()
+        require("fff").find_files({ cwd = vim.uv.cwd(), query = "git:modified " })
+    end),
+    { desc = "Find changed files" }
 )
 
 map(
     "n",
     "<leader>fs",
-    function() require("fzf-lua").lgrep_curbuf() end,
-    { desc = "Find string (live grep)" }
-)
-map(
-    "n",
-    "<leader>fS",
-    with_file_mark(function() require("fzf-lua").live_grep() end),
-    { desc = "Find string (live grep)" }
+    with_file_mark(function() require("fff").live_grep({ cwd = vim.uv.cwd() }) end),
+    { desc = "Find string in project" }
 )
 map("n", "<leader>k", function() require("fzf-lua").help_tags() end, { desc = "Find help tags" })
 

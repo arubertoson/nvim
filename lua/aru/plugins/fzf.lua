@@ -1,4 +1,30 @@
+--- fzf-lua configuration.
+---
+--- Role:
+---   Generic picker layer retained during the fff migration.
+---
+--- Keep here:
+---   - vim.ui.select
+---   - help tags
+---   - LSP symbols, diagnostics, locations, and code actions
+---   - custom selection actions, such as copying picker entries
+---
+--- Do not add new file search or live-grep workflows here. Use fff for those.
+---
+--- See: docs/fzf-fff-migration.md
+
 local fzf = require("fzf-lua")
+
+local function copy_fzf_selection(selected)
+	if #selected == 0 then
+		return
+	end
+
+	local text = table.concat(selected, "\n")
+	vim.fn.setreg("+", text)
+	vim.notify(string.format("Copied %d fzf item(s) to clipboard", #selected))
+end
+
 fzf.setup({
 	"hide",
 	fzf_opts = { ["--cycle"] = true },
@@ -19,13 +45,8 @@ fzf.setup({
     actions = {
         files = {
             ["default"] = fzf.actions.file_edit,
-			["ctrl-y"] = function(selected)
-				if #selected > 0 then
-					local msg = selected[1]
-					vim.fn.setreg("+", msg)
-					vim.notify("Copied to clipboard: " .. msg)
-				end
-			end,
+			["ctrl-y"] = copy_fzf_selection,
+			["alt-y"] = { fn = copy_fzf_selection, prefix = "select-all+" },
         }
     },
 	keymap = {

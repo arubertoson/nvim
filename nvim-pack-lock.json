@@ -19,6 +19,11 @@
       "src": "https://github.com/niba/continue.nvim",
       "version": "'main'"
     },
+    "fff.nvim": {
+      "rev": "eb11bb52548120bc3b1795f28fb794276f66d396",
+      "src": "https://github.com/dmtrKovalenko/fff.nvim",
+      "version": "0.9.4 - 0.9.4"
+    },
     "fidget.nvim": {
       "rev": "3f54759",
       "src": "https://github.com/j-hui/fidget.nvim"
