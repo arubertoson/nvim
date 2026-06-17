@@ -90,21 +90,15 @@ vim.pack.add({
     -- ===========================================================================
     -- Pickers / Search
     -- ===========================================================================
-    -- Search is split by responsibility:
+    -- fff.nvim owns file/content workflows: file search, live grep, and
+    -- git/path-constrained file queries.
     --
-    -- - fff.nvim owns file/content workflows:
-    --   file search, live grep, and git/path-constrained file queries.
-    --
-    -- - fzf-lua owns generic picker workflows:
-    --   vim.ui.select, help tags, LSP pickers, and custom selection actions.
-    --
-    -- fff has a picker UI, but it is not a generic picker API. Its UI is coupled
-    -- to fff file/grep results, so fzf-lua remains intentional until those
-    -- workflows move to native/quickfix flows or fff grows a `pick(items)` API.
+    -- fff stays focused on file/content search. mini.pick/mini.extra provides
+    -- the generic searchable picker layer for LSP, diagnostics, and vim.ui.select
+    -- flows such as code actions.
     --
     -- Migration notes: docs/fzf-fff-migration.md
 
-    { src = "https://github.com/ibhagwan/fzf-lua", version = "main" },
     { src = "https://github.com/dmtrKovalenko/fff.nvim", version = vim.version.range("0.9.4") },
 
     -- ===========================================================================

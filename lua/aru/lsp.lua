@@ -51,37 +51,29 @@ local function map_buffer_keys(bufnr)
         })
     end
 
-    local fzf = require("fzf-lua")
-
     local with_file_mark = require("aru.jump").with_file_mark
 
+    local function pick_lsp(scope)
+        require("mini.extra").pickers.lsp({ scope = scope })
+    end
+
+    local function pick_diagnostics(scope)
+        require("mini.extra").pickers.diagnostic(
+            { scope = scope },
+            { source = { show = require("aru.picker").show_diagnostics } }
+        )
+    end
+
     -- stylua: ignore start
-	map("fs", function() fzf.lsp_document_symbols() end, "Document symbols")
-    map("fo", function()
-        fzf.lsp_document_symbols({
-            prompt = "Outline❯ ",
-            regex_filter = function(item)
-                local top_level_kinds = {
-                    Class = true,
-                    Function = true,
-                    Interface = true,
-                    Struct = true,
-                    Module = true,
-                    Namespace = true,
-                }
-                local is_top_level = not item.text:match("^%s")
-                return is_top_level and top_level_kinds[item.kind]
-            end,
-        })
-    end, "Document outline")
-	map("fS", with_file_mark(function() fzf.lsp_live_workspace_symbols() end) , "Workspace symbols")
-	map("fd", function() fzf.lsp_document_diagnostics() end, "Buffer diagnostics")
-	map("fD", with_file_mark(function() fzf.lsp_workspace_diagnostics() end), "Workspace diagnostics")
-	map("gd", with_file_mark(function() fzf.lsp_definitions() end), "Goto definition")
-	map("gr", with_file_mark(function() fzf.lsp_references() end), "References")
-	map("go", function() fzf.lsp_code_actions() end, "Code actions")
-	map("gi", with_file_mark(function() fzf.lsp_implementations() end), "Implementations")
-	map("gy", with_file_mark(function() fzf.lsp_typedefs() end), "Type definitions")
+	map("fs", function() pick_lsp("document_symbol") end, "Document symbols")
+	map("fS", with_file_mark(function() pick_lsp("workspace_symbol") end), "Workspace symbols")
+	map("fd", function() pick_diagnostics("current") end, "Buffer diagnostics")
+	map("fD", with_file_mark(function() pick_diagnostics("all") end), "Workspace diagnostics")
+	map("gd", with_file_mark(function() pick_lsp("definition") end), "Goto definition")
+	map("gr", with_file_mark(function() pick_lsp("references") end), "References")
+	map("go", vim.lsp.buf.code_action, "Code actions")
+	map("gi", with_file_mark(function() pick_lsp("implementation") end), "Implementations")
+	map("gy", with_file_mark(function() pick_lsp("type_definition") end), "Type definitions")
 
 	map("]d", function() vim.diagnostic.jump({ count = 1, float = true }) end, "Next diagnostic")
 	map("[d", function() vim.diagnostic.jump({ count = -1, float = true }) end, "Prev diagnostic")

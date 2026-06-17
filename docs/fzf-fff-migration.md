@@ -2,52 +2,56 @@
 
 ## Decision
 
-Use fff for file/content interaction. Keep fzf-lua for generic picker workflows until they are replaced by native/quickfix flows or fff exposes a public generic picker API.
+Use fff for file/content interaction and mini.pick/mini.extra for generic picker workflows.
 
-fff has a picker UI, but it is file/grep-specific today:
+fff is a good replacement for file search and live grep, but not for arbitrary item pickers. Its picker UI is file/grep-specific:
 
 - normal mode searches through fff's file index
 - grep mode searches through fff's content backend
 - selection expects a file item with `relative_path` and opens it
 
-That makes fff a good replacement for file search and live grep, but not for arbitrary item pickers like help tags, LSP symbols, code actions, or `vim.ui.select`.
+Generic LSP, diagnostics, and code-action interactions now use mini.pick/mini.extra instead of fzf-lua. fff is intentionally not used for these because it is file/grep-specific.
 
-## Migration plan
+## Completed migration
 
-1. Move file/content mappings to fff. Done.
+1. Move file/content mappings to fff. The mappings live in `lua/aru/plugins/fff.lua` so config and plugin-specific keys load together.
    - `<leader>ff`: `require("fff").find_files({ cwd = vim.uv.cwd() })`
    - `<leader>fs`: `require("fff").live_grep({ cwd = vim.uv.cwd() })`
    - `<leader>fc`: `require("fff").find_files({ cwd = vim.uv.cwd(), query = "git:modified " })`
 
-2. Remove current-buffer grep. Done.
+2. Remove current-buffer grep.
    - Previous fzf-lua usage: `lgrep_curbuf()`.
    - fff has no direct current-buffer grep picker.
    - Do not keep a weak replacement just to preserve the mapping.
 
-3. Keep fzf-lua for generic picker responsibilities.
-   - `fzf.register_ui_select()`
-   - `help_tags()`
-   - LSP document/workspace symbols
-   - LSP diagnostics
-   - LSP definitions/references/implementations/type definitions
-   - LSP code actions
-   - custom copy-selection actions
+3. Add a lightweight generic picker layer.
+   - `mini.pick` provides the picker UI and `vim.ui.select` implementation
+   - `mini.extra` provides LSP and diagnostic pickers
+   - help lookup still uses `:help` command-line completion
+   - code actions use `vim.lsp.buf.code_action()` through the `vim.ui.select` override
 
-4. Reduce LSP picker dependence only if the replacement is better.
-   - Prefer native LSP jumps for single-target actions.
-   - Prefer quickfix/location-list for multi-target actions.
-   - Do not force these through fff unless fff adds a generic picker API.
+4. Remove fzf-lua.
+   - removed package spec
+   - removed plugin config
+   - removed lockfile entry
 
-5. Remove fzf-lua only when no generic picker use remains.
-   - Either all generic workflows moved to native/quickfix flows, or another small generic picker replaces fzf-lua.
-   - Until then, fzf-lua is intentionally retained and should not be considered dead dependency weight.
+## Follow-up: diagnostic copy UX
+
+The important remaining UX is copying diagnostics for use elsewhere. Prefer explicit diagnostic helpers over going back to quickfix/location-list as the primary diagnostic UI.
+
+Potential helpers:
+
+- copy current diagnostic
+- copy all current-buffer diagnostics
+- copy workspace diagnostics
 
 ## Exit criteria
 
-fzf-lua can be removed when all of these are true:
+fzf-lua is removed when all of these remain true:
 
-- no `require("fzf-lua")` calls remain outside its plugin config
-- `vim.ui.select` has an acceptable replacement or default UI is acceptable
-- help tag lookup has an acceptable replacement
-- LSP picker workflows have moved to native/quickfix/location-list flows
+- no `require("fzf-lua")` calls remain
+- no package spec or lockfile entry remains
+- `vim.ui.select` uses `mini.pick`
+- help lookup through `:help` is acceptable
+- LSP and diagnostic workflows use searchable `mini.extra` pickers
 - fff covers all file/content search mappings

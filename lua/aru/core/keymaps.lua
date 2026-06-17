@@ -132,45 +132,20 @@ map(
 map("n", "<leader>li", "<cmd>checkhealth vim.lsp<CR>", { desc = "LSP info" })
 
 -- ============================================================================
--- File/content search
+-- Help
 -- ============================================================================
--- fff owns file search and project-wide content search. fzf-lua remains for
--- generic picker workflows that fff cannot currently replace.
--- <leader>f* namespace (find):
+map("n", "<leader>k", ":help ", { desc = "Help tag" })
 
-map(
-    "n",
-    "<leader>ff",
-    with_file_mark(function() require("fff").find_files({ cwd = vim.uv.cwd() }) end),
-    { desc = "Find files" }
-)
-map(
-    "n",
-    "<leader>fc",
-    with_file_mark(function()
-        require("fff").find_files({ cwd = vim.uv.cwd(), query = "git:modified " })
-    end),
-    { desc = "Find changed files" }
-)
-
-map(
-    "n",
-    "<leader>fs",
-    with_file_mark(function() require("fff").live_grep({ cwd = vim.uv.cwd() }) end),
-    { desc = "Find string in project" }
-)
-map("n", "<leader>k", function() require("fzf-lua").help_tags() end, { desc = "Find help tags" })
-
--- LSP pickers (set in LspAttach, documented here):
--- fs = lsp_document_symbols
--- fS = lsp_live_workspace_symbols
--- fd = lsp_document_diagnostics
--- fD = lsp_workspace_diagnostics
--- gd = lsp_definitions
--- gr = lsp_references
--- go = lsp_code_actions
--- gi = lsp_implementations
--- gy = lsp_typedefs
+-- LSP defaults (set in LspAttach, documented here):
+-- fs = document symbols
+-- fS = workspace symbols
+-- fd = buffer diagnostics picker
+-- fD = workspace diagnostics picker
+-- gd = definition
+-- gr = references
+-- go = code actions
+-- gi = implementations
+-- gy = type definitions
 
 --
 map("n", "<C-o>", function() require("aru.jump").prev() end)
@@ -271,6 +246,7 @@ end, { desc = "Toggle Oil (cwd)" })
 -- Mini.nvim
 -- ============================================================================
 -- Mini.pairs: auto-pairs in insert/command mode (automatic)
+-- Mini.pick/Mini.extra: generic LSP, diagnostics, and vim.ui.select picker
 -- Mini.surround:
 -- <leader>sa = surround add
 -- <leader>sd = surround delete

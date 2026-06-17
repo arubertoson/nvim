@@ -1,6 +1,21 @@
 require("mini.pairs").setup({
     modes = { insert = true, command = true, terminal = false },
 })
+
+local picker = require("aru.picker")
+local pick = require("mini.pick")
+pick.setup({
+    source = {
+        show = picker.show,
+    },
+    window = {
+        config = picker.window_config,
+        prompt_prefix = " fff  ",
+    },
+})
+require("mini.extra").setup()
+vim.ui.select = pick.ui_select
+
 require("mini.surround").setup({
     mappings = {
         add = "<leader>sa",

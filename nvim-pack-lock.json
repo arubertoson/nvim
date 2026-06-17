@@ -32,11 +32,6 @@
       "rev": "572f566",
       "src": "https://github.com/rafamadriz/friendly-snippets"
     },
-    "fzf-lua": {
-      "rev": "db3ccff",
-      "src": "https://github.com/ibhagwan/fzf-lua",
-      "version": "'main'"
-    },
     "gitsigns.nvim": {
       "rev": "7010000",
       "src": "https://github.com/lewis6991/gitsigns.nvim",
