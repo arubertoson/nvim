@@ -5,5 +5,5 @@ setlocal.relativenumber = false
 setlocal.smartindent = true
 setlocal.wrap = true
 setlocal.linebreak = true
--- setlocal.colorcolumn = "80"
+setlocal.colorcolumn = ""
 setlocal.signcolumn = "auto"
