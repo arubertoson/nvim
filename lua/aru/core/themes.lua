@@ -59,6 +59,14 @@ require("kanagawa").setup({
             TelescopeBorder = { fg = t.ui.nontext, bg = t.ui.bg },
 
             ------------------------------------------------------------------
+            -- Spell (undercurl misspellings)
+            ------------------------------------------------------------------
+            SpellBad = { undercurl = true, sp = t.syn.diag_error, fg = "none" },
+            SpellCap = { undercurl = true, sp = t.syn.diag_warn, fg = "none" },
+            SpellLocal = { undercurl = true, sp = t.syn.diag_info, fg = "none" },
+            Rare = { undercurl = true, sp = t.ui.nontext, fg = "none" },
+
+            ------------------------------------------------------------------
             -- Housekeeping so nothing sticks out
             ------------------------------------------------------------------
             SignColumn = { bg = t.ui.bg },

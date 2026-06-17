@@ -278,6 +278,14 @@ end, { desc = "Toggle Oil (cwd)" })
 -- Mini.ai: textobjects (automatic, used with operators)
 
 -- ============================================================================
+-- Spell
+-- ============================================================================
+map("n", "]s", "]s", { desc = "Next misspelling" })
+map("n", "[s", "[s", { desc = "Previous misspelling" })
+map("n", "z=", "z=", { desc = "Spelling suggestions" })
+map("n", "<leader>ts", ":set spell!<CR>", { desc = "Toggle spell check" })
+
+-- ============================================================================
 -- No-Neck-Pain (centered buffer)
 -- ============================================================================
 map(
