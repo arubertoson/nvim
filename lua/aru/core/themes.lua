@@ -59,12 +59,15 @@ require("kanagawa").setup({
             TelescopeBorder = { fg = t.ui.nontext, bg = t.ui.bg },
 
             ------------------------------------------------------------------
-            -- Spell (undercurl misspellings)
+            -- Spell (plain underline so it works without undercurl support)
+            -- TODO: Revisit undercurl when the active terminal/UI path renders it
+            -- reliably. Colored plain underline may ignore `sp` and use the text
+            -- foreground color, but it is currently more visible than undercurl.
             ------------------------------------------------------------------
-            SpellBad = { undercurl = true, sp = t.syn.diag_error, fg = "none" },
-            SpellCap = { undercurl = true, sp = t.syn.diag_warn, fg = "none" },
-            SpellLocal = { undercurl = true, sp = t.syn.diag_info, fg = "none" },
-            Rare = { undercurl = true, sp = t.ui.nontext, fg = "none" },
+            SpellBad = { underline = true, sp = t.syn.diag_error },
+            SpellCap = { underline = true, sp = t.syn.diag_warn },
+            SpellLocal = { underline = true, sp = t.syn.diag_info },
+            SpellRare = { underline = true, sp = t.ui.nontext },
 
             ------------------------------------------------------------------
             -- Housekeeping so nothing sticks out
@@ -78,6 +81,44 @@ require("kanagawa").setup({
 })
 
 vim.cmd.colorscheme("kanagawa") -- or kanagawa-wave/dragon/lotus
+
+-- TODO: Keep this override in sync with the spell module note. This forces plain
+-- underline after colorscheme load because the colorscheme otherwise resolves
+-- spell groups to undercurl, which does not render reliably in the current setup.
+local function set_spell_underlines()
+    local function diagnostic_fg(group)
+        return vim.api.nvim_get_hl(0, { name = group, link = false }).fg
+    end
+
+    vim.api.nvim_set_hl(0, "SpellBad", {
+        underline = true,
+        cterm = { underline = true },
+        sp = diagnostic_fg("DiagnosticError"),
+    })
+    vim.api.nvim_set_hl(0, "SpellCap", {
+        underline = true,
+        cterm = { underline = true },
+        sp = diagnostic_fg("DiagnosticWarn"),
+    })
+    vim.api.nvim_set_hl(0, "SpellLocal", {
+        underline = true,
+        cterm = { underline = true },
+        sp = diagnostic_fg("DiagnosticInfo"),
+    })
+    vim.api.nvim_set_hl(0, "SpellRare", {
+        underline = true,
+        cterm = { underline = true },
+        sp = diagnostic_fg("Comment"),
+    })
+end
+
+set_spell_underlines()
+
+vim.api.nvim_create_autocmd("ColorScheme", {
+    group = vim.api.nvim_create_augroup("aru_spell_highlights", { clear = true }),
+    desc = "Use underline for spelling highlights",
+    callback = set_spell_underlines,
+})
 
 local function kanagawa_paper()
     require("kanagawa-paper").setup({

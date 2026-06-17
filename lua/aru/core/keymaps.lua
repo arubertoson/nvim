@@ -256,9 +256,55 @@ end, { desc = "Toggle Oil (cwd)" })
 -- ============================================================================
 -- Spell
 -- ============================================================================
+local function pick_spelling_suggestion()
+    local bad = vim.fn.spellbadword()[1]
+    if bad == "" then bad = vim.fn.expand("<cword>") end
+
+    local suggestions = vim.fn.spellsuggest(bad, 10)
+    if vim.tbl_isempty(suggestions) then
+        vim.notify("No spelling suggestions for " .. bad, vim.log.levels.INFO)
+        return
+    end
+
+    vim.ui.select(suggestions, { prompt = "Replace " .. bad .. " with:" }, function(choice)
+        if not choice then return end
+
+        local row, col = unpack(vim.api.nvim_win_get_cursor(0))
+        local line = vim.api.nvim_get_current_line()
+        local best_start, best_end
+        local start = 1
+
+        while true do
+            local match_start, match_end = line:find(bad, start, true)
+            if not match_start then break end
+
+            if match_start - 1 <= col and col <= match_end then
+                best_start, best_end = match_start, match_end
+                break
+            end
+
+            if not best_start then best_start, best_end = match_start, match_end end
+            start = match_end + 1
+        end
+
+        if not best_start then return end
+
+        vim.api.nvim_buf_set_text(
+            0,
+            row - 1,
+            best_start - 1,
+            row - 1,
+            best_end,
+            { choice }
+        )
+    end)
+end
+
 map("n", "]s", "]s", { desc = "Next misspelling" })
 map("n", "[s", "[s", { desc = "Previous misspelling" })
 map("n", "z=", "z=", { desc = "Spelling suggestions" })
+map("n", "<leader>sf", "1z=", { desc = "Fix spelling with first suggestion" })
+map("n", "<leader>ss", pick_spelling_suggestion, { desc = "Pick spelling suggestion" })
 map("n", "<leader>ts", ":set spell!<CR>", { desc = "Toggle spell check" })
 
 -- ============================================================================

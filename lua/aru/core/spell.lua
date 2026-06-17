@@ -2,14 +2,20 @@
 ---
 --- Spell checking policy: on by default, exclusion-based.
 ---
---- - Default language: en_gb (spellfile plugin may prompt to download on first use)
+--- - Default language: en (American English, bundled with Neovim)
 --- - Default mode: comment/string only (`noplainbuffer`) via Treesitter @spell
 --- - Prose filetypes in `exclude_noplainbuffer` check the whole buffer
 --- - Filetypes in `exclude` (and some buftypes) disable spell entirely
+---
+--- TODO: Revisit spelling highlight rendering when terminal/UI support changes.
+--- We currently rely on plain underline instead of undercurl because undercurl did
+--- not render reliably in the active Neovim/terminal path. Colored plain underline
+--- may also fall back to the foreground color even when `guisp` is configured.
+--- If this improves, switch the theme spell highlights back to red undercurl.
 
 local M = {}
 
-M.lang = "en_gb"
+M.lang = "en"
 
 --- Filetypes with spell checking fully disabled.
 M.exclude = {
@@ -113,28 +119,6 @@ function M.setup()
 		callback = function(ev) M.apply(ev.buf) end,
 	})
 
-	-- First launch: spellfile.vim prompts to download en_gb when the dictionary is missing.
-	vim.api.nvim_create_autocmd("VimEnter", {
-		group = group,
-		once = true,
-		desc = "Ensure en_gb spell dictionary is available",
-		callback = function()
-			local dicts = vim.fn.globpath(vim.o.rtp, "spell/en*.utf-8.spl", false, true)
-			local has_gb = false
-			for _, path in ipairs(dicts) do
-				if path:match("en[_%-]?gb%.utf%-8%.spl$") then
-					has_gb = true
-					break
-				end
-			end
-			if has_gb then return end
-
-			vim.schedule(function()
-				-- Triggers spellfile.vim download prompt when the dictionary is absent.
-				vim.cmd("set spelllang=" .. M.lang)
-			end)
-		end,
-	})
 end
 
 M.setup()
