@@ -1,6 +1,8 @@
 local log = require("aru.log")
 
 local supermaven = require("supermaven-nvim")
+local supermaven_api = require("supermaven-nvim.api")
+local supermaven_preview = require("supermaven-nvim.completion_preview")
 
 supermaven.setup({
     disable_keymaps = true,
@@ -8,7 +10,7 @@ supermaven.setup({
         local name = vim.api.nvim_buf_get_name(0)
         if name:match("%.env$") then
             log.info("env file so skipping inlay completion")
-            return false
+            return true
         end
     end,
 })
@@ -16,13 +18,18 @@ supermaven.setup({
 vim.api.nvim_create_autocmd("User", {
     pattern = "BlinkCmpMenuOpen",
     callback = function()
-        local preview = require("supermaven-nvim.completion_preview")
-        preview.on_dispose_inlay()
+        supermaven_preview.on_dispose_inlay()
     end,
 })
 
-vim.keymap.set(
-    "i",
-    "<c-t>",
-    function() require("supermaven-nvim.completion_preview").on_dispose_inlay() end
-)
+local function toggle_supermaven_inlay()
+    supermaven_preview.on_dispose_inlay()
+    supermaven_api.toggle()
+end
+
+vim.keymap.set("i", "<c-t>", toggle_supermaven_inlay, {
+    desc = "Toggle Supermaven inlay",
+})
+vim.keymap.set("n", "<leader>ts", toggle_supermaven_inlay, {
+    desc = "Toggle Supermaven inlay",
+})

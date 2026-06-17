@@ -1,6 +1,7 @@
 nvim-config.log
 .aider*
 /tools/lsp/node_modules/
+/tools/fff/
 
 # Beads / Dolt files (added by bd init)
 .dolt/

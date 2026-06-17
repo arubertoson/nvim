@@ -76,10 +76,9 @@ require("aru.log").configure({
     },
 })
 
+-- Ensure that we have a clean tools directory only available for our nvim instance.
 local lsp_bin = vim.fs.joinpath(vim.fn.stdpath("config"), "tools", "lsp", "node_modules", ".bin")
-if vim.fn.isdirectory(lsp_bin) == 1 then
-    vim.env.PATH = lsp_bin .. ":" .. (vim.env.PATH or "")
-end
+if vim.fn.isdirectory(lsp_bin) == 1 then vim.env.PATH = lsp_bin .. ":" .. (vim.env.PATH or "") end
 
 require("aru.startup").load({
     -- Install and add plugins to the runtime path before we start working
