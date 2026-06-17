@@ -30,6 +30,3 @@ end
 vim.keymap.set("i", "<c-t>", toggle_supermaven_inlay, {
     desc = "Toggle Supermaven inlay",
 })
-vim.keymap.set("n", "<leader>ts", toggle_supermaven_inlay, {
-    desc = "Toggle Supermaven inlay",
-})
