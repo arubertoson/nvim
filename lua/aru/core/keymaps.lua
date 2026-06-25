@@ -19,7 +19,10 @@ vim.g.maplocalleader = ","
 -- ============================================================================
 map({ "n", "x", "o" }, ";", "<Nop>", { silent = true })
 map({ "n", "x", "o" }, ",", "<Nop>", { silent = true })
-map("n", "q", "<Nop>", { silent = true })
+map("n", "q", function()
+    if require("aru.quick_close").close_current() then return end
+    require("aru.agent").close_read()
+end, { silent = true, desc = "Close focused temporary window, else Pi read float" })
 map("n", "Q", "<Nop>", { silent = true })
 
 -- ============================================================================
@@ -315,6 +318,51 @@ map(
     "<leader>wo",
     function() require("no-neck-pain").toggle() end,
     { desc = "Toggle no-neck-pain" }
+)
+
+-- ============================================================================
+-- Agent (Pi)
+-- ============================================================================
+-- <leader>p = open Pi prompt (normal: surrounding context, visual: selection)
+-- <leader>P = focus/unfocus the read response float (toggle)
+-- <M-d>     = scroll read float down  (works from any buffer)
+-- <M-u>     = scroll read float up    (works from any buffer)
+-- q         = close read float when open, nop otherwise
+-- Inside the prompt:
+--   <CR>   = read     — stream answer into a floating window, stay in buffer
+--   <C-g>  = generate — stream code as ghost text at cursor / selection site
+--   <C-p>  = session  — hand off to the Pi pane (focus follows)
+
+map({ "n", "x" }, "<leader>p", function()
+    -- Exit visual mode first so getpos("'<") / getpos("'>") are set correctly.
+    local mode = vim.fn.mode()
+    if mode == "v" or mode == "V" or mode == "\22" then
+        vim.api.nvim_feedkeys(
+            vim.api.nvim_replace_termcodes("<Esc>", true, false, true),
+            "x",
+            false
+        )
+    end
+    require("aru.agent").prompt()
+end, { desc = "Pi: open prompt" })
+
+map(
+    "n",
+    "<leader>P",
+    function() require("aru.agent").focus_read() end,
+    { desc = "Pi: focus/unfocus read float" }
+)
+map(
+    { "n", "i" },
+    "<M-d>",
+    function() require("aru.agent").scroll_read("down") end,
+    { desc = "Pi: scroll float down" }
+)
+map(
+    { "n", "i" },
+    "<M-u>",
+    function() require("aru.agent").scroll_read("up") end,
+    { desc = "Pi: scroll float up" }
 )
 
 -- ============================================================================
