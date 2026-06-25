@@ -100,30 +100,8 @@ vim.api.nvim_create_autocmd({ "WinLeave", "BufLeave" }, {
 vim.api.nvim_create_autocmd("FileType", {
     group = vim.api.nvim_create_augroup("aru_quick_close", { clear = true }),
     desc = "Set a local <q> mapping to close the buffer, these buffers are temporary.",
-    pattern = {
-        "help",
-        "git-status",
-        "git-log",
-        "gitcommit",
-        "notify",
-        "checkhealth",
-        "dbui",
-        "log",
-        "qf",
-        "lspinfo",
-    },
-    callback = function()
-        local function smart_close()
-            if vim.fn.winnr("$") ~= 1 then vim.api.nvim_win_close(0, true) end
-        end
-
-        vim.keymap.set(
-            "n",
-            "q",
-            smart_close,
-            { buffer = 0, nowait = true, silent = true }
-        )
-    end,
+    pattern = require("aru.quick_close").filetypes,
+    callback = function(ev) require("aru.quick_close").map_buffer(ev.buf) end,
 })
 
 vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold" }, {
