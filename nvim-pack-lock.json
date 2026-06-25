@@ -5,10 +5,6 @@
       "src": "https://github.com/Saghen/blink.cmp",
       "version": "1.10.2 - 1.10.2"
     },
-    "catppuccin": {
-      "rev": "af58927",
-      "src": "https://github.com/catppuccin/nvim"
-    },
     "conform.nvim": {
       "rev": "3543d00",
       "src": "https://github.com/stevearc/conform.nvim",
@@ -23,14 +19,6 @@
       "rev": "eb11bb52548120bc3b1795f28fb794276f66d396",
       "src": "https://github.com/dmtrKovalenko/fff.nvim",
       "version": "0.9.4 - 0.9.4"
-    },
-    "fidget.nvim": {
-      "rev": "3f54759",
-      "src": "https://github.com/j-hui/fidget.nvim"
-    },
-    "friendly-snippets": {
-      "rev": "572f566",
-      "src": "https://github.com/rafamadriz/friendly-snippets"
     },
     "gitsigns.nvim": {
       "rev": "7010000",
@@ -55,50 +43,19 @@
       "rev": "27f1e11",
       "src": "https://github.com/rebelot/kanagawa.nvim"
     },
-    "kanso.nvim": {
-      "rev": "151dbc2",
-      "src": "https://github.com/webhooked/kanso.nvim.git"
-    },
-    "lazydev.nvim": {
-      "rev": "f59bd14",
-      "src": "https://github.com/folke/lazydev.nvim",
-      "version": "1.9.0 - 1.9.0"
-    },
-    "leap.nvim": {
-      "rev": "aa20426",
-      "src": "https://github.com/ggandor/leap.nvim.git",
-      "version": "'main'"
-    },
-    "lspkind.nvim": {
-      "rev": "3ddd1b4",
-      "src": "https://github.com/onsails/lspkind.nvim"
+    "markview.nvim": {
+      "rev": "301e431c7b618235f5447d54465c70934bd33668",
+      "src": "https://github.com/OXY2DEV/markview.nvim"
     },
     "mini.nvim": {
       "rev": "94cae46",
       "src": "https://github.com/nvim-mini/mini.nvim",
       "version": "0.17.0 - 0.17.0"
     },
-    "neocodeium": {
-      "rev": "f67384c",
-      "src": "https://github.com/monkoose/neocodeium",
-      "version": "1.16.3 - 1.16.3"
-    },
-    "neovim": {
-      "rev": "72a04c4",
-      "src": "https://github.com/rose-pine/neovim"
-    },
     "no-neck-pain.nvim": {
       "rev": "c3d96b6",
       "src": "https://github.com/shortcuts/no-neck-pain.nvim",
       "version": "2.5.3 - 2.5.3"
-    },
-    "nvim": {
-      "rev": "af58927",
-      "src": "https://github.com/catppuccin/nvim"
-    },
-    "nvim-lspconfig": {
-      "rev": "ac98db2",
-      "src": "https://github.com/neovim/nvim-lspconfig"
     },
     "nvim-treesitter": {
       "rev": "63fac0a5",
@@ -109,10 +66,6 @@
       "rev": "1b2d85d",
       "src": "https://github.com/nvim-treesitter/nvim-treesitter-textobjects",
       "version": "'main'"
-    },
-    "nvim-ts-autotag": {
-      "rev": "8e1c0a3",
-      "src": "https://github.com/windwp/nvim-ts-autotag"
     },
     "nvim-web-devicons": {
       "rev": "b8221e4",
@@ -133,14 +86,6 @@
       "rev": "07d20fc",
       "src": "https://github.com/supermaven-inc/supermaven-nvim.git",
       "version": "'main'"
-    },
-    "tagalong.vim": {
-      "rev": "5a2bbf2",
-      "src": "https://github.com/AndrewRadev/tagalong.vim"
-    },
-    "vim-matchup": {
-      "rev": "0fb1e6b",
-      "src": "https://github.com/andymass/vim-matchup"
     },
     "vim-sleuth": {
       "rev": "be69bff",

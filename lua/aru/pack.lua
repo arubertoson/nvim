@@ -104,9 +104,44 @@ vim.pack.add({
     -- ===========================================================================
     -- Uncategorized
     -- ===========================================================================
-    { src = "https://github.com/andymass/vim-matchup" },
     { src = "https://github.com/tpope/vim-sleuth" },
+    { src = "https://github.com/OXY2DEV/markview.nvim" },
+
 }, {
     load = false,
     confirm = false,
 })
+
+local function pack_names(filter)
+    return vim.iter(vim.pack.get())
+        :filter(filter)
+        :map(function(x) return x.spec.name end)
+        :totable()
+end
+
+vim.api.nvim_create_user_command("PackUpdate", function(opts)
+    local names = #opts.fargs > 0 and opts.fargs or pack_names(function(x) return x.active end)
+
+    if vim.tbl_isempty(names) then
+        vim.notify("No active packages to update", vim.log.levels.INFO, { title = "vim.pack" })
+        return
+    end
+
+    vim.pack.update(names, { force = opts.bang })
+end, {
+    bang = true,
+    nargs = "*",
+    complete = function() return pack_names(function(x) return x.active end) end,
+    desc = "Update active vim.pack packages; use ! to skip confirmation",
+})
+
+vim.api.nvim_create_user_command("PackClean", function()
+    local inactive = pack_names(function(x) return not x.active end)
+
+    if vim.tbl_isempty(inactive) then
+        vim.notify("No inactive packages to clean", vim.log.levels.INFO, { title = "vim.pack" })
+        return
+    end
+
+    vim.pack.del(inactive)
+end, { desc = "Delete inactive vim.pack packages" })
