@@ -19,6 +19,7 @@
 --- watching.
 
 local log = require("aru.log")
+local ts = require("aru.ts")
 
 -- ============================================================================
 -- Configuration
@@ -290,58 +291,6 @@ end
 ---@field query vim.treesitter.Query
 
 ---@param bufnr number
----@return SmartJmp.TreesitterIterator?
-local function iter_textobj_captures(bufnr)
-    local lang = vim.treesitter.language.get_lang(vim.bo[bufnr].filetype)
-    if not lang then return nil end
-
-    local ok_parser, parser = pcall(vim.treesitter.get_parser, bufnr, lang)
-    if not ok_parser or not parser then return nil end
-
-    local ok_parse, trees = pcall(parser.parse, parser)
-    local tree = ok_parse and trees and trees[1] or nil
-    local root = tree and tree:root() or nil
-    if not root then return nil end
-
-    local ok_query, query = pcall(vim.treesitter.query.get, lang, "textobjects")
-    if not ok_query or not query then return nil end
-
-    local root_start, _, root_end, _ = root:range()
-
-    return {
-        iter = query:iter_captures(root, bufnr, root_start, root_end + 1),
-        query = query,
-    }
-end
-
----@param node TSNode
----@param field string
----@param bufnr number
----@return string?
-local function ts_node_field_text(node, field, bufnr)
-    local field_node = node:field(field)[1]
-
-    local name = nil
-    if field_node then name = vim.treesitter.get_node_text(field_node, bufnr) end
-
-    if not name then
-        -- fallback to get a snippet of the node starting string in case
-        -- node doesn't have a field. This will give us something to work
-        -- with.
-        local sr, sc = node:range()
-        local line = vim.api.nvim_buf_get_lines(bufnr, sr, sr + 1, false)[1] or ""
-
-        local end_col = math.min(#line, sc + M.config.max_ts_field_len)
-
-        return vim.api.nvim_buf_get_text(bufnr, sr, sc, sr, end_col, {})[1]
-    end
-
-    if not name or name == "" then return nil end
-
-    return name
-end
-
----@param bufnr number
 ---@param view SmartJmp.View
 ---@return SmartJmp.SemanticArea?
 --- Finds the best configured textobject capture containing the saved view.
@@ -355,7 +304,7 @@ local function semantic_area_at(bufnr, view)
     local row = math.max(view.lnum - 1, 0)
     local col = math.max(view.col, 0)
 
-    local iterator = iter_textobj_captures(bufnr)
+    local iterator = ts.iter_textobj_captures(bufnr)
     if not iterator then return nil end
 
     for id, node, _, _ in iterator.iter do
@@ -364,7 +313,7 @@ local function semantic_area_at(bufnr, view)
         local weight = M.config.capture_priority[capture_name]
         if not weight then goto continue end
 
-        local name = ts_node_field_text(node, "name", bufnr)
+        local name = ts.node_field_text(node, "name", bufnr, M.config.max_ts_field_len)
 
         local sr, sc, er, ec = node:range()
         local semantic = {
