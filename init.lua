@@ -66,12 +66,11 @@ require("vim._core.ui2").enable({})
 
 -- Core infrastructure - timing and loading utilities
 require("aru.log").configure({
-    level = vim.log.levels.INFO,
     sinks = {
         {
             type = "file",
-            path = "$XDG_CACHE_HOME/nvim/nvim-config.log",
-            level = vim.log.levels.WARN,
+            path = vim.fs.joinpath(vim.fn.stdpath("cache"), "nvim-config.log"),
+            level = vim.log.levels.DEBUG,
         },
     },
 })

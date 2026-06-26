@@ -7,7 +7,7 @@
 ---traces, and notify sinks surface urgent issues in the UI.
 ---@class BasicSinkConfig
 ---@field type string Sink type: "file", "buffer", or "notify"
----@field level integer|nil Sink-specific minimum log level
+---@field level integer Sink-specific minimum log level
 
 ---@class FileSinkConfig : BasicSinkConfig
 ---@field path string|nil File path
@@ -24,7 +24,7 @@
 ---@alias SinkConfig FileSinkConfig|BufferSinkConfig|NotifySinkConfig
 
 ---@class LogConfig
----@field level integer|nil Global minimum log level, can be overridden per sink
+---@field level integer|nil Default level for the implicit buffer sink only
 ---@field format string|nil Message format template
 ---@field sinks SinkConfig[]|nil Default sink type or sink config
 
@@ -51,8 +51,8 @@ local LEVEL_NAMES = {
 }
 
 ---Global configuration shared across all logger instances.
----Defaults skew toward informative output without flooding the user, echoing
----our desire for actionable signal with minimal tuning.
+---The level is only used for the implicit default buffer sink. Explicit sinks
+---must declare their own level so routing is not affected by hidden global gates.
 local DEFAULT_CONFIG = {
     level = vim.log.levels.INFO,
     format = "[{time}][{pid}][{level}][{module}:{linenr}] {msg}",
@@ -278,7 +278,7 @@ end
 ---@class Logger
 ---@field sinks SinkConfig[] List of configured output sinks
 ---@field format string Message format template
----@field _level integer Minimum log level for this logger instance
+---@field _level integer Default level used only by the implicit buffer sink
 local Logger = {}
 Logger.__index = Logger
 
@@ -359,6 +359,10 @@ end
 ---tendency to defer work until a feature is explicitly requested.
 ---@param config SinkConfig
 function Logger:add(config)
+    if config.level == nil then
+        error("Log sink requires explicit level: " .. vim.inspect(config))
+    end
+
     local actions = {
         file = function() return create_file_sink(config.path) end,
         buffer = function()
@@ -377,10 +381,8 @@ function Logger:add(config)
     if not fn then error("Unknown sink type: " .. vim.inspect(config.type)) end
 
     local sink = fn()
-    sink.level = config.level or self._level
+    sink.level = config.level
     table.insert(self.sinks, sink)
-
-    if sink.level < self._level then self._level = sink.level end
 end
 
 ---Send a message to a buffer sink.
@@ -398,20 +400,16 @@ local function emit_to_buffer(bufnr, msg)
 end
 
 ---Send a message to every sink that accepts the level.
----Selective emission keeps noise down while still honouring per-sink overrides,
----letting the user route critical errors to notifications without silencing
----background trace files.
+---Filtering is sink-local: each configured sink declares exactly which minimum
+---level it accepts, with no global cutoff hiding messages before routing.
 ---@param logger Logger
 ---@param level integer
 ---@param msg string
 local function emit(logger, msg, level)
-    if level < logger._level then return end
-
     local outstr = render(logger.format, msg, level)
 
     for _, sink in ipairs(logger.sinks) do
-        local sink_level = sink.level or logger._level
-        if level >= sink_level then
+        if level >= sink.level then
             if sink.type == "file" then
                 sink._file:write(outstr .. "\n")
             elseif sink.type == "buffer" then
