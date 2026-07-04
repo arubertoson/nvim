@@ -1,6 +1,9 @@
 local notify = require("mini.notify")
 
 notify.setup({
+    lsp_progress = {
+        enable = false,
+    },
     window = {
         config = function()
             local has_statusline = vim.o.laststatus > 0
