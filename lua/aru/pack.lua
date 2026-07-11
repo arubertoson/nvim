@@ -80,14 +80,6 @@ vim.pack.add({
     },
 
     -- ===========================================================================
-    -- Navigation
-    -- ===========================================================================
-    {
-        src = "file:////home/macke/dev/home/github.com/ThePrimeagen/harpoon",
-        version = "harpoon2",
-    }, -- Should point to local!
-
-    -- ===========================================================================
     -- Pickers / Search
     -- ===========================================================================
     -- fff.nvim owns file/content workflows: file search, live grep, and

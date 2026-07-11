@@ -51,7 +51,7 @@ local function map_buffer_keys(bufnr)
         })
     end
 
-    local with_file_mark = require("aru.jump").with_file_mark
+    local with_file_mark = require("aru.nav").jump.with_file_mark
 
     local function pick_lsp(scope)
         require("mini.extra").pickers.lsp({ scope = scope })
