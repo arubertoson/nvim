@@ -1,56 +1,11 @@
----@module "aru.core.git"
+---@module "aru.state.git"
 ---
 --- Git state tracking, I know there are tools out there for things like this, but
 
+local git = require("aru.git")
 local log = require("aru.log")
 local M = {}
 local state = {}
-
---- Find the workspace root for the current buffer, we
---- achieve this by first utilizing LSP to find its current
---- workspace root. If that fails, we fallback to looking
---- for a .git directory in the parent directories.
----@param bufnr integer
----@return string?
-local function find_workspace_root(bufnr)
-    local root, ws
-
-    local clients = vim.lsp.get_clients({ bufnr = bufnr })
-    if #clients > 0 then
-        for _, client in ipairs(clients) do
-            ws = client.workspace_folders
-            if ws ~= nil then
-                root = ws[1].name
-                break
-            end
-        end
-    end
-
-    -- If root is nil at this point we fallback to check for a
-    -- .git directory as a last ditch effort.
-    if root == nil then
-        local buf_name = vim.api.nvim_buf_get_name(bufnr)
-        -- If the buffer name is empty, we use the current working
-        -- directory.
-        if buf_name == "" then
-            buf_name = vim.uv.cwd() or ""
-            if buf_name == "" then
-                log:error("Unable to determine workspace root for empty buffer")
-            end
-        end
-
-        -- We look for a .git directory in the parent directories
-        local dir = vim.fs.dirname(buf_name)
-        for parent in vim.fs.parents(dir) do
-            if vim.fs.dir(vim.fs.joinpath(parent, ".git")) then
-                root = parent
-                break
-            end
-        end
-    end
-
-    return root
-end
 
 ---@param entry table
 local function ensure_watcher(entry)
@@ -80,14 +35,14 @@ local function ensure_watcher(entry)
 end
 
 local function entry_for(root)
-    local head = vim.fs.joinpath(root, ".git", "HEAD")
+    local head = git.head_path(root)
     local entry = state[root]
     if not entry then
-        entry = { head = head, head_exists = vim.uv.fs_stat(head) ~= nil }
+        entry = { head = head, head_exists = head and vim.uv.fs_stat(head) ~= nil or false }
         state[root] = entry
     else
         entry.head = head
-        entry.head_exists = vim.uv.fs_stat(head) ~= nil
+        entry.head_exists = head and vim.uv.fs_stat(head) ~= nil or false
     end
     return entry
 end

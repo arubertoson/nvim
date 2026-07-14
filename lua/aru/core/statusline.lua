@@ -212,8 +212,7 @@ vim.api.nvim_create_autocmd({ "DirChanged", "BufEnter", "VimEnter" }, {
     group = statusline_augroup,
     callback = function()
         -- XXX: this should be cached somewhere :)
-        local root = vim.fs.root(0, { ".git" })
-        if not root then root = vim.uv.cwd() or "" end
+        local root = require("aru.git").git_root(0) or vim.uv.cwd() or ""
         local git = require("aru.state.git")
         local branch = git.branch_for(root) or "-"
 
@@ -240,7 +239,7 @@ vim.api.nvim_create_autocmd({ "BufEnter", "VimEnter" }, {
         local bufnr = vim.api.nvim_get_current_buf()
         local current_buffer = vim.api.nvim_buf_get_name(bufnr)
         local root = StatusLine.workspace_root
-            or vim.fs.root(bufnr, { ".git" })
+            or require("aru.git").git_root(bufnr)
             or vim.uv.cwd()
             or ""
 

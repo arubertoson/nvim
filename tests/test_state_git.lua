@@ -46,6 +46,25 @@ local function wait_until(fn)
     MiniTest.expect.equality(ok, true)
 end
 
+T["sync helpers expose git scope"] = function()
+    local git = require("aru.git")
+    local root = git_repo()
+    local file = vim.fs.joinpath(root, "file.txt")
+
+    local scope = git.scope_for(file)
+    MiniTest.expect.equality(scope.root, vim.fs.normalize(vim.fs.abspath(root)))
+    MiniTest.expect.equality(scope.branch, "main")
+end
+
+T["sync helpers report detached head hash"] = function()
+    local git = require("aru.git")
+    local root = git_repo()
+    local commit = vim.trim(sh({ "git", "rev-parse", "HEAD" }, root).stdout)
+    sh({ "git", "checkout", "--detach", commit }, root)
+
+    MiniTest.expect.equality(git.branch_sync(root), commit:sub(1, 12))
+end
+
 T["branch_for is cache-only and refreshes asynchronously"] = function()
     local git = require("aru.state.git")
     local root = git_repo()
