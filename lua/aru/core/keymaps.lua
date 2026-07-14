@@ -149,9 +149,11 @@ map("n", "<leader>k", ":help ", { desc = "Help tag" })
 -- gy = type definitions
 
 --
-map("n", "<C-o>", function() require("aru.nav").jump.prev() end)
-map("n", "<C-i>", function() require("aru.nav").jump.next() end)
-map("n", "<C-t>", function() require("aru.nav").jump.file_toggle() end)
+map("n", "<C-o>", function() require("aru.nav").point_jump.prev() end, { desc = "Previous buffer point" })
+map("n", "<C-i>", function() require("aru.nav").point_jump.next() end, { desc = "Next buffer point" })
+map("n", "<M-o>", function() require("aru.nav").file_jump.prev() end, { desc = "Previous file visit" })
+map("n", "<M-i>", function() require("aru.nav").file_jump.next() end, { desc = "Next file visit" })
+map("n", "<C-t>", function() require("aru.nav").file_jump.toggle() end, { desc = "Toggle previous file" })
 
 -- ============================================================================
 -- Active files (quick file switching)
@@ -166,17 +168,20 @@ map(
     function() require("aru.nav").active.add() end,
     { desc = "Active add current file" }
 )
-map(
-    "n",
-    "<localleader>m",
-    function() require("aru.nav").active.toggle_menu() end,
-    { desc = "Active file menu" }
-)
+map("n", "<localleader>j", function() require("aru.nav").active.replace(1) end, { desc = "Active replace slot 1" })
+map("n", "<localleader>k", function() require("aru.nav").active.replace(2) end, { desc = "Active replace slot 2" })
+map("n", "<localleader>l", function() require("aru.nav").active.replace(3) end, { desc = "Active replace slot 3" })
 map(
     "n",
     "<localleader>d",
     function() require("aru.nav").active.remove() end,
     { desc = "Active remove current file" }
+)
+map(
+    "n",
+    "<localleader>D",
+    function() require("aru.nav").active.remove_all() end,
+    { desc = "Active remove all files" }
 )
 
 -- ============================================================================

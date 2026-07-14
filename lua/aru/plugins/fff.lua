@@ -93,26 +93,25 @@ local function with_fff(action)
   end
 end
 
-local with_file_mark = require("aru.nav").jump.with_file_mark
 local map = vim.keymap.set
 
 map(
   "n",
   "<leader>ff",
-  with_file_mark(with_fff(function(fff) fff.find_files({ cwd = vim.uv.cwd() }) end)),
+  with_fff(function(fff) fff.find_files({ cwd = vim.uv.cwd() }) end),
   { desc = "Find files" }
 )
 map(
   "n",
   "<leader>fc",
-  with_file_mark(with_fff(function(fff)
+  with_fff(function(fff)
     fff.find_files({ cwd = vim.uv.cwd(), query = "git:modified " })
-  end)),
+  end),
   { desc = "Find changed files" }
 )
 map(
   "n",
   "<leader>fs",
-  with_file_mark(with_fff(function(fff) fff.live_grep({ cwd = vim.uv.cwd() }) end)),
+  with_fff(function(fff) fff.live_grep({ cwd = vim.uv.cwd() }) end),
   { desc = "Find string in project" }
 )
