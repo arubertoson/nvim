@@ -54,15 +54,30 @@ local function semantic_at(line)
     }
 end
 
-local function entry_at(line)
+local function entry_at(jump, state, line)
     local view = view_at(line)
-    return {
-        anchor_extmark_id = nil,
-        target_extmark_id = nil,
+    local entry = {
         anchor_view = vim.deepcopy(view),
         target_view = vim.deepcopy(view),
         semantic = semantic_at(line),
     }
+    state.session.extmarks[entry] = {
+        anchor = vim.api.nvim_buf_set_extmark(
+            state.session.bufnr,
+            jump.config.namespace,
+            line - 1,
+            0,
+            {}
+        ),
+        target = vim.api.nvim_buf_set_extmark(
+            state.session.bufnr,
+            jump.config.namespace,
+            line - 1,
+            0,
+            {}
+        ),
+    }
+    return entry
 end
 
 T["semantic-only history"] = MiniTest.new_set()
@@ -71,7 +86,7 @@ T["semantic-only history"]["does not record locations outside semantic areas"] =
     local path = temp_file("outside.txt", 100)
     local jump, state = setup_jump(path)
 
-    jump._test.record_point(state, view_at(70))
+    jump._test.record_point(state, state.session, view_at(70))
 
     MiniTest.expect.equality(#state.history.entries, 0)
     MiniTest.expect.equality(state.history.index, 0)
@@ -81,7 +96,7 @@ T["semantic-only history"]["previous from an ignored location restores latest po
     local path = temp_file("outside-prev.txt", 120)
     local jump, state = setup_jump(path)
 
-    state.history.entries = { entry_at(20), entry_at(60) }
+    state.history.entries = { entry_at(jump, state, 20), entry_at(jump, state, 60) }
     state.history.index = 2
     view_at(100)
 
