@@ -323,9 +323,8 @@ map(
 -- ============================================================================
 -- Agent (Pi)
 -- ============================================================================
--- <leader>p  = open Pi prompt (normal: surrounding context, visual: selection)
--- <leader>pc = open Pi prompt when continue is available
--- <leader>P  = focus/unfocus the read response float (toggle)
+-- <leader>p = open Pi prompt (normal: surrounding context, visual: selection)
+-- <leader>P = focus/unfocus the read response float (toggle)
 -- <M-h>      = previous read float page
 -- <M-l>      = next read float page
 -- <M-d>      = scroll read float down  (works from any buffer)
@@ -334,30 +333,22 @@ map(
 -- Inside the prompt:
 --   <CR>    = read/continue — float response, new or continued session
 --   <C-CR>  = new session   — float response, always starts fresh session
---   <C-g>   = generate      — stream code as ghost text at cursor / selection site
---   <C-p>   = session       — hand off to the Pi pane (focus follows)
+--   <C-g>   = generate      — replace selection or insert at cursor, then select result
+--   <C-p>   = session       — send to the active Pi pane
 
 map({ "n", "x" }, "<leader>p", function()
     -- Exit visual mode first so getpos("'<") / getpos("'>") are set correctly.
     local mode = vim.fn.mode()
-    if mode == "v" or mode == "V" or mode == "\22" then
+    local visual_mode = (mode == "v" or mode == "V" or mode == "\22") and mode or nil
+    if visual_mode then
         vim.api.nvim_feedkeys(
             vim.api.nvim_replace_termcodes("<Esc>", true, false, true),
             "x",
             false
         )
     end
-    require("aru.agent").prompt()
+    require("aru.agent").prompt({ visual_mode = visual_mode })
 end, { desc = "Pi: open prompt" })
-
-map("n", "<leader>pc", function()
-    local agent = require("aru.agent")
-    if not agent.can_continue() then
-        vim.notify("No Pi session to continue", vim.log.levels.WARN)
-        return
-    end
-    agent.prompt()
-end, { desc = "Pi: continue session" })
 
 map(
     "n",

@@ -5,6 +5,7 @@
 local M = {}
 
 local logger = require("aru.log"):bind("agent.channels.float")
+local config = require("aru.agent.config")
 local constants = require("aru.agent.constants")
 local line_acc = require("aru.agent.lines")
 local progress = require("aru.agent.progress")
@@ -42,6 +43,15 @@ local _stream_id = 0
 
 ---@type aru.agent.channels.float.State|nil
 local _state = nil
+
+---@param name "before_open"|"after_close"
+local function run_lifecycle_hook(name)
+    local hook = config.get().float[name]
+    if not hook then return end
+
+    local ok, err = pcall(hook)
+    if not ok then logger:error("float %s hook failed: %s", name, err) end
+end
 
 ---@return table|nil
 local function markview_actions()
@@ -84,6 +94,7 @@ local function close_float()
     stop_spinner(state)
     pcall(vim.api.nvim_del_augroup_by_id, state.augroup)
     ui.close_win_buf(state.win, state.buf)
+    run_lifecycle_hook("after_close")
 end
 
 local function max_height()
@@ -301,7 +312,9 @@ local function create_float_window(lines, opts)
     local col = math.max(0, vim.o.columns - layout.WIDTH - layout.RIGHT_MARGIN)
     local height = math.min(estimated_rows(buf), max_height())
     local custom = require("aru.custom")
-    local win = vim.api.nvim_open_win(buf, false, {
+
+    run_lifecycle_hook("before_open")
+    local ok, win = pcall(vim.api.nvim_open_win, buf, false, {
         relative = "editor",
         row = layout.ROW,
         col = col,
@@ -313,6 +326,11 @@ local function create_float_window(lines, opts)
         title_pos = constants.UI.TITLE_POS_LEFT,
         zindex = layout.ZINDEX,
     })
+    if not ok then
+        run_lifecycle_hook("after_close")
+        pcall(vim.api.nvim_buf_delete, buf, { force = true })
+        error(win)
+    end
     ui.apply_win_options(win, {
         wrap = true,
         linebreak = true,
@@ -341,6 +359,17 @@ local function create_float_window(lines, opts)
     }
     progress.init(state)
     _state = state
+    vim.api.nvim_create_autocmd("WinClosed", {
+        group = augroup,
+        pattern = tostring(win),
+        callback = function()
+            if _state ~= state then return end
+            _state = nil
+            stop_spinner(state)
+            pcall(vim.api.nvim_del_augroup_by_id, state.augroup)
+            run_lifecycle_hook("after_close")
+        end,
+    })
     install_keymaps(state)
     refresh_title(state)
     resize(state)

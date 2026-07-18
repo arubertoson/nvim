@@ -12,9 +12,6 @@ local runtime = require("aru.agent.runtime")
 local session = require("aru.agent.session")
 local ui = require("aru.agent.ui")
 
----@class aru.agent.prompt.OpenOpts
----@field prefer_continue boolean|nil
-
 ---@class aru.agent.prompt.Deps
 ---@field send fun(request: aru.agent.Request): boolean
 
@@ -23,10 +20,6 @@ local PROMPT_MAX_ROWS = PROMPT_LAYOUT.MAX_ROWS
 local PROMPT_WIDTH = PROMPT_LAYOUT.WIDTH
 local PROMPT_LEFT_PADDING = PROMPT_LAYOUT.LEFT_PADDING
 local PROMPT_TEXT_WIDTH = PROMPT_WIDTH - PROMPT_LEFT_PADDING
----@return integer
-local function footer_decoration_rows()
-    return #footer_lines() + 1
-end
 local PLACEHOLDER_TEXT = "<user types here>"
 local PROMPT_NEWLINE_KEY = "<C-j>"
 local PROMPT_CLOSE_KEY = "<Esc>"
@@ -59,6 +52,9 @@ local function footer_lines()
         "[^P] session",
     }
 end
+
+---@return integer
+local function footer_decoration_rows() return #footer_lines() + 1 end
 
 ---@param buf integer
 local function prompt_content_rows(buf)
@@ -168,8 +164,8 @@ local function read_prompt_text(buf)
 end
 
 ---@param destination aru.agent.channels.Destination
----@param mode aru.agent.runtime.Mode
-local function submit_prompt(destination, mode)
+---@param session_policy aru.agent.runtime.SessionPolicy|nil
+local function submit_prompt(destination, session_policy)
     if not _prompt_state then return end
     local state = _prompt_state
 
@@ -182,19 +178,19 @@ local function submit_prompt(destination, mode)
 
     send({
         destination = destination,
-        mode = mode,
+        session = session_policy,
         collect = BLOCK_COLLECT,
         prompt = prompt_text,
     })
 end
 
 local function submit_float_read()
-    local mode = session.can_continue() and runtime.MODE.CONTINUE or runtime.MODE.NEW_SESSION
-    submit_prompt(channels.DESTINATION.FLOAT, mode)
+    local policy = session.can_continue() and runtime.SESSION.CONTINUE or runtime.SESSION.NEW
+    submit_prompt(channels.DESTINATION.FLOAT, policy)
 end
 
 local function submit_float_new_session()
-    submit_prompt(channels.DESTINATION.FLOAT, runtime.MODE.NEW_SESSION)
+    submit_prompt(channels.DESTINATION.FLOAT, runtime.SESSION.NEW)
 end
 
 local function insert_prompt_newline()
@@ -218,11 +214,8 @@ local function insert_prompt_newline()
     resize_prompt(state)
 end
 
----@param opts aru.agent.prompt.OpenOpts|nil
 ---@param deps aru.agent.prompt.Deps
-function M.open(opts, deps)
-    opts = opts or {}
-
+function M.open(deps)
     if _prompt_state then
         if vim.api.nvim_win_is_valid(_prompt_state.win) then
             pcall(vim.api.nvim_set_current_win, _prompt_state.win)
@@ -280,12 +273,18 @@ function M.open(opts, deps)
     local map_opts = { buffer = buf, silent = true, nowait = true }
     vim.keymap.set({ "n", "i" }, "<CR>", submit_float_read, map_opts)
     vim.keymap.set({ "n", "i" }, "<C-CR>", submit_float_new_session, map_opts)
-    vim.keymap.set({ "n", "i" }, "<C-g>", function()
-        submit_prompt(channels.DESTINATION.EDITOR, runtime.MODE.ONE_SHOT)
-    end, map_opts)
-    vim.keymap.set({ "n", "i" }, "<C-p>", function()
-        submit_prompt(channels.DESTINATION.TMUX, runtime.MODE.PASTE)
-    end, map_opts)
+    vim.keymap.set(
+        { "n", "i" },
+        "<C-g>",
+        function() submit_prompt(channels.DESTINATION.EDITOR, runtime.SESSION.NONE) end,
+        map_opts
+    )
+    vim.keymap.set(
+        { "n", "i" },
+        "<C-p>",
+        function() submit_prompt(channels.DESTINATION.TMUX, nil) end,
+        map_opts
+    )
     vim.keymap.set({ "n", "i" }, PROMPT_NEWLINE_KEY, insert_prompt_newline, map_opts)
     vim.keymap.set({ "n", "i" }, PROMPT_CLOSE_KEY, close_prompt, map_opts)
 

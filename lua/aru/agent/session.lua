@@ -9,21 +9,15 @@ local continuable = false
 local last_cwd = nil
 
 ---@return boolean
-function M.can_continue()
-    return continuable and last_cwd == vim.fn.getcwd()
-end
+function M.can_continue() return continuable and last_cwd == vim.fn.getcwd() end
 
----@param mode aru.agent.runtime.Mode|nil
+---@param policy aru.agent.runtime.SessionPolicy|nil
 ---@param cwd string
-function M.mark_success(mode, cwd)
-    last_cwd = cwd
-    mode = mode or runtime.MODE.NEW_SESSION
+function M.mark_success(policy, cwd)
+    if policy ~= runtime.SESSION.NEW and policy ~= runtime.SESSION.CONTINUE then return end
 
-    if mode == runtime.MODE.ONE_SHOT or mode == runtime.MODE.PASTE then
-        continuable = false
-    else
-        continuable = true
-    end
+    last_cwd = cwd
+    continuable = true
 end
 
 return M

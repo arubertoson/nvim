@@ -6,13 +6,13 @@ local M = {}
 M.DEFAULT_SURROUNDING_LINES = 50
 
 M.RUNTIME = {
-    ["pi-dev"] = {
+    pi = {
         JSON_ARGS = { "--mode", "json" },
         NO_SESSION = "--no-session",
         CONTINUE = "--continue",
         PRESET = "--preset",
         SESSION_DIR = "--session-dir",
-    }
+    },
 }
 
 M.EVENT = {

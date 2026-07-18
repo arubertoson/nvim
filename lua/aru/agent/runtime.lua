@@ -4,20 +4,19 @@ local M = {}
 local channels = require("aru.agent.channels")
 local constants = require("aru.agent.constants")
 
----@enum aru.agent.runtime.Mode
-M.MODE = {
-    NEW_SESSION = "new-session",
+---@enum aru.agent.runtime.SessionPolicy
+M.SESSION = {
+    NEW = "new",
     CONTINUE = "continue",
-    ONE_SHOT = "one-shot",
-    PASTE = "paste",
+    NONE = "none",
 }
 
 ---@class aru.agent.runtime.Args
 ---@field JSON_ARGS string[]
----@field NO_SESSION string[]
----@field CONTINUE string[]
----@field PRESET string[]
----@field SESSION_DIR string[]
+---@field NO_SESSION string
+---@field CONTINUE string
+---@field PRESET string
+---@field SESSION_DIR string
 
 ---@param runtime aru.agent.runtime.Args
 ---@param args string[]
@@ -35,12 +34,12 @@ end
 
 ---@param runtime aru.agent.runtime.Args
 ---@param args string[]
----@param mode aru.agent.runtime.Mode|nil
+---@param policy aru.agent.runtime.SessionPolicy|nil
 ---@param session_dir string
-local function extend_with_mode_args(runtime, args, mode, session_dir)
-    mode = mode or M.MODE.NEW_SESSION
+local function extend_with_session_args(runtime, args, policy, session_dir)
+    policy = policy or M.SESSION.NEW
 
-    if mode == M.MODE.ONE_SHOT or mode == M.MODE.PASTE then
+    if policy == M.SESSION.NONE then
         table.insert(args, runtime.NO_SESSION)
         return
     end
@@ -50,21 +49,19 @@ local function extend_with_mode_args(runtime, args, mode, session_dir)
         table.insert(args, session_dir)
     end
 
-    if mode == M.MODE.CONTINUE then
-        table.insert(args, runtime.CONTINUE)
-    end
+    if policy == M.SESSION.CONTINUE then table.insert(args, runtime.CONTINUE) end
 end
 
 ---@param ctx aru.agent.ConfigState
 ---@param request aru.agent.Request
+---@param session_policy aru.agent.runtime.SessionPolicy|nil
 ---@return string[]
-function M.command(ctx, request)
+function M.command(ctx, request, session_policy)
     local args = { ctx.config.executable }
-    local runtime = constants.RUNTIME[ctx.config.executable]
+    local runtime_name = ctx.config.runtime
+    local runtime = constants.RUNTIME[runtime_name]
 
-    if not runtime then
-        error("No runtime config for executable: " .. tostring(ctx.config.executable))
-    end
+    if not runtime then error("No runtime config: " .. tostring(runtime_name)) end
 
     if request.preset and request.preset ~= "" then
         table.insert(args, runtime.PRESET)
@@ -72,7 +69,7 @@ function M.command(ctx, request)
     end
 
     extend_with_destination_args(runtime, args, request.destination)
-    extend_with_mode_args(runtime, args, request.mode, ctx.config.session_dir)
+    extend_with_session_args(runtime, args, session_policy, ctx.config.session_dir)
 
     return args
 end

@@ -38,37 +38,33 @@ local function collect_surrounding(bufnr, n_lines, cursor, path, filetype)
 end
 
 ---@param bufnr integer
+---@param selection aru.agent.Selection|nil
 ---@param path string
 ---@param filetype string
 ---@return aru.agent.payload.ContextItem|nil
-local function collect_visual_marks(bufnr, path, filetype)
-    local start_pos = vim.fn.getpos("'<")
-    local end_pos = vim.fn.getpos("'>")
+local function collect_visual_selection(bufnr, selection, path, filetype)
+    if not selection then return nil end
 
-    local start_line = start_pos[2]
-    local end_line = end_pos[2]
-    if start_line == 0 or end_line == 0 or start_line > end_line then return nil end
-
-    local visual_mode = vim.fn.visualmode()
-    local start_col = start_pos[3]
-    local end_col = end_pos[3]
-    if start_line == end_line and end_col < start_col then return nil end
-
-    local lines = vim.api.nvim_buf_get_lines(bufnr, start_line - 1, end_line, false)
+    local lines = vim.api.nvim_buf_get_text(
+        bufnr,
+        selection.start_row,
+        selection.start_col,
+        selection.end_row,
+        selection.end_col,
+        {}
+    )
     if vim.tbl_isempty(lines) then return nil end
 
-    if visual_mode ~= "V" then
-        lines[#lines] = lines[#lines]:sub(1, end_col)
-        lines[1] = lines[1]:sub(start_col)
-    end
+    local text = table.concat(lines, "\n")
+    if text == "" then return nil end
 
     return {
         kind = "block",
         path = path ~= "" and path or nil,
         filetype = filetype,
-        start_line = start_line,
-        end_line = end_line,
-        text = table.concat(lines, "\n"),
+        start_line = selection.start_row + 1,
+        end_line = selection.end_row + 1,
+        text = text,
     }
 end
 
@@ -192,19 +188,13 @@ end
 function M.collect(inv)
     local surrounding_lines = constants.DEFAULT_SURROUNDING_LINES
 
-    local item = collect_visual_marks(inv.bufnr, inv.path, inv.filetype)
+    local item = collect_visual_selection(inv.bufnr, inv.selection, inv.path, inv.filetype)
     if item then return item end
 
     item = collect_treesitter_outer(inv, surrounding_lines)
     if item then return item end
 
-    return collect_surrounding(
-        inv.bufnr,
-        surrounding_lines,
-        inv.cursor,
-        inv.path,
-        inv.filetype
-    )
+    return collect_surrounding(inv.bufnr, surrounding_lines, inv.cursor, inv.path, inv.filetype)
 end
 
 return M
