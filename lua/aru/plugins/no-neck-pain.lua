@@ -3,6 +3,7 @@
 --- No neck pain is my choice when it comes to setting up a centered buffer.
 local log = require("aru.log")
 local colors = require("aru.colors")
+local agent_constants = require("aru.agent.constants")
 
 local ok, nnp = pcall(require, "no-neck-pain")
 if not ok then
@@ -17,9 +18,27 @@ local markdown_width = 90
 local separator_hl = "AruNoNeckPainSeparator"
 local separator_winhighlight = ("WinSeparator:%s,VertSplit:%s"):format(separator_hl, separator_hl)
 local saved_winhighlight = {}
+local saved_agent_width = nil
 
 local function is_enabled()
     return _G.NoNeckPain and _G.NoNeckPain.state and _G.NoNeckPain.state.enabled
+end
+
+local function expand_for_agent_float()
+    if saved_agent_width or not is_enabled() then return end
+
+    saved_agent_width = _G.NoNeckPain.config.width
+    local float_layout = agent_constants.UI.READ_FLOAT
+    local border_columns = 2
+    nnp.resize(saved_agent_width + float_layout.WIDTH + float_layout.RIGHT_MARGIN + border_columns)
+end
+
+local function restore_after_agent_float()
+    if not saved_agent_width then return end
+
+    local width = saved_agent_width
+    saved_agent_width = nil
+    if is_enabled() then nnp.resize(width) end
 end
 
 local function is_layout_buffer()
@@ -104,3 +123,10 @@ vim.keymap.set("n", "<leader>wo", function()
     nnp.toggle()
     vim.defer_fn(apply_layout_for_filetype, 50)
 end, { desc = "Toggle no-neck-pain" })
+
+require("aru.agent").setup({
+    float = {
+        before_open = expand_for_agent_float,
+        after_close = restore_after_agent_float,
+    },
+})

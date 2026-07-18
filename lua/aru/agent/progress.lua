@@ -26,14 +26,14 @@ local THINKING_PHRASES = {
 local THINKING_PHRASE_UPDATE_MS = 1200
 local SPINNER_INTERVAL_MS = 80
 
----@class AgentProgressState
+---@class aru.agent.progress.State
 ---@field spinner_timer uv.uv_timer_t?
 ---@field spinner_frame integer
 ---@field phrase string
 ---@field last_phrase_update integer
 
 ---Initializes progress fields on an existing state table.
----@param state AgentProgressState
+---@param state aru.agent.progress.State
 ---@return nil
 function M.init(state)
     state.spinner_timer = nil
@@ -43,7 +43,7 @@ function M.init(state)
 end
 
 ---Returns the current spinner frame text.
----@param state AgentProgressState
+---@param state aru.agent.progress.State
 ---@return string
 function M.frame(state) return SPINNER_FRAMES[state.spinner_frame] end
 
@@ -62,7 +62,7 @@ local function next_thinking_phrase(phrase)
 end
 
 ---Updates the thinking phrase when the throttle interval has elapsed.
----@param state AgentProgressState
+---@param state aru.agent.progress.State
 ---@return boolean
 function M.update_phrase(state)
     local now = vim.uv.now()
@@ -73,8 +73,8 @@ function M.update_phrase(state)
 end
 
 ---Starts a spinner timer and calls refresh after each frame advance.
----@param state AgentProgressState
----@param opts { is_current: fun(): boolean, refresh: fun(): nil }
+---@param state aru.agent.progress.State
+---@param opts { is_current: (fun(): boolean), refresh: (fun(): nil) }
 ---@return nil
 function M.start(state, opts)
     M.stop(state)
@@ -92,7 +92,7 @@ function M.start(state, opts)
 end
 
 ---Stops and closes an active spinner timer.
----@param state AgentProgressState
+---@param state aru.agent.progress.State
 ---@return nil
 function M.stop(state)
     if state.spinner_timer then

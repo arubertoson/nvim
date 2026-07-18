@@ -5,29 +5,20 @@ local M = {}
 
 M.DEFAULT_SURROUNDING_LINES = 50
 
-M.DESTINATION = {
-    CURRENT = "current",
-    SESSION = "session",
-    READ = "read",
-    SCRATCH = "scratch",
-    GENERATE = "generate",
+M.RUNTIME = {
+    pi = {
+        JSON_ARGS = { "--mode", "json" },
+        NO_SESSION = "--no-session",
+        CONTINUE = "--continue",
+        PRESET = "--preset",
+        SESSION_DIR = "--session-dir",
+    },
 }
 
 M.EVENT = {
     MESSAGE_UPDATE = "message_update",
     THINKING_DELTA = "thinking_delta",
     TEXT_DELTA = "text_delta",
-}
-
-M.PAYLOAD = {
-    VERSION = 1,
-    SOURCE = "nvim",
-}
-
-M.RUNTIME = {
-    LEGACY_TUI_COMMAND = "pi",
-    JSON_ARGS = { "--mode", "json", "--print", "--no-session", "--no-tools" },
-    SCRATCH_ARGS = { "--no-session" },
 }
 
 M.TMUX = {
@@ -69,7 +60,7 @@ M.UI = {
 }
 
 M.NAMESPACE = {
-    GENERATE = "aru_generate",
+    EDITOR = "aru_editor",
     READ_FLOAT = "aru_read_float",
     PROMPT_FOOTER = "aru_agent_prompt_footer",
 }

@@ -26,3 +26,7 @@ plugin does it *significantly* better.
 
 Dependencies need to earn its place. If a native feature catches up, the
 plugin gets replaced, not stacked on top.
+
+## Feature documentation
+
+- [Agent interaction](docs/agent-interaction.md)
