@@ -16,7 +16,6 @@ M.filetypes = {
     "log",
     "qf",
     "lspinfo",
-    "harpoon",
 }
 
 ---@param buf integer|nil

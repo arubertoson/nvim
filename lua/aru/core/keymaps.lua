@@ -4,8 +4,6 @@
 --- When adding a keymap anywhere, come here and document it.
 --- Grep this file to check for conflicts.
 
-local with_file_mark = require("aru.jump").with_file_mark
-
 local map = vim.keymap.set
 
 -- ============================================================================
@@ -151,36 +149,40 @@ map("n", "<leader>k", ":help ", { desc = "Help tag" })
 -- gy = type definitions
 
 --
-map("n", "<C-o>", function() require("aru.jump").prev() end)
-map("n", "<C-i>", function() require("aru.jump").next() end)
-map("n", "<C-t>", function() require("aru.jump").file_toggle() end)
+map("n", "<C-o>", function() require("aru.nav").point_jump.prev() end, { desc = "Previous buffer point" })
+map("n", "<C-i>", function() require("aru.nav").point_jump.next() end, { desc = "Next buffer point" })
+map("n", "<M-o>", function() require("aru.nav").file_jump.prev() end, { desc = "Previous file visit" })
+map("n", "<M-i>", function() require("aru.nav").file_jump.next() end, { desc = "Next file visit" })
+map("n", "<C-t>", function() require("aru.nav").file_jump.toggle() end, { desc = "Toggle previous file" })
 
 -- ============================================================================
--- Harpoon (quick file switching)
+-- Active files (quick file switching)
 -- ============================================================================
-map("n", "<C-h>", with_file_mark(function() require("harpoon"):list():select(1) end), { desc = "Harpoon 1" })
-map("n", "<C-n>", with_file_mark(function() require("harpoon"):list():select(2) end), { desc = "Harpoon 2" })
-map("n", "<C-y>", with_file_mark(function() require("harpoon"):list():select(3) end), { desc = "Harpoon 3" })
+map("n", "<C-j>", function() require("aru.nav").active.select(1) end, { desc = "Active file 1" })
+map("n", "<C-k>", function() require("aru.nav").active.select(2) end, { desc = "Active file 2" })
+map("n", "<C-l>", function() require("aru.nav").active.select(3) end, { desc = "Active file 3" })
 
 map(
     "n",
     "<localleader>a",
-    function() require("harpoon"):list():add() end,
-    { desc = "Harpoon add" }
+    function() require("aru.nav").active.add() end,
+    { desc = "Active add current file" }
+)
+map("n", "<localleader>j", function() require("aru.nav").active.replace(1) end, { desc = "Active replace slot 1" })
+map("n", "<localleader>k", function() require("aru.nav").active.replace(2) end, { desc = "Active replace slot 2" })
+map("n", "<localleader>l", function() require("aru.nav").active.replace(3) end, { desc = "Active replace slot 3" })
+map(
+    "n",
+    "<localleader>d",
+    function() require("aru.nav").active.remove() end,
+    { desc = "Active remove current file" }
 )
 map(
     "n",
-    "<localleader>m",
-    function() require("harpoon").ui:toggle_quick_menu(require("harpoon"):list()) end,
-    { desc = "Harpoon menu" }
+    "<localleader>D",
+    function() require("aru.nav").active.remove_all() end,
+    { desc = "Active remove all files" }
 )
-map("n", "<localleader>d", function()
-    local list = require("harpoon"):list()
-
-    local rel_path = vim.fs.relpath(vim.uv.cwd() or "", vim.api.nvim_buf_get_name(0))
-    local item, idx = list:get_by_value(rel_path)
-    if item then list:remove_at(idx) end
-end, { desc = "Harpoon remove current" })
 
 -- ============================================================================
 -- Leap (motion)
@@ -379,7 +381,7 @@ map("n", "<localleader>li", ":buffer LOG-default<CR>", { desc = "Inspect default
 -- ============================================================================
 -- Notes on Conflicting/Overlapping Keymaps
 -- ============================================================================
--- <C-h>, <C-n> are used for both Harpoon and command mode navigation
+-- <C-h>, <C-n> are used for both active-file slots and command mode navigation
 -- This is intentional - context determines behavior (normal vs command mode)
 --
 -- <leader>l* is LSP namespace, avoid using for other features

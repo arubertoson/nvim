@@ -165,7 +165,7 @@ StatusLine.active = function()
             mode(),
             "%=",
             "%=",
-            StatusLine.harpoon_state or "-",
+            StatusLine.active_state or "-",
         })
     end
     local statusline = {
@@ -174,7 +174,7 @@ StatusLine.active = function()
         StatusLine.current_buffer or "-",
         "%=",
         "%=",
-        StatusLine.harpoon_state or "-",
+        StatusLine.active_state or "-",
         lineinfo(),
     }
 
@@ -212,8 +212,7 @@ vim.api.nvim_create_autocmd({ "DirChanged", "BufEnter", "VimEnter" }, {
     group = statusline_augroup,
     callback = function()
         -- XXX: this should be cached somewhere :)
-        local root = vim.fs.root(0, { ".git" })
-        if not root then root = vim.uv.cwd() or "" end
+        local root = require("aru.git").git_root(0) or vim.uv.cwd() or ""
         local git = require("aru.state.git")
         local branch = git.branch_for(root) or "-"
 
@@ -240,7 +239,7 @@ vim.api.nvim_create_autocmd({ "BufEnter", "VimEnter" }, {
         local bufnr = vim.api.nvim_get_current_buf()
         local current_buffer = vim.api.nvim_buf_get_name(bufnr)
         local root = StatusLine.workspace_root
-            or vim.fs.root(bufnr, { ".git" })
+            or require("aru.git").git_root(bufnr)
             or vim.uv.cwd()
             or ""
 
@@ -300,28 +299,22 @@ vim.api.nvim_create_autocmd(
     }
 )
 
-local function refresh_harpoon_state(event)
-    local ok, harpoon = pcall(require, "harpoon")
+local function refresh_active_state(event)
+    local ok, active = pcall(function() return require("aru.nav").active end)
     if not ok then return end
 
-    local list = harpoon:list()
     local slots = {}
-    local cwd = vim.uv.cwd() or ""
-
-    local cur_abs = vim.fs.normalize(vim.api.nvim_buf_get_name(event.buf))
+    local cur_buf = event and event.buf or vim.api.nvim_get_current_buf()
+    local cur_abs = vim.fs.normalize(vim.api.nvim_buf_get_name(cur_buf))
+    local items = active.items()
 
     for i = 1, 3 do
-        local item = list.items[i]
+        local item = items[i]
         local content = ""
 
         if item then
-            local filename = vim.fs.basename(item.value)
-
-            -- We need to compare the paths, harpoon uses relateive paths compared
-            -- to the cwd e.g. /home/dev/lua/core.lua => lua/core.lua
-            local item_abs = vim.fs.normalize(vim.fs.joinpath(cwd, item.value))
-            local is_selected = (item_abs == cur_abs)
-
+            local filename = vim.fs.basename(item.path)
+            local is_selected = item.path == cur_abs
             local color = is_selected and highlights.dim or highlights.comment
             content = hlstring(color, filename)
         end
@@ -333,23 +326,20 @@ local function refresh_harpoon_state(event)
     end
 
     vim.schedule(function()
-        StatusLine.cache("harpoon_state", table.concat(slots, ""))
-
+        StatusLine.cache("active_state", table.concat(slots, ""))
         vim.cmd.redrawstatus()
     end)
 end
 
----To keep visual track harpoon we add three slots to the statusline.
----It will have different highlight for selected and inactive,
----and will show the current file name.
+---Keep visual track of active files in three statusline slots.
 vim.api.nvim_create_autocmd("User", {
     group = statusline_augroup,
-    pattern = { "HarpoonStateUpdated" },
-    desc = "Update and cache current filename for statusline",
-    callback = refresh_harpoon_state,
+    pattern = { "AruActiveUpdated" },
+    desc = "Update active-file slots for statusline",
+    callback = refresh_active_state,
 })
 vim.api.nvim_create_autocmd({ "BufEnter", "VimEnter" }, {
     group = statusline_augroup,
-    desc = "Update and cache current filename for statusline",
-    callback = refresh_harpoon_state,
+    desc = "Update active-file slots for statusline",
+    callback = refresh_active_state,
 })

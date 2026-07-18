@@ -15,16 +15,6 @@
 ---
 --- See: docs/fzf-fff-migration.md
 
-vim.api.nvim_create_autocmd('PackChanged', {
-  callback = function(ev)
-    local name, kind = ev.data.spec.name, ev.data.kind
-    if name == 'fff.nvim' and (kind == 'install' or kind == 'update') then
-      if not ev.data.active then vim.cmd.packadd('fff.nvim') end
-      require('fff.download').download_or_build_binary()
-    end
-  end,
-})
-
 local function capped_width_ratio(columns)
   local max_columns = 75 -- roughly 600px at an 8px terminal cell width
   return math.min(0.8, max_columns / columns)
@@ -66,26 +56,62 @@ vim.g.fff = {
 
 reset_fff_config_cache()
 
-local with_file_mark = require("aru.jump").with_file_mark
+local function ensure_fff_backend()
+  local ok, download = pcall(require, "fff.download")
+  if not ok then
+    vim.notify("fff.nvim download helper unavailable: " .. tostring(download), vim.log.levels.ERROR)
+    return false
+  end
+
+  if vim.uv.fs_stat(download.get_binary_path()) then return true end
+
+  vim.notify("Installing fff.nvim Rust backend...", vim.log.levels.INFO)
+
+  local install_ok, err = pcall(download.download_or_build_binary)
+  if not install_ok then
+    vim.notify("Failed to install fff.nvim Rust backend: " .. tostring(err), vim.log.levels.ERROR)
+    return false
+  end
+
+  return true
+end
+
+local fff_backend_ready = ensure_fff_backend()
+
+local function with_fff(action)
+  return function(...)
+    if not fff_backend_ready then fff_backend_ready = ensure_fff_backend() end
+    if not fff_backend_ready then return end
+
+    local ok, fff = pcall(require, "fff")
+    if not ok then
+      vim.notify("Failed to load fff.nvim: " .. tostring(fff), vim.log.levels.ERROR)
+      return
+    end
+
+    return action(fff, ...)
+  end
+end
+
 local map = vim.keymap.set
 
 map(
   "n",
   "<leader>ff",
-  with_file_mark(function() require("fff").find_files({ cwd = vim.uv.cwd() }) end),
+  with_fff(function(fff) fff.find_files({ cwd = vim.uv.cwd() }) end),
   { desc = "Find files" }
 )
 map(
   "n",
   "<leader>fc",
-  with_file_mark(function()
-    require("fff").find_files({ cwd = vim.uv.cwd(), query = "git:modified " })
+  with_fff(function(fff)
+    fff.find_files({ cwd = vim.uv.cwd(), query = "git:modified " })
   end),
   { desc = "Find changed files" }
 )
 map(
   "n",
   "<leader>fs",
-  with_file_mark(function() require("fff").live_grep({ cwd = vim.uv.cwd() }) end),
+  with_fff(function(fff) fff.live_grep({ cwd = vim.uv.cwd() }) end),
   { desc = "Find string in project" }
 )
