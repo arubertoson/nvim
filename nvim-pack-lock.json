@@ -25,6 +25,10 @@
       "src": "https://github.com/lewis6991/gitsigns.nvim",
       "version": "2.1.0 - 2.1.0"
     },
+    "harpoon": {
+      "rev": "f370446c1a833316d2371b610b2497f7a9b73227",
+      "src": "file:////home/macke/dev/home/github.com/ThePrimeagen/harpoon"
+    },
     "indent-blankline.nvim": {
       "rev": "005b560",
       "src": "https://github.com/lukas-reineke/indent-blankline.nvim",
