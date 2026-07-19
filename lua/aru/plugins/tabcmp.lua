@@ -17,9 +17,7 @@ supermaven.setup({
 
 vim.api.nvim_create_autocmd("User", {
     pattern = "BlinkCmpMenuOpen",
-    callback = function()
-        supermaven_preview.on_dispose_inlay()
-    end,
+    callback = function() supermaven_preview.on_dispose_inlay() end,
 })
 
 local function toggle_supermaven_inlay()

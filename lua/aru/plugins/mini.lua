@@ -59,7 +59,7 @@ end
 
 vim.keymap.set("i", '"', function()
     if has_unclosed_double_quote_before_cursor() then return '"' end
-    return pairs.closeopen('""', '[^\\].')
+    return pairs.closeopen('""', "[^\\].")
 end, { expr = true, desc = "Insert or close double quote" })
 
 local picker = require("aru.picker")

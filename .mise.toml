@@ -1,3 +1,5 @@
+[env]
+_.path = ["{{config_root}}/tools/lsp/node_modules/.bin"]
 
 [tools]
 lua-language-server = "3.15.0"

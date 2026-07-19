@@ -15,9 +15,7 @@ local function parse_env_file(filepath)
                 local key = line:sub(1, pos - 1):match("^%s*(.-)%s*$")
                 local value = line:sub(pos + 1):match("^%s*(.-)%s*$")
 
-                if value:match('^".*"$') or value:match("^'.*'$") then
-                    value = value:sub(2, -2)
-                end
+                if value:match('^".*"$') or value:match("^'.*'$") then value = value:sub(2, -2) end
 
                 env[key] = value
             end
@@ -37,6 +35,4 @@ end
 
 -- Automatically load environment variables from the config .env file
 local config_env_path = vim.fs.joinpath(vim.fn.stdpath("config"), ".env")
-if vim.fn.filereadable(config_env_path) == 1 then
-    load_env_vars(config_env_path)
-end
+if vim.fn.filereadable(config_env_path) == 1 then load_env_vars(config_env_path) end

@@ -2,28 +2,19 @@ local log = require("aru.log")
 local custom = require("aru.custom")
 
 vim.api.nvim_create_autocmd("BufWinEnter", {
-    group = vim.api.nvim_create_augroup(
-        "gmr_avoid_comment_new_line",
-        { clear = true }
-    ),
+    group = vim.api.nvim_create_augroup("gmr_avoid_comment_new_line", { clear = true }),
     desc = "Avoid comment on new line",
     command = "set formatoptions-=cro",
 })
 
 vim.api.nvim_create_autocmd("TextYankPost", {
-    group = vim.api.nvim_create_augroup(
-        "aru_highlight_on_yank",
-        { clear = true }
-    ),
+    group = vim.api.nvim_create_augroup("aru_highlight_on_yank", { clear = true }),
     desc = "Highlight when yanking (copying) text",
     callback = function() vim.highlight.on_yank() end,
 })
 
 vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter" }, {
-    group = vim.api.nvim_create_augroup(
-        "aru_activate_treesitter_on_filetype",
-        { clear = true }
-    ),
+    group = vim.api.nvim_create_augroup("aru_activate_treesitter_on_filetype", { clear = true }),
     pattern = custom.treesitter_parsers,
     desc = "When editing a file which is a valid treesitter parser (authored file list), we activate treesitter",
     callback = function(ev)
@@ -34,24 +25,19 @@ vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter" }, {
         if not ok then
             local bufnr = vim.api.nvim_get_current_buf()
             local bufname = vim.api.nvim_buf_get_name(bufnr)
-            local ft =
-                vim.api.nvim_get_option_value("filetype", { buf = bufnr })
+            local ft = vim.api.nvim_get_option_value("filetype", { buf = bufnr })
 
-            log:debug(
-                ("Treesitter failed to start: %s, %s"):format(bufname, ft)
-            )
+            log:debug(("Treesitter failed to start: %s, %s"):format(bufname, ft))
             return
         end
 
         local winid = vim.api.nvim_get_current_win()
         vim.wo[winid].foldexpr = "v:lua.vim.treesitter.foldexpr()"
-        vim.bo[ev.buf].indentexpr =
-            "v:lua.require'nvim-treesitter'.indentexpr()"
+        vim.bo[ev.buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
     end,
 })
 
-local number_exclude_ft =
-    { "markdown", "telekasten", "dbui", "dbout", "oil", "help" }
+local number_exclude_ft = { "markdown", "telekasten", "dbui", "dbout", "oil", "help" }
 local number_exclude_bt = { "terminal" }
 vim.api.nvim_create_autocmd({ "WinEnter", "BufEnter" }, {
     group = vim.api.nvim_create_augroup(
@@ -145,10 +131,7 @@ vim.api.nvim_create_autocmd({ "InsertLeave", "BufLeave" }, {
 Save on insert, buffer leave, cursor hold--we want to save as often as
 possible, be it manual or automatic.",
 ]],
-    group = vim.api.nvim_create_augroup(
-        "aru_buffer_autosave_on_events",
-        { clear = true }
-    ),
+    group = vim.api.nvim_create_augroup("aru_buffer_autosave_on_events", { clear = true }),
     nested = true,
     callback = function()
         local save_excluded = {}

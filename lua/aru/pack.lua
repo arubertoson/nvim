@@ -98,7 +98,6 @@ vim.pack.add({
     -- ===========================================================================
     { src = "https://github.com/tpope/vim-sleuth" },
     { src = "https://github.com/OXY2DEV/markview.nvim" },
-
 }, {
     load = false,
     confirm = false,
@@ -123,7 +122,9 @@ vim.api.nvim_create_user_command("PackUpdate", function(opts)
 end, {
     bang = true,
     nargs = "*",
-    complete = function() return pack_names(function(x) return x.active end) end,
+    complete = function()
+        return pack_names(function(x) return x.active end)
+    end,
     desc = "Update active vim.pack packages; use ! to skip confirmation",
 })
 

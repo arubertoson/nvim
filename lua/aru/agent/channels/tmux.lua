@@ -17,7 +17,10 @@ end
 
 local function current_tmux_session()
     local result = system_sync({
-        constants.TMUX.COMMAND, "display-message", "-p", constants.TMUX.FORMATS.SESSION_NAME,
+        constants.TMUX.COMMAND,
+        "display-message",
+        "-p",
+        constants.TMUX.FORMATS.SESSION_NAME,
     })
     if not result then return nil end
     return vim.trim(result.stdout)
@@ -25,7 +28,12 @@ end
 
 local function find_window_id(session_name, window_name)
     local result = system_sync({
-        constants.TMUX.COMMAND, "list-windows", "-t", session_name, "-F", constants.TMUX.FORMATS.WINDOWS,
+        constants.TMUX.COMMAND,
+        "list-windows",
+        "-t",
+        session_name,
+        "-F",
+        constants.TMUX.FORMATS.WINDOWS,
     })
     if not result then return nil end
     for _, line in ipairs(vim.split(result.stdout, "\n", { plain = true, trimempty = true })) do
@@ -37,7 +45,12 @@ end
 
 local function active_pane_in_window(window_id)
     local result = system_sync({
-        constants.TMUX.COMMAND, "list-panes", "-t", window_id, "-F", constants.TMUX.FORMATS.PANES,
+        constants.TMUX.COMMAND,
+        "list-panes",
+        "-t",
+        window_id,
+        "-F",
+        constants.TMUX.FORMATS.PANES,
     })
     if not result then return nil, nil end
     for _, line in ipairs(vim.split(result.stdout, "\n", { plain = true, trimempty = true })) do
@@ -94,12 +107,28 @@ local function paste_to_pane(pane_id, text, submit)
     pcall(vim.fn.delete, path)
     if not ok then return false end
 
-    if not system_sync({ constants.TMUX.COMMAND, "paste-buffer", "-t", pane_id, "-b", buf_name, "-d" }) then
+    if
+        not system_sync({
+            constants.TMUX.COMMAND,
+            "paste-buffer",
+            "-t",
+            pane_id,
+            "-b",
+            buf_name,
+            "-d",
+        })
+    then
         return false
     end
 
     if submit then
-        return system_sync({ constants.TMUX.COMMAND, "send-keys", "-t", pane_id, constants.TMUX.SUBMIT_KEY }) ~= nil
+        return system_sync({
+            constants.TMUX.COMMAND,
+            "send-keys",
+            "-t",
+            pane_id,
+            constants.TMUX.SUBMIT_KEY,
+        }) ~= nil
     end
 
     return true

@@ -149,11 +149,31 @@ map("n", "<leader>k", ":help ", { desc = "Help tag" })
 -- gy = type definitions
 
 --
-map("n", "<C-o>", function() require("aru.nav").point_jump.prev() end, { desc = "Previous buffer point" })
-map("n", "<C-i>", function() require("aru.nav").point_jump.next() end, { desc = "Next buffer point" })
-map("n", "<M-o>", function() require("aru.nav").file_jump.prev() end, { desc = "Previous file visit" })
+map(
+    "n",
+    "<C-o>",
+    function() require("aru.nav").point_jump.prev() end,
+    { desc = "Previous buffer point" }
+)
+map(
+    "n",
+    "<C-i>",
+    function() require("aru.nav").point_jump.next() end,
+    { desc = "Next buffer point" }
+)
+map(
+    "n",
+    "<M-o>",
+    function() require("aru.nav").file_jump.prev() end,
+    { desc = "Previous file visit" }
+)
 map("n", "<M-i>", function() require("aru.nav").file_jump.next() end, { desc = "Next file visit" })
-map("n", "<C-t>", function() require("aru.nav").file_jump.toggle() end, { desc = "Toggle previous file" })
+map(
+    "n",
+    "<C-t>",
+    function() require("aru.nav").file_jump.toggle() end,
+    { desc = "Toggle previous file" }
+)
 
 -- ============================================================================
 -- Active files (quick file switching)
@@ -168,9 +188,24 @@ map(
     function() require("aru.nav").active.add() end,
     { desc = "Active add current file" }
 )
-map("n", "<localleader>j", function() require("aru.nav").active.replace(1) end, { desc = "Active replace slot 1" })
-map("n", "<localleader>k", function() require("aru.nav").active.replace(2) end, { desc = "Active replace slot 2" })
-map("n", "<localleader>l", function() require("aru.nav").active.replace(3) end, { desc = "Active replace slot 3" })
+map(
+    "n",
+    "<localleader>j",
+    function() require("aru.nav").active.replace(1) end,
+    { desc = "Active replace slot 1" }
+)
+map(
+    "n",
+    "<localleader>k",
+    function() require("aru.nav").active.replace(2) end,
+    { desc = "Active replace slot 2" }
+)
+map(
+    "n",
+    "<localleader>l",
+    function() require("aru.nav").active.replace(3) end,
+    { desc = "Active replace slot 3" }
+)
 map(
     "n",
     "<localleader>d",
@@ -300,20 +335,15 @@ local function pick_spelling_suggestion()
                 break
             end
 
-            if not best_start then best_start, best_end = match_start, match_end end
+            if not best_start then
+                best_start, best_end = match_start, match_end
+            end
             start = match_end + 1
         end
 
         if not best_start then return end
 
-        vim.api.nvim_buf_set_text(
-            0,
-            row - 1,
-            best_start - 1,
-            row - 1,
-            best_end,
-            { choice }
-        )
+        vim.api.nvim_buf_set_text(0, row - 1, best_start - 1, row - 1, best_end, { choice })
     end)
 end
 
@@ -402,7 +432,7 @@ map("n", "<localleader>li", function()
     local path = vim.fs.joinpath(vim.fn.stdpath("cache"), "nvim-config.log")
     vim.cmd.edit(vim.fn.fnameescape(path))
     vim.bo.buflisted = false
-end, { desc = "Inspect default log"})
+end, { desc = "Inspect default log" })
 
 -- Lua REPL (ftplugin/lua.lua - only in lua files):
 -- <leader>rr = run current buffer

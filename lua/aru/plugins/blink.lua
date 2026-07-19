@@ -53,9 +53,7 @@ blink.setup({
                 components = {
                     provider = {
                         text = function(ctx)
-                            return "["
-                                .. ctx.item.source_name:sub(1, 3):upper()
-                                .. "]"
+                            return "[" .. ctx.item.source_name:sub(1, 3):upper() .. "]"
                         end,
                     },
                 },

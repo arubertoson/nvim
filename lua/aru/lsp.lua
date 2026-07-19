@@ -51,9 +51,7 @@ local function map_buffer_keys(bufnr)
         })
     end
 
-    local function pick_lsp(scope)
-        require("mini.extra").pickers.lsp({ scope = scope })
-    end
+    local function pick_lsp(scope) require("mini.extra").pickers.lsp({ scope = scope }) end
 
     local function pick_diagnostics(scope)
         require("mini.extra").pickers.diagnostic(

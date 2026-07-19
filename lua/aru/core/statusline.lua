@@ -120,31 +120,22 @@ local highlights = {
 }
 
 local ok = colors.shade_highlight("Comment", highlights.comment, { fg = -0.25 })
-if not ok then
-    log:error("Failed to create hlgroup %s", highlights.comment)
-end
+if not ok then log:error("Failed to create hlgroup %s", highlights.comment) end
 
 ---@param hlgroup string
 ---@param msg string
 ---@return string
-local function hlstring(hlgroup, msg)
-    return ("%%#%s#%s%%*"):format(hlgroup, msg)
-end
+local function hlstring(hlgroup, msg) return ("%%#%s#%s%%*"):format(hlgroup, msg) end
 
 ---@return string
-local function mode()
-    return hlstring(highlights.mode, vim.api.nvim_get_mode().mode)
-end
+local function mode() return hlstring(highlights.mode, vim.api.nvim_get_mode().mode) end
 
 ---@return string
 local function lineinfo()
     local line_with_width = "%-0" .. 3 .. "l"
     local column_with_width = "%-0" .. 2 .. "c"
 
-    return hlstring(
-        highlights.dim,
-        ("[%s:%s]"):format(line_with_width, column_with_width)
-    )
+    return hlstring(highlights.dim, ("[%s:%s]"):format(line_with_width, column_with_width))
 end
 
 StatusLine = {}
@@ -187,8 +178,7 @@ vim.opt.statusline = "%!v:lua.StatusLine.active()"
 -- Statusline autocmds
 -- ============================================================
 
-local statusline_augroup =
-    vim.api.nvim_create_augroup("aru-statusline", { clear = true })
+local statusline_augroup = vim.api.nvim_create_augroup("aru-statusline", { clear = true })
 
 vim.api.nvim_create_autocmd({ "WinEnter", "BufEnter", "FileType" }, {
     group = statusline_augroup,
@@ -199,9 +189,7 @@ vim.api.nvim_create_autocmd({ "WinEnter", "BufEnter", "FileType" }, {
         "netrw",
         "qf",
     },
-    callback = function()
-        vim.opt_local.statusline = "%!v:lua.StatusLine.inactive()"
-    end,
+    callback = function() vim.opt_local.statusline = "%!v:lua.StatusLine.inactive()" end,
 })
 
 -- TODO: switch these things out with gitisngs, it was for experimental purposes.
@@ -243,20 +231,13 @@ vim.api.nvim_create_autocmd({ "BufEnter", "VimEnter" }, {
             or vim.uv.cwd()
             or ""
 
-        local relpath = root and vim.fs.relpath(root, current_buffer)
-            or current_buffer
-        local buf_dirty = vim.api.nvim_get_option_value(
-            "modified",
-            { buf = bufnr }
-        ) and "*" or ""
+        local relpath = root and vim.fs.relpath(root, current_buffer) or current_buffer
+        local buf_dirty = vim.api.nvim_get_option_value("modified", { buf = bufnr }) and "*" or ""
 
         vim.schedule(function()
             StatusLine.cache(
                 "current_buffer",
-                hlstring(
-                    highlights.comment,
-                    ("%s%s"):format(relpath, buf_dirty)
-                )
+                hlstring(highlights.comment, ("%s%s"):format(relpath, buf_dirty))
             )
 
             vim.cmd.redrawstatus()
@@ -264,40 +245,34 @@ vim.api.nvim_create_autocmd({ "BufEnter", "VimEnter" }, {
     end,
 })
 
-vim.api.nvim_create_autocmd(
-    { "LspAttach", "LspDetach", "BufEnter", "VimEnter" },
-    {
-        group = statusline_augroup,
-        desc = "Show if LSP is active in the current buffer/workspace and what filetype it is",
-        callback = function()
-            local bufnr = vim.api.nvim_get_current_buf()
-            local clients = vim.lsp.get_clients({ bufnr = bufnr })
+vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach", "BufEnter", "VimEnter" }, {
+    group = statusline_augroup,
+    desc = "Show if LSP is active in the current buffer/workspace and what filetype it is",
+    callback = function()
+        local bufnr = vim.api.nvim_get_current_buf()
+        local clients = vim.lsp.get_clients({ bufnr = bufnr })
 
-            local lsp_active = (#clients > 0 and "LSP" or "")
-            local filetype = vim.bo.filetype
+        local lsp_active = (#clients > 0 and "LSP" or "")
+        local filetype = vim.bo.filetype
 
-            local parts = {}
-            table.insert(parts, hlstring(highlights.dim, "["))
-            table.insert(parts, hlstring(highlights.comment, lsp_active))
-            table.insert(parts, hlstring(highlights.comment, "."))
-            table.insert(parts, hlstring(highlights.dim, filetype))
-            table.insert(parts, hlstring(highlights.dim, "]"))
+        local parts = {}
+        table.insert(parts, hlstring(highlights.dim, "["))
+        table.insert(parts, hlstring(highlights.comment, lsp_active))
+        table.insert(parts, hlstring(highlights.comment, "."))
+        table.insert(parts, hlstring(highlights.dim, filetype))
+        table.insert(parts, hlstring(highlights.dim, "]"))
 
-            local buffer_lsp_and_filetype = table.concat(parts)
+        local buffer_lsp_and_filetype = table.concat(parts)
 
-            vim.schedule(function()
-                StatusLine.cache(
-                    "buffer_lsp_and_filetype",
-                    buffer_lsp_and_filetype
-                )
-                StatusLine.cache("lsp_active", lsp_active)
-                StatusLine.cache("filetype", filetype)
+        vim.schedule(function()
+            StatusLine.cache("buffer_lsp_and_filetype", buffer_lsp_and_filetype)
+            StatusLine.cache("lsp_active", lsp_active)
+            StatusLine.cache("filetype", filetype)
 
-                vim.cmd.redrawstatus()
-            end)
-        end,
-    }
-)
+            vim.cmd.redrawstatus()
+        end)
+    end,
+})
 
 local function refresh_active_state(event)
     local ok, active = pcall(function() return require("aru.nav").active end)

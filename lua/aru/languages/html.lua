@@ -23,18 +23,17 @@
 --- ```
 
 ---@type vim.lsp.Config
-vim.lsp.config('html', {
-  cmd = { 'vscode-html-language-server', '--stdio' },
-  filetypes = { 'html' },
-  root_markers = { 'package.json', '.git' },
-  ---@type lspconfig.settings.html
-  settings = {},
-  init_options = {
-    provideFormatter = true,
-    embeddedLanguages = { css = true, javascript = true },
-    configurationSection = { 'html', 'css', 'javascript' },
-  },
+vim.lsp.config("html", {
+    cmd = { "vscode-html-language-server", "--stdio" },
+    filetypes = { "html" },
+    root_markers = { "package.json", ".git" },
+    ---@type lspconfig.settings.html
+    settings = {},
+    init_options = {
+        provideFormatter = true,
+        embeddedLanguages = { css = true, javascript = true },
+        configurationSection = { "html", "css", "javascript" },
+    },
 })
 
-
-vim.lsp.enable('html')
+vim.lsp.enable("html")

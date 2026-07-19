@@ -146,7 +146,12 @@ end
 local function title(state)
     local page_info = #_pages > 1 and (" %d/%d"):format(_page_index, #_pages) or ""
     if state.streaming then
-        return (" %s%s %s %s "):format(state.title_label, page_info, progress.frame(state), state.phrase)
+        return (" %s%s %s %s "):format(
+            state.title_label,
+            page_info,
+            progress.frame(state),
+            state.phrase
+        )
     end
     return (" %s%s "):format(state.title_label, page_info)
 end
@@ -397,7 +402,11 @@ local function show_page(index, opts)
     _page_index = index
 
     local state
-    if _state and vim.api.nvim_win_is_valid(_state.win) and vim.api.nvim_buf_is_valid(_state.buf) then
+    if
+        _state
+        and vim.api.nvim_win_is_valid(_state.win)
+        and vim.api.nvim_buf_is_valid(_state.buf)
+    then
         state = _state
         stop_spinner(state)
         state.pending = ""
@@ -445,9 +454,7 @@ function M.send(transport, _ctx)
             on_thinking = function()
                 if progress.update_phrase(state) then refresh_title(state) end
             end,
-            on_text = function(delta)
-                append(state, delta)
-            end,
+            on_text = function(delta) append(state, delta) end,
         })
     end, function(result)
         if _state ~= state or state.stream_id ~= stream_id then return end

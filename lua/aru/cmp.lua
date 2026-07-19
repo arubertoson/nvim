@@ -112,13 +112,7 @@ function M.smart_accept()
     --- TODO: this is a bit hacky, but it works for now
     if sup_ok then
         local inst = preview:get_inlay_instance()
-        if
-            not inst
-            or not inst.completion_text
-            or inst.completion_text == ""
-        then
-            return
-        end
+        if not inst or not inst.completion_text or inst.completion_text == "" then return end
         require("aru.log"):info("super maven triggered!")
         preview.on_accept_suggestion(false)
         return

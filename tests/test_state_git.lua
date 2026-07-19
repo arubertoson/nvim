@@ -3,12 +3,9 @@ pcall(function() vim.cmd("packadd mini.nvim") end)
 local MiniTest = _G.MiniTest or require("mini.test")
 if not _G.MiniTest then MiniTest.setup({ silent = true }) end
 
-
 local T = MiniTest.new_set({
     hooks = {
-        pre_case = function()
-            package.loaded["aru.state.git"] = nil
-        end,
+        pre_case = function() package.loaded["aru.state.git"] = nil end,
         post_case = function()
             local ok, git = pcall(require, "aru.state.git")
             if ok then git._test.reset() end
@@ -113,9 +110,9 @@ T["watcher cleanup removes watcher handles"] = function()
     local root = git_repo()
 
     git.refresh(root)
-    wait_until(function()
-        return git._test.state[root] and git._test.state[root].watcher ~= nil
-    end)
+    wait_until(
+        function() return git._test.state[root] and git._test.state[root].watcher ~= nil end
+    )
 
     git._test.reset()
     MiniTest.expect.equality(next(git._test.state), nil)

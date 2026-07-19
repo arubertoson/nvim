@@ -12,7 +12,9 @@ function M.window_config()
     local has_tabline = vim.o.showtabline == 2
         or (vim.o.showtabline == 1 and #vim.api.nvim_list_tabpages() > 1)
     local has_statusline = vim.o.laststatus > 0
-    local max_height = vim.o.lines - vim.o.cmdheight - (has_tabline and 1 or 0)
+    local max_height = vim.o.lines
+        - vim.o.cmdheight
+        - (has_tabline and 1 or 0)
         - (has_statusline and 1 or 0)
 
     local height = math.floor(0.7 * max_height)

@@ -169,31 +169,19 @@ local function kanso()
     })
 
     vim.api.nvim_create_autocmd("FileType", {
-        group = vim.api.nvim_create_augroup(
-            "aru_kanso_theme_tweaks",
-            { clear = true }
-        ),
+        group = vim.api.nvim_create_augroup("aru_kanso_theme_tweaks", { clear = true }),
         pattern = "help",
         callback = function()
-            local ok, normal =
-                pcall(vim.api.nvim_get_hl, 0, { name = "Normal", link = false })
+            local ok, normal = pcall(vim.api.nvim_get_hl, 0, { name = "Normal", link = false })
             if not ok or type(normal) ~= "table" then
-                log:error(
-                    ("kanso: Failed to get Normal highlight group: %s"):format(
-                        normal
-                    )
-                )
+                log:error(("kanso: Failed to get Normal highlight group: %s"):format(normal))
                 return
             end
 
             local bg = color.shade_color(normal.bg, -0.25)
             vim.api.nvim_set_hl(0, "HelpNormal", { fg = normal.fg, bg = bg })
 
-            vim.api.nvim_set_option_value(
-                "winhighlight",
-                "Normal:HelpNormal",
-                { scope = "local" }
-            )
+            vim.api.nvim_set_option_value("winhighlight", "Normal:HelpNormal", { scope = "local" })
         end,
     })
 end

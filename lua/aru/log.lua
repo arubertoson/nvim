@@ -95,11 +95,7 @@ local function flush()
     for bufnr, chunks in pairs(queue) do
         if vim.api.nvim_buf_is_valid(bufnr) then
             local ok, err = pcall(function()
-                vim.api.nvim_set_option_value(
-                    "modifiable",
-                    true,
-                    { buf = bufnr }
-                )
+                vim.api.nvim_set_option_value("modifiable", true, { buf = bufnr })
                 for _, lines in ipairs(chunks) do
                     vim.api.nvim_buf_set_lines(bufnr, -1, -1, false, lines)
                 end
@@ -107,20 +103,10 @@ local function flush()
                 local cnt = vim.api.nvim_buf_line_count(bufnr)
                 local max = LOG_BUFFER_MAX_LINES
 
-                if cnt > max then
-                    vim.api.nvim_buf_set_lines(bufnr, 0, cnt - max, false, {})
-                end
+                if cnt > max then vim.api.nvim_buf_set_lines(bufnr, 0, cnt - max, false, {}) end
 
-                vim.api.nvim_set_option_value(
-                    "modifiable",
-                    false,
-                    { buf = bufnr }
-                )
-                vim.api.nvim_set_option_value(
-                    "modified",
-                    false,
-                    { buf = bufnr }
-                )
+                vim.api.nvim_set_option_value("modifiable", false, { buf = bufnr })
+                vim.api.nvim_set_option_value("modified", false, { buf = bufnr })
             end)
 
             if not ok then
@@ -198,9 +184,7 @@ local function render(log_str, msg, level)
     return (
         log_str:gsub(
             "{(%w+)}",
-            function(key)
-                return parts[key] ~= nil and tostring(parts[key]) or ""
-            end
+            function(key) return parts[key] ~= nil and tostring(parts[key]) or "" end
         )
     )
 end
@@ -323,11 +307,7 @@ function Logger:apply_config(config)
                 sink._file:close()
             end)
         elseif sink.type == "buffer" and sink.buffer then
-            pcall(
-                function()
-                    vim.api.nvim_buf_delete(sink.buffer, { force = true })
-                end
-            )
+            pcall(function() vim.api.nvim_buf_delete(sink.buffer, { force = true }) end)
         end
     end
     self.sinks = {}
@@ -365,9 +345,7 @@ function Logger:add(config)
 
     local actions = {
         file = function() return create_file_sink(config.path) end,
-        buffer = function()
-            return create_buffer_sink(config.name or LOG_BUFFER_NAME)
-        end,
+        buffer = function() return create_buffer_sink(config.name or LOG_BUFFER_NAME) end,
         notify = function()
             return {
                 type = "notify",
@@ -417,9 +395,9 @@ local function emit(logger, msg, level)
             elseif sink.type == "notify" then
                 local notify_format = sink.format or "[{level}] {module}:{linenr}\n{msg}"
                 local notify_msg = render(notify_format, msg, level)
-                vim.schedule(function()
-                    vim.notify(notify_msg, level, { title = sink.title or "aru.log" })
-                end)
+                vim.schedule(
+                    function() vim.notify(notify_msg, level, { title = sink.title or "aru.log" }) end
+                )
             end
         end
     end
@@ -430,9 +408,7 @@ end
 ---logging lightweight and reflects our preference for terse APIs.
 for level, name in pairs(LEVEL_NAMES) do
     Logger[name:lower()] = function(self, msg, ...)
-        if select("#", ...) > 0 then
-            msg = msg:format(...)
-        end
+        if select("#", ...) > 0 then msg = msg:format(...) end
         emit(self, msg, level)
     end
 end

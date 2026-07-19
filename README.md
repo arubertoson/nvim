@@ -27,6 +27,21 @@ plugin does it *significantly* better.
 Dependencies need to earn its place. If a native feature catches up, the
 plugin gets replaced, not stacked on top.
 
+## Development
+
+With `mise` and `just` available, bootstrap a fresh checkout with:
+
+```sh
+just setup
+```
+
+This installs the configuration-owned StyLua and LuaLS versions, the Node-based
+tools declared in `tools/lsp/package.json`, Neovim plugins, and the pre-commit hook.
+It then runs the complete quality gate. Neovim, Node, Mise, and Just are system
+prerequisites; language tooling for target repositories remains target-repository-owned.
+Every commit reruns `just check`, which verifies Lua formatting and runs the test suite.
+Use `just format` to fix formatting failures.
+
 ## Feature documentation
 
 - [Agent interaction](docs/agent-interaction.md)

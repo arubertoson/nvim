@@ -7,6 +7,4 @@ require("aru.log").configure({
     sinks = {},
 })
 
-if #vim.api.nvim_list_uis() == 0 then
-    require("mini.test").setup()
-end
+if #vim.api.nvim_list_uis() == 0 then require("mini.test").setup() end
