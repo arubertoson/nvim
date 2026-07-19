@@ -185,18 +185,30 @@ map(
 )
 
 -- ============================================================================
--- Leap (motion)
+-- Treesitter node selection
 -- ============================================================================
 
-vim.keymap.set({ "n", "x", "o" }, "s", "<Plug>(leap)")
-vim.keymap.set({ "x", "o" }, "R", function()
-    require("leap.treesitter").select({
-        -- To increase/decrease the selection in a clever-f-like manner,
-        -- with the trigger key itself (vRRRRrr...). The default keys
-        -- (<enter>/<backspace>) also work, so feel free to skip this.
-        opts = require("leap.user").with_traversal_keys("R", "r"),
-    })
-end)
+vim.keymap.set("x", "R", function()
+    local cursor_node = require("aru.ts").node_at_cursor()
+    if not cursor_node then return end
+
+    local node = cursor_node:parent()
+    if not node then return end
+
+    local start_row, start_col, end_row, end_col = node:range()
+    if end_col > 0 then
+        end_col = end_col - 1
+    else
+        end_row = math.max(start_row, end_row - 1)
+        local line = vim.api.nvim_buf_get_lines(0, end_row, end_row + 1, false)[1] or ""
+        end_col = math.max(#line - 1, 0)
+    end
+
+    vim.cmd("normal! \27")
+    vim.api.nvim_win_set_cursor(0, { start_row + 1, start_col })
+    vim.cmd("normal! v")
+    vim.api.nvim_win_set_cursor(0, { end_row + 1, end_col })
+end, { desc = "Select parent Treesitter node" })
 
 -- ============================================================================
 -- Git (gitsigns)
