@@ -37,7 +37,7 @@ vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter" }, {
     end,
 })
 
-local number_exclude_ft = { "markdown", "telekasten", "dbui", "dbout", "oil", "help" }
+local number_exclude_ft = { "markdown", "dbui", "dbout", "oil", "help" }
 local number_exclude_bt = { "terminal" }
 vim.api.nvim_create_autocmd({ "WinEnter", "BufEnter" }, {
     group = vim.api.nvim_create_augroup(

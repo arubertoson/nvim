@@ -1,6 +1,5 @@
 local log = require("aru.log")
 local theme = require("aru.custom").theme
-local color = require("aru.colors")
 
 require("kanagawa").setup({
     theme = "dragon", -- or "dragon"/"lotus"
@@ -119,77 +118,6 @@ vim.api.nvim_create_autocmd("ColorScheme", {
     desc = "Use underline for spelling highlights",
     callback = set_spell_underlines,
 })
-
-local function kanagawa_paper()
-    require("kanagawa-paper").setup({
-        lazy = false,
-        priority = 1000,
-        opts = {
-            overrides = function()
-                return {
-                    LspInlayHint = {
-                        fg = "#54546D",
-                        bg = "None",
-                        italic = true,
-                    },
-                    StatusLine = { link = "Normal" },
-                }
-            end,
-            dim_inactive = true,
-        },
-    })
-end
-
-local function kanso()
-    require("kanso").setup({
-        bold = true, -- enable bold fonts
-        italics = true, -- enable italics
-        compile = false, -- enable compiling the colorscheme
-        undercurl = true, -- enable undercurls
-        commentStyle = { italic = true },
-        functionStyle = {},
-        keywordStyle = { italic = true },
-        statementStyle = {},
-        typeStyle = {},
-        transparent = false, -- do not set background color
-        dimInactive = false, -- dim inactive window `:h hl-NormalNC`
-        terminalColors = true, -- define vim.g.terminal_color_{0,17}
-        colors = { -- add/modify theme and palette colors
-            palette = {},
-            theme = { zen = {}, pearl = {}, ink = {}, all = {} },
-        },
-        overrides = function(colors) -- add/modify highlights
-            return {}
-        end,
-        background = { -- map the value of 'background' option to a theme
-            dark = "ink", -- try "zen", "mist" or "pearl" !
-            light = "ink", -- try "zen", "mist" or "pearl" !
-        },
-        foreground = "default", -- "default" or "saturated"
-    })
-
-    vim.api.nvim_create_autocmd("FileType", {
-        group = vim.api.nvim_create_augroup("aru_kanso_theme_tweaks", { clear = true }),
-        pattern = "help",
-        callback = function()
-            local ok, normal = pcall(vim.api.nvim_get_hl, 0, { name = "Normal", link = false })
-            if not ok or type(normal) ~= "table" then
-                log:error(("kanso: Failed to get Normal highlight group: %s"):format(normal))
-                return
-            end
-
-            local bg = color.shade_color(normal.bg, -0.25)
-            vim.api.nvim_set_hl(0, "HelpNormal", { fg = normal.fg, bg = bg })
-
-            vim.api.nvim_set_option_value("winhighlight", "Normal:HelpNormal", { scope = "local" })
-        end,
-    })
-end
-
-kanagawa_paper()
--- elseif vim.startswith(theme, "kanso") then
--- 	kanso()
--- end
 
 log:debug("Activating theme: " .. theme)
 vim.cmd.colorscheme(theme)

@@ -5,6 +5,7 @@ nvim-config.log
 
 # Beads / Dolt files (added by bd init)
 .dolt/
+.beads/
 *.db
 .beads-credential-key
 # CocoIndex Code (ccc)

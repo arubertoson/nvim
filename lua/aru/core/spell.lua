@@ -43,7 +43,6 @@ M.exclude = {
 --- Filetypes excluded from `noplainbuffer` (spell the entire buffer).
 M.exclude_noplainbuffer = {
     "markdown",
-    "telekasten",
     "text",
     "plaintext",
     "rst",

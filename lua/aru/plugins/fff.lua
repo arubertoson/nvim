@@ -12,8 +12,6 @@
 ---   fff has a picker UI, but not a public generic picker API. Its search path is
 ---   wired to fff file/grep backends, and selection expects a file item with a
 ---   `relative_path`. Generic help/LSP/code-action flows use Neovim defaults.
----
---- See: docs/fzf-fff-migration.md
 
 local function capped_width_ratio(columns)
     local max_columns = 75 -- roughly 600px at an 8px terminal cell width

@@ -69,7 +69,6 @@ function M.tab_forward()
     end
 
     if should_trigger_menu(cmp) then
-        pcall(function() require("neocodeium").clear() end)
         cmp.show()
         return true
     end
@@ -108,8 +107,6 @@ function M.smart_accept()
     -- TODO: this is a bit hacky, but it works for now
     local sup_ok, preview = pcall(require, "supermaven-nvim.completion_preview")
 
-    --- If supermaven is open: accept the selected item
-    --- TODO: this is a bit hacky, but it works for now
     if sup_ok then
         local inst = preview:get_inlay_instance()
         if not inst or not inst.completion_text or inst.completion_text == "" then return end
@@ -117,16 +114,6 @@ function M.smart_accept()
         preview.on_accept_suggestion(false)
         return
     end
-
-    -- Otherwise we try to accept neocodeium ghost text.
-    -- if there is no ghost this becomes a no-op and won't break anything
-    -- local neo_ok, neo = pcall(require, "neocodeium")
-    -- if neo_ok then
-    --     local before = vim.api.nvim_get_current_line()
-    --     neo.accept()
-    --
-    --     if vim.api.nvim_get_current_line() == before then return end
-    -- end
 end
 
 return M

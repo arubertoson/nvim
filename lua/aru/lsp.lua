@@ -103,7 +103,7 @@ local function map_buffer_keys(bufnr)
 end
 
 local function setup_smart_hover(client, bufnr)
-    if not client.supports_method("textDocument/hover") then return end
+    if not client:supports_method("textDocument/hover") then return end
 
     vim.keymap.set("n", "K", function()
         local params = vim.lsp.util.make_position_params(0, "utf-16")
@@ -120,7 +120,7 @@ local function setup_smart_hover(client, bufnr)
 end
 
 local function setup_semantic_tokens(client, bufnr)
-    if not client.supports_method("textDocument/semanticTokens/full") then return end
+    if not client:supports_method("textDocument/semanticTokens/full") then return end
 
     vim.api.nvim_create_autocmd("LspTokenUpdate", {
         once = true,
@@ -133,7 +133,7 @@ local function setup_semantic_tokens(client, bufnr)
 end
 
 local function setup_inlay_hints(client, bufnr)
-    if not client.supports_method("textDocument/inlayHint") then return end
+    if not client:supports_method("textDocument/inlayHint") then return end
 
     vim.api.nvim_buf_set_var(bufnr, "aru_inlay_hints", true)
     vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
@@ -176,7 +176,7 @@ local function setup_inlay_hints(client, bufnr)
 end
 
 local function setup_codelens(client, bufnr)
-    if not client.supports_method("textDocument/codeLens") then return end
+    if not client:supports_method("textDocument/codeLens") then return end
 
     vim.keymap.set("n", "<leader>lc", vim.lsp.codelens.run, {
         buffer = bufnr,
@@ -188,7 +188,7 @@ local function setup_codelens(client, bufnr)
     vim.api.nvim_create_autocmd({ "BufEnter", "CursorHold", "InsertLeave" }, {
         group = vim.api.nvim_create_augroup(("aru_codelens_%d"):format(bufnr), { clear = true }),
         buffer = bufnr,
-        callback = function(event) vim.lsp.codelens.refresh({ bufnr = event.buf }) end,
+        callback = function(event) vim.lsp.codelens.enable(true, { bufnr = event.buf }) end,
         desc = "Refresh code lens",
     })
 end

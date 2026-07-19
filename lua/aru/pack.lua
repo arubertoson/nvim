@@ -36,7 +36,6 @@ vim.pack.add({
     -- ===========================================================================
     -- Themes
     -- ===========================================================================
-    { src = "https://github.com/thesimonho/kanagawa-paper.nvim" },
     { src = "https://github.com/rebelot/kanagawa.nvim" },
 
     -- UI Stuff
@@ -89,8 +88,6 @@ vim.pack.add({
     -- the generic searchable picker layer for LSP, diagnostics, and vim.ui.select
     -- flows such as code actions.
     --
-    -- Migration notes: docs/fzf-fff-migration.md
-
     { src = "https://github.com/dmtrKovalenko/fff.nvim", version = vim.version.range("0.9.4") },
 
     -- ===========================================================================
