@@ -90,23 +90,21 @@ vim.api.nvim_create_autocmd("FileType", {
     callback = function(ev) require("aru.quick_close").map_buffer(ev.buf) end,
 })
 
-vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold" }, {
-    group = vim.api.nvim_create_augroup(
-        "aru_ensure_buffer_is_reloaded_if_updated",
-        { clear = true }
-    ),
-    desc = [[
-We make a best effort attempt to always work with the latest file,
-no matter if it's been updated from other sources or not.
-]],
+local reload_group =
+    vim.api.nvim_create_augroup("aru_ensure_buffer_is_reloaded_if_updated", { clear = true })
+
+vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold", "CursorHoldI" }, {
+    group = reload_group,
+    desc = "Check whether open files were changed outside Neovim",
     callback = function()
-        if vim.fn.getcmdwintype() == "" then
-            -- Checktime detects external changes to the file, if 'autoread' is set and there are no
-            -- unsaved changes it will auto-reload. Otherwise it will prompt the user to save changes
-            -- or discard them.
-            vim.cmd("silent! checktime")
-        end
+        if vim.fn.getcmdwintype() == "" then vim.cmd.checktime() end
     end,
+})
+
+vim.api.nvim_create_autocmd("FileChangedShell", {
+    group = reload_group,
+    desc = "Reload files changed outside Neovim without prompting",
+    callback = function() vim.v.fcs_choice = "reload" end,
 })
 
 ---Determine if a value of any type is empty
@@ -125,35 +123,78 @@ local function empty(item)
     return true
 end
 
--- vim.api.nvim_create_autocmd({ "InsertLeave", "BufLeave", "CursorHold" }, {
-vim.api.nvim_create_autocmd({ "InsertLeave", "BufLeave" }, {
-    desc = [[
-Save on insert, buffer leave, cursor hold--we want to save as often as
-possible, be it manual or automatic.",
-]],
-    group = vim.api.nvim_create_augroup("aru_buffer_autosave_on_events", { clear = true }),
-    nested = true,
-    callback = function()
-        local save_excluded = {}
+local autosave_group =
+    vim.api.nvim_create_augroup("aru_buffer_autosave_on_events", { clear = true })
+local autosave_delay = 100
+local autosave_excluded = {}
+---@type table<integer, { timer: uv.uv_timer_t, generation: integer }>
+local autosave_timers = {}
 
-        ---We want to only save on certain filetypes and if the buffer in question
-        ---supports it. This should be tweaked accordingly.
-        ---@return boolean
-        local function can_save()
-            return empty(vim.bo.buftype)
-                and not empty(vim.bo.filetype)
-                and vim.bo.modifiable
-                and not vim.tbl_contains(save_excluded, vim.bo.filetype)
+---@param bufnr integer
+local function can_save(bufnr)
+    local buftype = vim.api.nvim_get_option_value("buftype", { buf = bufnr })
+    local filetype = vim.api.nvim_get_option_value("filetype", { buf = bufnr })
+    local modifiable = vim.api.nvim_get_option_value("modifiable", { buf = bufnr })
+
+    return empty(buftype)
+        and not empty(filetype)
+        and modifiable
+        and not vim.tbl_contains(autosave_excluded, filetype)
+        and vim.uv.fs_stat(vim.api.nvim_buf_get_name(bufnr)) ~= nil
+end
+
+---@param bufnr integer
+local function save_buffer(bufnr)
+    if not vim.api.nvim_buf_is_valid(bufnr) or not vim.api.nvim_buf_is_loaded(bufnr) then
+        return
+    end
+    if not can_save(bufnr) then return end
+
+    vim.cmd(("checktime %d"):format(bufnr))
+    vim.api.nvim_buf_call(bufnr, function() vim.cmd.update() end)
+end
+
+vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+    group = autosave_group,
+    desc = "Save changed buffers after a short idle period",
+    callback = function(ev)
+        local bufnr = ev.buf
+        local pending = autosave_timers[bufnr]
+        if not pending then
+            local timer = assert(vim.uv.new_timer())
+            pending = { timer = timer, generation = 0 }
+            autosave_timers[bufnr] = pending
         end
 
-        -- Prevent save on non existing files, files needs to be
-        -- created with intent before we go into autosave mode.
-        if vim.uv.fs_stat(vim.api.nvim_buf_get_name(0)) == nil then return end
+        pending.generation = pending.generation + 1
+        local generation = pending.generation
+        pending.timer:stop()
+        pending.timer:start(
+            autosave_delay,
+            0,
+            vim.schedule_wrap(function()
+                if autosave_timers[bufnr] ~= pending or pending.generation ~= generation then
+                    return
+                end
 
-        if can_save() then
-            -- vim.cmd("silent! update")
-            vim.api.nvim_buf_call(0, function() vim.cmd("silent! write") end)
-        end
+                autosave_timers[bufnr] = nil
+                pending.timer:close()
+                save_buffer(bufnr)
+            end)
+        )
+    end,
+})
+
+vim.api.nvim_create_autocmd("BufWipeout", {
+    group = autosave_group,
+    desc = "Cancel pending autosave for destroyed buffers",
+    callback = function(ev)
+        local pending = autosave_timers[ev.buf]
+        if not pending then return end
+
+        autosave_timers[ev.buf] = nil
+        pending.timer:stop()
+        pending.timer:close()
     end,
 })
 
