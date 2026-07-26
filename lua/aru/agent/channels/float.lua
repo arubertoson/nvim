@@ -29,6 +29,7 @@ local process = require("aru.agent.process")
 ---@field user_scrolled boolean
 ---@field title_label string
 ---@field stream_id integer
+---@field layout aru.agent.config.FloatLayout
 
 local markview_autocmds_ready = false
 
@@ -45,11 +46,12 @@ local _stream_id = 0
 local _state = nil
 
 ---@param name "before_open"|"after_close"
-local function run_lifecycle_hook(name)
+---@param layout aru.agent.config.FloatLayout
+local function run_lifecycle_hook(name, layout)
     local hook = config.get().float[name]
     if not hook then return end
 
-    local ok, err = pcall(hook)
+    local ok, err = pcall(hook, layout)
     if not ok then logger:error("float %s hook failed: %s", name, err) end
 end
 
@@ -94,7 +96,7 @@ local function close_float()
     stop_spinner(state)
     pcall(vim.api.nvim_del_augroup_by_id, state.augroup)
     ui.close_win_buf(state.win, state.buf)
-    run_lifecycle_hook("after_close")
+    run_lifecycle_hook("after_close", state.layout)
 end
 
 local function max_height()
@@ -105,11 +107,10 @@ local function max_height()
 end
 
 ---@param buf integer
-local function estimated_rows(buf)
+local function estimated_rows(buf, width)
     local rows = 0
     for _, line in ipairs(vim.api.nvim_buf_get_lines(buf, 0, -1, false)) do
-        rows = rows
-            + math.max(1, math.ceil(vim.fn.strdisplaywidth(line) / constants.UI.READ_FLOAT.WIDTH))
+        rows = rows + math.max(1, math.ceil(vim.fn.strdisplaywidth(line) / width))
     end
     return math.max(1, rows)
 end
@@ -124,7 +125,7 @@ local function content_rows(state)
         end
     end
 
-    return estimated_rows(state.buf)
+    return estimated_rows(state.buf, state.layout.width)
 end
 
 ---@param state aru.agent.channels.float.State
@@ -313,26 +314,33 @@ local function create_float_window(lines, opts)
         lines = lines,
     })
 
-    local layout = constants.UI.READ_FLOAT
-    local col = math.max(0, vim.o.columns - layout.WIDTH - layout.RIGHT_MARGIN)
-    local height = math.min(estimated_rows(buf), max_height())
+    local ui_layout = constants.UI.READ_FLOAT
+    local float_opts = config.get().float
+    local width =
+        math.min(float_opts.width, math.max(1, vim.o.columns - ui_layout.SIDE_MARGIN * 2))
+    local col = ui_layout.SIDE_MARGIN
+    if float_opts.side == "right" then
+        col = math.max(0, vim.o.columns - width - ui_layout.SIDE_MARGIN)
+    end
+    local layout = { side = float_opts.side, width = width }
+    local height = math.min(estimated_rows(buf, width), max_height())
     local custom = require("aru.custom")
 
-    run_lifecycle_hook("before_open")
+    run_lifecycle_hook("before_open", layout)
     local ok, win = pcall(vim.api.nvim_open_win, buf, false, {
         relative = "editor",
-        row = layout.ROW,
+        row = ui_layout.ROW,
         col = col,
-        width = layout.WIDTH,
+        width = width,
         height = math.max(1, height),
         style = constants.UI.STYLE_MINIMAL,
         border = custom.border or constants.UI.BORDER_ROUNDED,
         title = (" %s "):format(opts.runtime_label or "agent"),
         title_pos = constants.UI.TITLE_POS_LEFT,
-        zindex = layout.ZINDEX,
+        zindex = ui_layout.ZINDEX,
     })
     if not ok then
-        run_lifecycle_hook("after_close")
+        run_lifecycle_hook("after_close", layout)
         pcall(vim.api.nvim_buf_delete, buf, { force = true })
         error(win)
     end
@@ -361,6 +369,7 @@ local function create_float_window(lines, opts)
         user_scrolled = false,
         title_label = opts.runtime_label or "agent",
         stream_id = 0,
+        layout = layout,
     }
     progress.init(state)
     _state = state
@@ -372,7 +381,7 @@ local function create_float_window(lines, opts)
             _state = nil
             stop_spinner(state)
             pcall(vim.api.nvim_del_augroup_by_id, state.augroup)
-            run_lifecycle_hook("after_close")
+            run_lifecycle_hook("after_close", state.layout)
         end,
     })
     install_keymaps(state)
@@ -442,7 +451,7 @@ function M.send(transport, _ctx)
     _stream_id = _stream_id + 1
     local stream_id = _stream_id
 
-    logger:info("float channel send (page %d):\n%s", _page_index, transport.message)
+    logger:debug("float channel send (page %d):\n%s", _page_index, transport.message)
 
     local state = show_page(_page_index, { streaming = true })
     if not state then return false end

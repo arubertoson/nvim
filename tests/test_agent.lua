@@ -263,6 +263,38 @@ end
 
 T["float"] = MiniTest.new_set()
 
+T["float"]["side and width configure window geometry"] = function()
+    local opened_layout
+    require("aru.agent.config").setup({
+        float = {
+            side = "left",
+            width = 72,
+            before_open = function(layout) opened_layout = layout end,
+        },
+    })
+
+    local float = require("aru.agent.channels.float")
+    float.send({
+        message = "question",
+        label = "test",
+        run = function() end,
+    }, {})
+
+    local float_config
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+        local win_config = vim.api.nvim_win_get_config(win)
+        if win_config.relative == "editor" then
+            float_config = win_config
+            break
+        end
+    end
+
+    MiniTest.expect.equality(opened_layout, { side = "left", width = 72 })
+    MiniTest.expect.equality(float_config.width, 72)
+    MiniTest.expect.equality(float_config.col, 3)
+    float.close()
+end
+
 T["float"]["lifecycle hooks run once per visibility transition"] = function()
     local before_open = 0
     local after_close = 0

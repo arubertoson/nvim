@@ -39,7 +39,17 @@ Inside the prompt:
 
 ## Read
 
-Read streams the response into an upper-right Float without moving focus.
+Read streams the response into a side-anchored Float without moving focus. Its
+side and width are configurable:
+
+```lua
+require("aru.agent").setup({
+    float = {
+        side = "right", -- "left" or "right"
+        width = 80,
+    },
+})
+```
 
 - The first request starts a saved session.
 - Later requests automatically continue it while Neovim remembers a successful
@@ -58,9 +68,10 @@ Float controls:
 | `q` / `<Esc>` | Close while focused |
 
 Float visibility has `before_open` and `after_close` lifecycle hooks. They run
-once per hidden/visible transition, not for page changes. The local
-no-neck-pain integration uses them to expand the center window while the Float
-is visible and restore its previous width afterward.
+once per hidden/visible transition, not for page changes, and receive the
+resolved `{ side, width }` layout. The local no-neck-pain integration uses them
+to expand the center window while the Float is visible and restore its previous
+width afterward.
 
 ## Generate
 

@@ -24,13 +24,16 @@ local function is_enabled()
     return _G.NoNeckPain and _G.NoNeckPain.state and _G.NoNeckPain.state.enabled
 end
 
-local function expand_for_agent_float()
+---@param layout aru.agent.config.FloatLayout
+local function expand_for_agent_float(layout)
     if saved_agent_width or not is_enabled() then return end
 
     saved_agent_width = _G.NoNeckPain.config.width
-    local float_layout = agent_constants.UI.READ_FLOAT
+    local side_margin = agent_constants.UI.READ_FLOAT.SIDE_MARGIN
     local border_columns = 2
-    nnp.resize(saved_agent_width + float_layout.WIDTH + float_layout.RIGHT_MARGIN + border_columns)
+    local float_space = layout.width + side_margin + border_columns
+    local target_width = math.max(1, vim.o.columns - float_space * 2)
+    nnp.resize(target_width)
 end
 
 local function restore_after_agent_float()
@@ -41,10 +44,15 @@ local function restore_after_agent_float()
     if is_enabled() then nnp.resize(width) end
 end
 
-local function is_layout_buffer()
-    return vim.api.nvim_win_get_config(0).relative == ""
-        and vim.bo.buftype == ""
-        and vim.bo.filetype ~= "no-neck-pain"
+---@param buf integer
+---@return integer|nil
+local function layout_window(buf)
+    if not vim.api.nvim_buf_is_valid(buf) then return nil end
+    if vim.bo[buf].buftype ~= "" or vim.bo[buf].filetype == "no-neck-pain" then return nil end
+
+    for _, win in ipairs(vim.fn.win_findbuf(buf)) do
+        if vim.api.nvim_win_get_config(win).relative == "" then return win end
+    end
 end
 
 local function set_separator_highlight(win, value)
@@ -65,12 +73,15 @@ local function restore_separators()
     saved_winhighlight = {}
 end
 
-local function apply_layout_for_filetype()
-    if not is_enabled() or not is_layout_buffer() then return end
+---@param buf integer
+local function apply_layout_for_filetype(buf)
+    if saved_agent_width or not is_enabled() then return end
+    local win = layout_window(buf)
+    if not win then return end
 
-    hide_separator()
+    hide_separator(win)
 
-    local is_markdown = vim.bo.filetype == "markdown"
+    local is_markdown = vim.bo[buf].filetype == "markdown"
     local target_width = is_markdown and markdown_width or default_width
     local right_enabled = _G.NoNeckPain.config.buffers.right.enabled
 
@@ -110,22 +121,28 @@ nnp.setup({
 
 vim.api.nvim_create_autocmd({ "BufEnter", "FileType" }, {
     group = vim.api.nvim_create_augroup("AruNoNeckPainFiletypeLayout", { clear = true }),
-    callback = function() vim.defer_fn(apply_layout_for_filetype, 50) end,
+    callback = function(args)
+        if not layout_window(args.buf) then return end
+        vim.defer_fn(function() apply_layout_for_filetype(args.buf) end, 50)
+    end,
 })
 
 -- For the first run we just want to apply the layout
 vim.defer_fn(function()
     nnp.enable()
-    apply_layout_for_filetype()
+    apply_layout_for_filetype(vim.api.nvim_get_current_buf())
 end, 0)
 
 vim.keymap.set("n", "<leader>wo", function()
     nnp.toggle()
-    vim.defer_fn(apply_layout_for_filetype, 50)
+    local buf = vim.api.nvim_get_current_buf()
+    vim.defer_fn(function() apply_layout_for_filetype(buf) end, 50)
 end, { desc = "Toggle no-neck-pain" })
 
 require("aru.agent").setup({
     float = {
+        side = "left",
+        width = 80,
         before_open = expand_for_agent_float,
         after_close = restore_after_agent_float,
     },
