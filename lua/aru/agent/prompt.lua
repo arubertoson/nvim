@@ -16,12 +16,11 @@ local ui = require("aru.agent.ui")
 ---@field send fun(request: aru.agent.Request): boolean
 
 local PROMPT_LAYOUT = constants.UI.PROMPT
+local PROMPT_MIN_ROWS = PROMPT_LAYOUT.MIN_ROWS
 local PROMPT_MAX_ROWS = PROMPT_LAYOUT.MAX_ROWS
-local PROMPT_WIDTH = PROMPT_LAYOUT.WIDTH
 local PROMPT_LEFT_PADDING = PROMPT_LAYOUT.LEFT_PADDING
-local PROMPT_TEXT_WIDTH = PROMPT_WIDTH - PROMPT_LEFT_PADDING
 local PLACEHOLDER_TEXT = "<user types here>"
-local PROMPT_NEWLINE_KEY = "<C-j>"
+local PROMPT_NEWLINE_KEY = "<M-CR>"
 local PROMPT_CLOSE_KEY = "<Esc>"
 
 local BLOCK_COLLECT = { collect.COLLECT.BLOCK }
@@ -31,74 +30,50 @@ local BLOCK_COLLECT = { collect.COLLECT.BLOCK }
 ---@field win integer
 ---@field footer_ns integer
 ---@field augroup integer
----@field anchor_row integer
----@field anchor_col integer
 ---@field send fun(request: aru.agent.Request): boolean
 
 ---@type aru.agent.prompt.State|nil
 local _prompt_state = nil
 
----@return string[]
-local function footer_lines()
+---@return string
+local function footer_line()
     if session.can_continue() then
-        return {
-            "[CR] continue   [^CR] new session",
-            "[^G] generate    [^P] session",
-        }
+        return "[CR] continue   [^CR] new session   [^G] generate   [^P] session"
     end
 
-    return {
-        "[CR] read        [^G] generate",
-        "[^P] session",
-    }
+    return "[CR] read   [^G] generate   [^P] session"
 end
 
----@return integer
-local function footer_decoration_rows() return #footer_lines() + 1 end
+local function prompt_width()
+    return math.min(PROMPT_LAYOUT.WIDTH, vim.o.columns - PROMPT_LAYOUT.BORDER_ROWS)
+end
 
 ---@param buf integer
-local function prompt_content_rows(buf)
+---@param width integer
+local function prompt_content_rows(buf, width)
+    local text_width = width - PROMPT_LEFT_PADDING
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
     local rows = 0
     for _, line in ipairs(lines) do
-        local width = vim.fn.strdisplaywidth(line)
-        rows = rows + math.max(1, math.ceil((width + 1) / PROMPT_TEXT_WIDTH))
+        local line_width = vim.fn.strdisplaywidth(line)
+        rows = rows + math.max(1, math.ceil((line_width + 1) / text_width))
     end
     return math.max(1, math.min(rows, PROMPT_MAX_ROWS))
 end
 
-local function prompt_anchor()
-    local decoration_rows = footer_decoration_rows()
-    local float_h = PROMPT_MAX_ROWS + decoration_rows + PROMPT_LAYOUT.BORDER_ROWS
-    local screen_row = vim.fn.screenrow()
-    local screen_lines = vim.o.lines - vim.o.cmdheight
-    local row
-    if screen_row + float_h + PROMPT_LAYOUT.BELOW_CURSOR_MARGIN <= screen_lines then
-        row = screen_row
-    else
-        row = screen_row - float_h - PROMPT_LAYOUT.ABOVE_CURSOR_MARGIN
-    end
-    row = math.max(0, row)
-
-    local screen_col = vim.fn.screencol() - 1
-    local col = math.min(screen_col, vim.o.columns - PROMPT_WIDTH - PROMPT_LAYOUT.RIGHT_MARGIN)
-    col = math.max(0, col)
-
-    return row, col
-end
-
 ---@param buf integer
----@param anchor_row integer
----@param anchor_col integer
-local function prompt_win_config(buf, anchor_row, anchor_col)
+local function prompt_win_config(buf)
     local custom = require("aru.custom")
-    local rows = prompt_content_rows(buf)
+    local width = prompt_width()
+    local content_rows = prompt_content_rows(buf, width)
+    local height = math.max(PROMPT_MIN_ROWS, content_rows) + 2
+    local available_lines = vim.o.lines - vim.o.cmdheight
     return {
         relative = "editor",
-        row = anchor_row,
-        col = anchor_col,
-        width = PROMPT_WIDTH,
-        height = rows + footer_decoration_rows(),
+        row = math.max(0, math.floor((available_lines - height - PROMPT_LAYOUT.BORDER_ROWS) / 2)),
+        col = math.max(0, math.floor((vim.o.columns - width - PROMPT_LAYOUT.BORDER_ROWS) / 2)),
+        width = width,
+        height = height,
         style = constants.UI.STYLE_MINIMAL,
         border = custom.border or constants.UI.BORDER_ROUNDED,
         title = " prompt ",
@@ -115,14 +90,19 @@ local function render_footer(state)
     local first_line = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] or ""
     local show_placeholder = total == 1 and first_line == ""
 
-    local lines = footer_lines()
-    local virt_lines = { { { "", "Normal" } } }
-    for i, line in ipairs(lines) do
-        local padding = math.max(0, PROMPT_TEXT_WIDTH - vim.fn.strdisplaywidth(line))
-        virt_lines[#virt_lines + 1] = {
-            { string.rep(" ", padding) .. line, constants.UI.HIGHLIGHT_COMMENT },
-        }
+    local width = prompt_width()
+    local content_rows = prompt_content_rows(buf, width)
+    local virt_lines = {}
+    local spacer_rows = math.max(1, PROMPT_MIN_ROWS - content_rows + 1)
+    for _ = 1, spacer_rows do
+        virt_lines[#virt_lines + 1] = { { "", "Normal" } }
     end
+
+    local line = footer_line()
+    local padding = math.max(0, width - PROMPT_LEFT_PADDING - vim.fn.strdisplaywidth(line))
+    virt_lines[#virt_lines + 1] = {
+        { string.rep(" ", padding) .. line, constants.UI.HIGHLIGHT_COMMENT },
+    }
 
     local opts = {
         virt_lines = virt_lines,
@@ -141,7 +121,7 @@ end
 ---@param state aru.agent.prompt.State
 local function resize_prompt(state)
     if not vim.api.nvim_win_is_valid(state.win) then return end
-    local cfg = prompt_win_config(state.buf, state.anchor_row, state.anchor_col)
+    local cfg = prompt_win_config(state.buf)
     vim.api.nvim_win_set_config(state.win, cfg)
     render_footer(state)
 end
@@ -229,8 +209,7 @@ function M.open(deps)
         lines = { "" },
     })
 
-    local anchor_row, anchor_col = prompt_anchor()
-    local win = vim.api.nvim_open_win(buf, true, prompt_win_config(buf, anchor_row, anchor_col))
+    local win = vim.api.nvim_open_win(buf, true, prompt_win_config(buf))
     ui.apply_win_options(win, {
         wrap = true,
         linebreak = true,
@@ -250,8 +229,6 @@ function M.open(deps)
         win = win,
         footer_ns = footer_ns,
         augroup = augroup,
-        anchor_row = anchor_row,
-        anchor_col = anchor_col,
         send = deps.send,
     }
     _prompt_state = state
@@ -273,6 +250,8 @@ function M.open(deps)
     local map_opts = { buffer = buf, silent = true, nowait = true }
     vim.keymap.set({ "n", "i" }, "<CR>", submit_float_read, map_opts)
     vim.keymap.set({ "n", "i" }, "<C-CR>", submit_float_new_session, map_opts)
+    -- Many terminals encode Ctrl-Enter as Ctrl-J instead of a distinct key.
+    vim.keymap.set({ "n", "i" }, "<C-j>", submit_float_new_session, map_opts)
     vim.keymap.set(
         { "n", "i" },
         "<C-g>",

@@ -379,6 +379,7 @@ map(
 --   <C-CR>  = new session   — float response, always starts fresh session
 --   <C-g>   = generate      — replace selection or insert at cursor, then select result
 --   <C-p>   = session       — send to the active Pi pane
+--   <M-CR>  = newline
 
 map({ "n", "x" }, "<leader>p", function()
     -- Exit visual mode first so getpos("'<") / getpos("'>") are set correctly.

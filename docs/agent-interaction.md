@@ -34,7 +34,7 @@ Inside the prompt:
 | `<C-CR>` | Read in a fresh session |
 | `<C-g>` | Generate code in the Editor |
 | `<C-p>` | Send to the active tmux agent session |
-| `<C-j>` | Insert a prompt newline |
+| `<M-CR>` | Insert a prompt newline |
 | `<Esc>` | Cancel |
 
 ## Read

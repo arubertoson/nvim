@@ -47,14 +47,11 @@ M.UI = {
         ZINDEX = 49,
     },
     PROMPT = {
-        MAX_ROWS = 10,
-        WIDTH = 58,
+        MIN_ROWS = 8,
+        MAX_ROWS = 20,
+        WIDTH = 100,
         LEFT_PADDING = 1,
-        DECORATION_ROWS = 2,
         BORDER_ROWS = 2,
-        BELOW_CURSOR_MARGIN = 1,
-        ABOVE_CURSOR_MARGIN = 2,
-        RIGHT_MARGIN = 4,
         ZINDEX = 50,
     },
 }
