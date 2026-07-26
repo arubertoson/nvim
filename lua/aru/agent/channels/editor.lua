@@ -1,6 +1,6 @@
 ---@module "aru.agent.channels.editor"
 ---Collects streamed agent output for code generation and applies the completed
----answer at the original cursor or selection. This channel owns inline progress,
+---answer at the original cursor or selection. This channel owns generation progress,
 ---JSON event processing, final buffer replacement, and result selection.
 
 local M = {}
@@ -31,38 +31,46 @@ Output raw code only.]]
 ---@field end_row integer
 ---@field end_col integer
 ---@field ns integer
----@field ghost_id integer|nil
+---@field progress_id integer|nil
 ---@field answer { lines: string[], pending: string }
 
 ---@type aru.agent.channels.editor.State|nil
 local _state = nil
 
 ---@param state aru.agent.channels.editor.State
-local function clear_ghost(state)
-    if state.ghost_id then
-        pcall(vim.api.nvim_buf_del_extmark, state.buf, state.ns, state.ghost_id)
-        state.ghost_id = nil
+local function clear_progress(state)
+    if state.progress_id then
+        pcall(vim.api.nvim_buf_del_extmark, state.buf, state.ns, state.progress_id)
+        state.progress_id = nil
     end
 end
 
 ---@param state aru.agent.channels.editor.State
-local function refresh_ghost(state)
-    clear_ghost(state)
+local function refresh_progress(state)
     if not vim.api.nvim_buf_is_valid(state.buf) then return end
+
     local text = " " .. progress.frame(state) .. " " .. state.phrase
-    state.ghost_id =
-        vim.api.nvim_buf_set_extmark(state.buf, state.ns, state.start_row, state.start_col, {
-            virt_text = { { text, constants.UI.HIGHLIGHT_COMMENT } },
-            virt_text_pos = "inline",
-            hl_mode = "combine",
-        })
+    local opts = {
+        id = state.progress_id,
+        virt_lines = { { { text, constants.UI.HIGHLIGHT_COMMENT } } },
+        virt_lines_above = true,
+        priority = 200,
+    }
+    if state.start_row ~= state.end_row or state.start_col ~= state.end_col then
+        opts.end_row = state.end_row
+        opts.end_col = state.end_col
+        opts.hl_group = "Visual"
+    end
+
+    state.progress_id =
+        vim.api.nvim_buf_set_extmark(state.buf, state.ns, state.start_row, state.start_col, opts)
 end
 
 ---@param state aru.agent.channels.editor.State
 local function start_spinner(state)
     progress.start(state, {
         is_current = function() return _state == state end,
-        refresh = function() refresh_ghost(state) end,
+        refresh = function() refresh_progress(state) end,
     })
 end
 
@@ -72,7 +80,7 @@ local function stop_spinner(state) progress.stop(state) end
 local function cancel_active()
     if not _state then return end
     stop_spinner(_state)
-    clear_ghost(_state)
+    clear_progress(_state)
     _state = nil
 end
 
@@ -102,7 +110,7 @@ end
 
 ---@param state aru.agent.channels.editor.State
 local function insert_answer(state)
-    clear_ghost(state)
+    clear_progress(state)
     if not vim.api.nvim_buf_is_valid(state.buf) then return end
 
     local answer_lines = lines.flush(state.answer)
@@ -144,7 +152,7 @@ function M.send(transport, ctx)
         end_row = end_row,
         end_col = end_col,
         ns = vim.api.nvim_create_namespace(constants.NAMESPACE.EDITOR),
-        ghost_id = nil,
+        progress_id = nil,
         answer = { lines = {}, pending = "" },
     }
     progress.init(state)
@@ -155,14 +163,14 @@ function M.send(transport, ctx)
         or system_prompt .. "\n\nUser request: " .. transport.message
     logger:info("editor channel send row=%d col=%d:\n%s", start_row, start_col, stdin)
 
-    refresh_ghost(state)
+    refresh_progress(state)
     start_spinner(state)
 
     transport.run(stdin, function(event)
         if _state ~= state then return end
         stream.dispatch(event, {
             on_thinking = function()
-                if progress.update_phrase(state) then refresh_ghost(state) end
+                if progress.update_phrase(state) then refresh_progress(state) end
             end,
             on_text = function(delta) lines.push(state.answer, delta) end,
         })
@@ -177,7 +185,7 @@ function M.send(transport, ctx)
                 result.code,
                 process.stderr_summary(result)
             )
-            clear_ghost(state)
+            clear_progress(state)
             return
         end
 

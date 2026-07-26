@@ -217,6 +217,39 @@ T["generate"]["visual mode replaces and selects the captured range"] = function(
     MiniTest.expect.equality(vim.fn.getpos("'>")[3], 9)
 end
 
+T["generate"]["progress uses a separate virtual line and highlights the target"] = function()
+    local buf = vim.api.nvim_get_current_buf()
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "local old = true" })
+
+    local selection = {
+        mode = "v",
+        start_row = 0,
+        start_col = 6,
+        end_row = 0,
+        end_col = 9,
+    }
+    local finish
+    local transport = {
+        message = "replace it",
+        label = "test",
+        run = function(_, _, on_exit) finish = on_exit end,
+    }
+
+    require("aru.agent.channels.editor").send(transport, {
+        state = current_invocation(selection),
+    })
+
+    local marks = vim.api.nvim_buf_get_extmarks(buf, -1, 0, -1, { details = true })
+    MiniTest.expect.equality(#marks, 1)
+    MiniTest.expect.equality(marks[1][4].virt_text, nil)
+    MiniTest.expect.equality(marks[1][4].virt_lines ~= nil, true)
+    MiniTest.expect.equality(marks[1][4].hl_group, "Visual")
+    MiniTest.expect.equality({ marks[1][4].end_row, marks[1][4].end_col }, { 0, 9 })
+
+    finish({ code = 0, stderr = "" })
+    MiniTest.expect.equality(#vim.api.nvim_buf_get_extmarks(buf, -1, 0, -1, {}), 0)
+end
+
 T["generate"]["one-shot generation preserves read continuation"] = function()
     local runtime = require("aru.agent.runtime")
     local session = require("aru.agent.session")
