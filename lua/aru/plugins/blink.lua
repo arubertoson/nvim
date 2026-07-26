@@ -2,6 +2,7 @@ local custom = require("aru.custom")
 local blink = require("blink.cmp")
 
 blink.setup({
+    enabled = function() return not require("aru.buf").is_plugin_ui(0) end,
     fuzzy = { implementation = "prefer_rust_with_warning" },
     appearance = { kind_icons = custom.icons.kind },
 

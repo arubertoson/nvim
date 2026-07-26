@@ -7,11 +7,15 @@ local supermaven_preview = require("supermaven-nvim.completion_preview")
 supermaven.setup({
     disable_keymaps = true,
     condition = function()
+        if require("aru.buf").is_plugin_ui(0) then return true end
+
         local name = vim.api.nvim_buf_get_name(0)
         if name:match("%.env$") then
             log.info("env file so skipping inlay completion")
             return true
         end
+
+        return false
     end,
 })
 
