@@ -88,7 +88,7 @@ vim.pack.add({
     -- the generic searchable picker layer for LSP, diagnostics, and vim.ui.select
     -- flows such as code actions.
     --
-    { src = "https://github.com/dmtrKovalenko/fff.nvim", version = vim.version.range("0.9.4") },
+    { src = "https://github.com/dmtrKovalenko/fff.nvim", version = "v0.9.6" },
 
     -- ===========================================================================
     -- Uncategorized
