@@ -40,6 +40,7 @@ conform.setup({
         markdown = { "prettier" },
         yaml = { "prettier" },
         python = { "ruff" },
+        rust = { "rustfmt" },
         zig = { "zigfmt" },
         ["*"] = { "trim_whitespace" },
     },
