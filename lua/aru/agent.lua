@@ -146,7 +146,7 @@ local function send(request, state)
         label = vim.fn.fnamemodify(cfg.executable, ":t"),
         cwd = state.cwd,
         run = function(stdin, on_event, on_exit)
-            pcall(vim.fn.mkdir, cfg.session_dir, "p")
+            vim.fs.mkdir(cfg.session_dir, { parents = true })
             local cmd = runtime.command(ctx, request, session_policy)
             process.json({
                 executable = cmd[1],

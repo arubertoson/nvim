@@ -72,7 +72,7 @@ local function commit()
     M._store[scope.root] = M._store[scope.root] or {}
     M._store[scope.root][scope.branch] = rels
 
-    vim.fn.mkdir(vim.fs.dirname(M.config.storage_path), "p")
+    vim.fs.mkdir(vim.fs.dirname(M.config.storage_path), { parents = true })
 
     local ok, encoded = pcall(vim.json.encode, M._store)
     if not ok then

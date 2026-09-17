@@ -31,9 +31,8 @@ vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter" }, {
             return
         end
 
-        local winid = vim.api.nvim_get_current_win()
-        vim.wo[winid].foldexpr = "v:lua.vim.treesitter.foldexpr()"
-        vim.bo[ev.buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+        vim.wo[ev.win].foldexpr = vim.treesitter.foldexpr
+        vim.bo[ev.buf].indentexpr = require("nvim-treesitter").indentexpr
     end,
 })
 
@@ -88,23 +87,6 @@ vim.api.nvim_create_autocmd("FileType", {
     desc = "Set a local <q> mapping to close the buffer, these buffers are temporary.",
     pattern = require("aru.quick_close").filetypes,
     callback = function(ev) require("aru.quick_close").map_buffer(ev.buf) end,
-})
-
-local reload_group =
-    vim.api.nvim_create_augroup("aru_ensure_buffer_is_reloaded_if_updated", { clear = true })
-
-vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold", "CursorHoldI" }, {
-    group = reload_group,
-    desc = "Check whether open files were changed outside Neovim",
-    callback = function()
-        if vim.fn.getcmdwintype() == "" then vim.cmd.checktime() end
-    end,
-})
-
-vim.api.nvim_create_autocmd("FileChangedShell", {
-    group = reload_group,
-    desc = "Reload files changed outside Neovim without prompting",
-    callback = function() vim.v.fcs_choice = "reload" end,
 })
 
 ---Determine if a value of any type is empty
