@@ -58,7 +58,11 @@ local function has_unclosed_double_quote_before_cursor()
 end
 
 vim.keymap.set("i", '"', function()
-    if has_unclosed_double_quote_before_cursor() then return '"' end
+    local line = vim.api.nvim_get_current_line()
+    local col = vim.api.nvim_win_get_cursor(0)[2]
+    if line:sub(col + 1, col + 1) ~= '"' and has_unclosed_double_quote_before_cursor() then
+        return '"'
+    end
     return pairs.closeopen('""', "[^\\].")
 end, { expr = true, replace_keycodes = false, desc = "Insert or close double quote" })
 
