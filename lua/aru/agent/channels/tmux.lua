@@ -3,13 +3,13 @@
 
 local M = {}
 
-local log = require("aru.log"):bind("agent.channels.tmux")
+local log = require("aru.log")
 local constants = require("aru.agent.constants")
 
 local function system_sync(cmd)
     local result = vim.system(cmd, { text = true }):wait()
     if result.code ~= 0 then
-        log:error("tmux command failed: %s", vim.inspect(cmd))
+        log.error("Tmux command failed", vim.inspect(cmd))
         return nil
     end
     return result
@@ -69,19 +69,19 @@ local function find_target(config)
     local window_name = config.target_window_name or "agent"
     local window_id = find_window_id(session, window_name)
     if not window_id then
-        log:warn("No tmux window named %q in current session", window_name)
+        log.warn("No tmux window in current session", window_name)
         return nil
     end
 
     local pane_id, pane_cmd = active_pane_in_window(window_id)
     if not pane_id then
-        log:warn("No active pane in tmux window %q", window_name)
+        log.warn("No active pane in tmux window", window_name)
         return nil
     end
 
     local expected = vim.fn.fnamemodify(config.executable or "", ":t")
     if pane_cmd ~= expected then
-        log:error("Pane running %q, expected %q", pane_cmd, expected)
+        log.error("Tmux pane has unexpected command", pane_cmd, expected)
         return nil
     end
 
@@ -92,7 +92,7 @@ local function write_temp(text)
     local path = vim.fn.tempname()
     local ok, err = pcall(vim.fn.writefile, vim.split(text, "\n", { plain = true }), path)
     if not ok then
-        log:error("Failed to write temp file: %s", err)
+        log.error("Failed to write temporary file", err)
         return nil
     end
     return path

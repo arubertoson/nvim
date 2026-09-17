@@ -426,15 +426,6 @@ map(
     { desc = "Pi: scroll float up" }
 )
 
--- ============================================================================
--- Logging & Development
--- ============================================================================
-map("n", "<localleader>li", function()
-    local path = vim.fs.joinpath(vim.fn.stdpath("cache"), "nvim-config.log")
-    vim.cmd.edit(vim.fn.fnameescape(path))
-    vim.bo.buflisted = false
-end, { desc = "Inspect default log" })
-
 -- Lua REPL (ftplugin/lua.lua - only in lua files):
 -- <leader>rr = run current buffer
 -- <leader>rl = run current line

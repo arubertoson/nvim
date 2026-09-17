@@ -148,9 +148,9 @@ function M.prune()
             if ok then
                 loaded_count = loaded_count - 1
                 remove_from_mru(entry.path)
-                log:debug("buffer_cache: pruned %s", entry.path)
+                log.debug("Pruned buffer cache entry", entry.path)
             else
-                log:debug("buffer_cache: failed to prune %s: %s", entry.path, err)
+                log.debug("Failed to prune buffer cache entry", entry.path, err)
             end
         end
     end

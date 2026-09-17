@@ -119,5 +119,5 @@ vim.api.nvim_create_autocmd("ColorScheme", {
     callback = set_spell_underlines,
 })
 
-log:debug("Activating theme: " .. theme)
+log.debug("Activating theme: " .. theme)
 vim.cmd.colorscheme(theme)

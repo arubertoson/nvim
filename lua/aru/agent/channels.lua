@@ -4,7 +4,7 @@
 
 local M = {}
 
-local log = require("aru.log"):bind("channels")
+local log = require("aru.log")
 
 ---@enum aru.agent.channels.Destination
 M.DESTINATION = {
@@ -34,7 +34,7 @@ local CHANNELS = {
 function M.get(destination)
     local load = CHANNELS[destination]
     if not load then
-        log:error("Unknown destination: %s", destination)
+        log.error("Unknown destination", destination)
         return nil
     end
 

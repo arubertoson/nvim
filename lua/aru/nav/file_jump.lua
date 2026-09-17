@@ -165,7 +165,7 @@ local function navigate_to(target_index)
     local entry = history.entries[target_index]
     local bufnr = ensure_loaded(entry.path)
     if not bufnr then
-        log:info("file_jump: cannot restore %s", entry.path)
+        log.info("Cannot restore file jump", entry.path)
         return false
     end
 
@@ -178,7 +178,7 @@ local function navigate_to(target_index)
     M._navigating = false
 
     if not ok then
-        log:warn("file_jump: failed to restore %s: %s", entry.path, err)
+        log.warn("Failed to restore file jump", entry.path, err)
         return false
     end
 

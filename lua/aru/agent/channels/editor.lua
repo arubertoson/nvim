@@ -5,7 +5,7 @@
 
 local M = {}
 
-local logger = require("aru.log"):bind("agent.channels.editor")
+local logger = require("aru.log")
 local constants = require("aru.agent.constants")
 local lines = require("aru.agent.lines")
 local progress = require("aru.agent.progress")
@@ -161,7 +161,7 @@ function M.send(transport, ctx)
     local system_prompt = selection and REPLACE_SYSTEM_PROMPT or INSERT_SYSTEM_PROMPT
     local stdin = transport.message == "" and system_prompt
         or system_prompt .. "\n\nUser request: " .. transport.message
-    logger:info("editor channel send row=%d col=%d:\n%s", start_row, start_col, stdin)
+    logger.info("Sending editor channel request", start_row, start_col, stdin)
 
     refresh_progress(state)
     start_spinner(state)
@@ -180,11 +180,9 @@ function M.send(transport, ctx)
         stop_spinner(state)
 
         if result.code ~= 0 then
-            logger:error(
-                "editor channel failed (%d): %s",
-                result.code,
-                process.stderr_summary(result)
-            )
+            local error_message = process.stderr_summary(result)
+            logger.error("Editor channel failed", result.code, error_message)
+            vim.notify("Editor channel failed: " .. error_message, vim.log.levels.ERROR)
             clear_progress(state)
             return
         end

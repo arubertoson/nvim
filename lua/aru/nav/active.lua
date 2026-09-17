@@ -76,7 +76,7 @@ local function commit()
 
     local ok, encoded = pcall(vim.json.encode, M._store)
     if not ok then
-        log:warn("active: failed to encode store: %s", encoded)
+        log.warn("Failed to encode active store", encoded)
         return
     end
 
@@ -97,7 +97,7 @@ local function refresh_scope()
             if ok and type(decoded) == "table" then
                 M._store = decoded
             else
-                log:warn("active: failed to read %s", path)
+                log.warn("Failed to read active store", path)
                 M._store = {}
             end
         end
@@ -127,7 +127,7 @@ local function refresh_scope()
         if #M._items >= M.config.max_files then break end
 
         if type(stored) ~= "string" then
-            log:warn("active: ignoring invalid stored path")
+            log.warn("active: ignoring invalid stored path")
         else
             local path = stored:sub(1, 1) == "/" and normalize(stored)
                 or normalize(vim.fs.joinpath(scope.root, stored))

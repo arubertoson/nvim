@@ -27,7 +27,7 @@ vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter" }, {
             local bufname = vim.api.nvim_buf_get_name(bufnr)
             local ft = vim.api.nvim_get_option_value("filetype", { buf = bufnr })
 
-            log:debug(("Treesitter failed to start: %s, %s"):format(bufname, ft))
+            log.debug("Treesitter failed to start", bufname, ft)
             return
         end
 

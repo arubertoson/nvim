@@ -258,16 +258,16 @@ reflect what is to be expected by different projects.
 
         if ev.event == "LspAttach" and client.name == "lua_ls" then
             if attached[client.id] then
-                log:debug("lang.lua: client %d:%s already patched; skip.", client.id, client.name)
+                log.debug("Lua language client already patched; skipping", client.id, client.name)
                 return
             end
-            log:debug("lang.lua: patching client %d:%s for buf %d", client.id, client.name, ev.buf)
+            log.debug("Patching Lua language client", client.id, client.name, ev.buf)
 
             attached[client.id] = true
 
             client.handlers["workspace/configuration"] = refresh_library_paths
         else
-            log:debug("lang.lua: detach from client %d:%s buf %d", client.id, client.name, ev.buf)
+            log.debug("Detaching Lua language client", client.id, client.name, ev.buf)
             attached[client.id] = nil
         end
 

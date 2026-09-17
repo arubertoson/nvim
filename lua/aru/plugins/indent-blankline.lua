@@ -2,11 +2,7 @@ local log = require("aru.log")
 
 local ok, ibl = pcall(require, "ibl")
 if not ok then
-    log:error(
-        ("Failed to load indent-blankline.nvim: %s, indent-blankline features will be disabled"):format(
-            ibl
-        )
-    )
+    log.error("Failed to load indent-blankline.nvim; its features are disabled", ibl)
     return
 end
 

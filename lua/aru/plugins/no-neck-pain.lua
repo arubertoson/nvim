@@ -7,9 +7,7 @@ local agent_constants = require("aru.agent.constants")
 
 local ok, nnp = pcall(require, "no-neck-pain")
 if not ok then
-    log:error(
-        ("Failed to load no-neck-pain: %s, no-neck-pain features will be disabled"):format(nnp)
-    )
+    log.error("Failed to load no-neck-pain; its features are disabled", nnp)
     return
 end
 

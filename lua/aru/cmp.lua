@@ -64,7 +64,7 @@ function M.tab_forward()
     local blink_ok, cmp = pcall(require, "blink.cmp")
 
     if not blink_ok then
-        vim.log.error("blink.cmp not found")
+        require("aru.log").error("blink.cmp not found")
         return false
     end
 
@@ -110,7 +110,7 @@ function M.smart_accept()
     if sup_ok then
         local inst = preview:get_inlay_instance()
         if not inst or not inst.completion_text or inst.completion_text == "" then return end
-        require("aru.log"):info("super maven triggered!")
+        require("aru.log").info("Supermaven triggered")
         preview.on_accept_suggestion(false)
         return
     end

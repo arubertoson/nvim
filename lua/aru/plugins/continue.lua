@@ -8,15 +8,11 @@ require("continue").setup({
         pre_save = function()
             local ok, nnp = pcall(require, "no-neck-pain")
             if not ok then
-                log:error(
-                    ("Failed to load no-neck-pain: %s, continue hook for no-neck-pain won't be ran."):format(
-                        nnp
-                    )
-                )
+                log.error("Failed to load no-neck-pain; continue hook is disabled", nnp)
                 return
             end
 
-            log:debug("Pre save hook for continue ran, disabling no-neck-pain.")
+            log.debug("Pre save hook for continue ran, disabling no-neck-pain.")
             require("no-neck-pain.main").disable()
         end,
     },

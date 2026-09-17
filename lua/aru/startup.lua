@@ -4,7 +4,7 @@
 ---
 --- Loads critical Lua modules synchronously, then staggers deferred modules
 --- one-by-one with a short delay. Deferred startup errors are collected and
---- reported once before runtime notifications are enabled.
+--- reported once when deferred loading completes.
 ---
 --- Features:
 --- - Synchronous file loading with error handling and timing
@@ -45,7 +45,7 @@ end
 local function load_file(path)
     local ok, modname = module_path(path)
     if not ok then
-        log:error(modname)
+        log.error(modname)
         return false, modname
     end
 
@@ -64,13 +64,13 @@ local function defer_load_file(path, defer_delay_ms)
     vim.defer_fn(function()
         local ok, errmsg = load_file(path)
         if not ok then
-            log:error(errmsg)
+            log.error(errmsg)
             table.insert(_errors, ("%s: %s"):format(path, errmsg))
         end
 
         local ok_resume, errmsg = coroutine.resume(co)
         if not ok_resume then
-            log:error(errmsg)
+            log.error(errmsg)
             table.insert(_errors, ("%s: %s"):format(path, errmsg))
         end
     end, defer_delay_ms)
@@ -94,7 +94,7 @@ function M.load_critical_paths(groups)
     for _, files in ipairs(groups) do
         for _, path in ipairs(files) do
             local _, elapsed = M.timeit_ms(function() must(path) end)
-            log:trace("loaded %s in %.3f ms", path, elapsed)
+            log.trace("Loaded startup module", path, elapsed)
         end
     end
 end
@@ -113,7 +113,7 @@ function M.load_deferred_paths(groups, defer_delay_ms, on_finish)
                 local _, elapsed = M.timeit_ms(
                     function() defer_load_file(path, defer_delay_ms) end
                 )
-                log:trace("loaded %s in %.3f ms", path, elapsed)
+                log.trace("Loaded startup module", path, elapsed)
             end
         end
 
@@ -121,7 +121,7 @@ function M.load_deferred_paths(groups, defer_delay_ms, on_finish)
             local ok, err = pcall(on_finish)
             if not ok then
                 local errmsg = ("deferred on_finish failed: %s"):format(err)
-                log:error(errmsg)
+                log.error(errmsg)
                 table.insert(_errors, errmsg)
             end
         end
@@ -136,24 +136,10 @@ local function flush_startup_errors()
     _errors = {}
 end
 
---- Attach user-facing notifications after startup loading is complete.
-local function attach_notify_sink()
-    local ok, err = pcall(
-        function()
-            require("aru.log"):add({
-                type = "notify",
-                level = vim.log.levels.INFO,
-            })
-        end
-    )
-    if not ok then vim.notify("log notify sink attach failed:\n" .. err, vim.log.levels.ERROR) end
-end
-
 M._test = {
     module_path = module_path,
     load_file = load_file,
     flush_startup_errors = flush_startup_errors,
-    attach_notify_sink = attach_notify_sink,
     errors = function() return _errors end,
     reset = function() _errors = {} end,
 }
@@ -172,27 +158,23 @@ function M.load(critical, deferred)
         -- These must load synchronously because I need them working immediately
         -- when the editor appears. The order matters for dependencies.
         local _, direct_load_time = M.timeit_ms(function() M.load_critical_paths(critical) end)
-        log:trace(string.format("Critical path load time: %.3f ms", direct_load_time))
+        log.trace(string.format("Critical path load time: %.3f ms", direct_load_time))
 
         -- Deferred loading - plugins
         --
         -- These load after 2ms delay to let UI render first. At this point order is
         -- not important, we just want everything... eventually.
         local _, defer_load_time = M.timeit_ms(function()
-            M.load_deferred_paths(deferred, 2, function()
-                -- Flush startup errors before enabling user-facing runtime logs.
-                flush_startup_errors()
-                attach_notify_sink()
-            end)
+            M.load_deferred_paths(deferred, 2, function() flush_startup_errors() end)
         end)
-        log:trace(string.format("Deferred load time: %.3f ms", defer_load_time))
+        log.trace(string.format("Deferred load time: %.3f ms", defer_load_time))
     end)
 
     -- Performance summary
     --
     -- Total synchronous time here excludes the deferred work itself; that runs
     -- later through scheduled callbacks.
-    log:trace(string.format("total load time: %.3f ms", total_time))
+    log.trace(string.format("total load time: %.3f ms", total_time))
 end
 
 return M

@@ -49,7 +49,7 @@
 
 local M = {}
 
-local log = require("aru.log"):bind("agent")
+local log = require("aru.log")
 
 local config = require("aru.agent.config")
 local payload = require("aru.agent.payload")
@@ -164,7 +164,7 @@ local function send(request, state)
 
     local channel = channels.get(request.destination)
     if not channel then
-        log:error("channel doesn't exist: %s", request.destination)
+        log.error("Channel does not exist", request.destination)
         return false
     end
 

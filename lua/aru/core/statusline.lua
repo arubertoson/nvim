@@ -44,12 +44,9 @@ Safe Patterns
       end,
     })
 
-  Logger safety (never write during fast events):
-    local function logger_safe_write(fn)
-      if vim.in_fast_event() or vim.fn.getcmdwintype() ~= '' then return end
-      vim.schedule(function() pcall(fn) end)
-    end
-    -- In render paths, avoid logging entirely. Outside, wrap writes with logger_safe_write.
+  Native logging:
+    -- In render paths, avoid logging entirely. Elsewhere vim.log safely owns
+    -- file-backed writes without touching Neovim buffers.
 
   Guarding against textlock explicitly:
     local function in_textlock()
@@ -59,12 +56,6 @@ Safe Patterns
       if vim.fn.getcmdwintype() ~= '' then return true end
       return false
     end
-
-  Queue-and-flush for log buffers (optional pattern):
-    -- Queue lines while in_textlock() is true.
-    -- Use vim.schedule or vim.defer_fn with small backoff to flush later.
-    -- Cap retries to avoid infinite loops.
-    -- Never call nvim_win_set_cursor from the logger.
 
 Do / Do Not
 
@@ -120,7 +111,7 @@ local highlights = {
 }
 
 local ok = colors.shade_highlight("Comment", highlights.comment, { fg = -0.25 })
-if not ok then log:error("Failed to create hlgroup %s", highlights.comment) end
+if not ok then log.error("Failed to create highlight group", highlights.comment) end
 
 ---@param hlgroup string
 ---@param msg string

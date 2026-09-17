@@ -3,7 +3,7 @@
 
 local M = {}
 
-local log = require("aru.log"):bind("agent")
+local log = require("aru.log")
 
 ---@class aru.agent.process.RunOpts
 ---@field executable string
@@ -29,7 +29,7 @@ function M.json(opts)
         if ok and type(event) == "table" then
             vim.schedule(function() opts.on_event(event) end)
         else
-            log:debug("invalid JSON stream line: %s", line)
+            log.debug("Invalid JSON stream line", line)
         end
     end
 
@@ -43,7 +43,7 @@ function M.json(opts)
         cwd = opts.cwd,
         stdout = function(err, data)
             if err then
-                log:error("JSON stream stdout error: %s", err)
+                log.error("JSON stream stdout error", err)
                 return
             end
             if not data then return end

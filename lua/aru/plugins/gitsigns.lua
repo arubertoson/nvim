@@ -2,9 +2,7 @@ local log = require("aru.log")
 
 local ok, gitsigns = pcall(require, "gitsigns")
 if not ok then
-    log:error(
-        ("Failed to load gitsigns.nvim: %s, gitsigns features will be disabled"):format(gitsigns)
-    )
+    log.error("Failed to load gitsigns.nvim; its features are disabled", gitsigns)
     return
 end
 

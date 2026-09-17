@@ -13,13 +13,13 @@ local function ensure_watcher(entry)
 
     local handle, err = vim.uv.new_fs_event()
     if not handle then
-        log:error("fs_event failed: %s", err)
+        log.error("File-system event failed", err)
         return
     end
 
     local ok = handle:start(entry.head, {}, function(watch_err)
         if watch_err then
-            log:error("fs_event failed: %s", watch_err)
+            log.error("File-system event failed", watch_err)
             return
         end
         entry.branch = nil
@@ -27,7 +27,7 @@ local function ensure_watcher(entry)
     end)
 
     if not ok then
-        log:error("fs_event start failed")
+        log.error("fs_event start failed")
         return
     end
 
@@ -107,7 +107,7 @@ vim.api.nvim_create_autocmd("VimLeavePre", {
         local log = require("aru.log")
 
         for _, entry in pairs(state) do
-            log:debug("stopping watcher for %s", entry.head)
+            log.debug("Stopping Git watcher", entry.head)
             if entry.watcher then
                 entry.watcher:stop()
                 entry.watcher:close()

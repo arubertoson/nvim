@@ -4,7 +4,7 @@
 
 local M = {}
 
-local logger = require("aru.log"):bind("agent.channels.float")
+local logger = require("aru.log")
 local config = require("aru.agent.config")
 local constants = require("aru.agent.constants")
 local line_acc = require("aru.agent.lines")
@@ -52,7 +52,7 @@ local function run_lifecycle_hook(name, layout)
     if not hook then return end
 
     local ok, err = pcall(hook, layout)
-    if not ok then logger:error("float %s hook failed: %s", name, err) end
+    if not ok then logger.error("Float hook failed", name, err) end
 end
 
 ---@return table|nil
@@ -451,7 +451,7 @@ function M.send(transport, _ctx)
     _stream_id = _stream_id + 1
     local stream_id = _stream_id
 
-    logger:debug("float channel send (page %d):\n%s", _page_index, transport.message)
+    logger.debug("Sending float channel page", _page_index, transport.message)
 
     local state = show_page(_page_index, { streaming = true })
     if not state then return false end
@@ -469,7 +469,7 @@ function M.send(transport, _ctx)
         if _state ~= state or state.stream_id ~= stream_id then return end
         if result.code ~= 0 then
             local err_line = process.stderr_summary(result)
-            logger:error("float channel failed (%d): %s", result.code, err_line)
+            logger.error("Float channel failed", result.code, err_line)
             append(state, "\n[error: " .. err_line .. "]")
         end
         flush(state)
@@ -492,7 +492,8 @@ function M.page_next() navigate_page(1) end
 
 function M.restore()
     if #_pages == 0 then
-        logger:info("No previous float response to restore")
+        logger.info("No previous float response to restore")
+        vim.notify("No response available to restore", vim.log.levels.INFO)
         return
     end
     show_page(_page_index > 0 and _page_index or #_pages)

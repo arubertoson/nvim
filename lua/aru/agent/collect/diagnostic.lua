@@ -1,7 +1,7 @@
 ---@module "aru.agent.collect.diagnostic"
 local M = {}
 
-local log = require("aru.log"):bind("agent.collect.diagnostic")
+local log = require("aru.log")
 
 local severity_names = {
     [vim.diagnostic.severity.ERROR] = "ERROR",
@@ -69,7 +69,8 @@ end
 function M.collect(inv)
     local diag = diagnostic_at_cursor(inv.bufnr, inv.cursor)
     if not diag then
-        log:info("No diagnostic found at cursor position.")
+        log.info("No diagnostic found at cursor position")
+        vim.notify("No diagnostic found at cursor position", vim.log.levels.INFO)
 
         return nil
     end

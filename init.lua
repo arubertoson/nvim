@@ -64,17 +64,6 @@ vim.loader.enable()
 -- visual artifacts and ensures consistent UI behavior.
 require("vim._core.ui2").enable({})
 
--- Core infrastructure - timing and loading utilities
-require("aru.log").configure({
-    sinks = {
-        {
-            type = "file",
-            path = vim.fs.joinpath(vim.fn.stdpath("cache"), "nvim-config.log"),
-            level = vim.log.levels.DEBUG,
-        },
-    },
-})
-
 -- Ensure that we have a clean tools directory only available for our nvim instance.
 local lsp_bin = vim.fs.joinpath(vim.fn.stdpath("config"), "tools", "lsp", "node_modules", ".bin")
 if vim.fn.isdirectory(lsp_bin) == 1 then vim.env.PATH = lsp_bin .. ":" .. (vim.env.PATH or "") end
