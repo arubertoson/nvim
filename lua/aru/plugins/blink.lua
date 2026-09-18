@@ -66,20 +66,31 @@ blink.setup({
 
     sources = {
         default = function()
-            if vim.b.aru_agent_prompt then return { "prompt_path", "prompt_buffer" } end
+            if vim.b.aru_agent_prompt then
+                return require("aru.agent.completion").sources(vim.api.nvim_get_current_buf())
+            end
             return { "lsp", "path", "snippets", "buffer" }
         end,
         providers = {
             -- lsp = { min_keyword_length = 2, name = "LSP", fallbacks = { "lazydev" } },
-            path = { module = "aru.cmp.path" },
+            path = { module = "blink.cmp.sources.path" },
             -- snippets = { min_keyword_length = 1 },
             buffer = { min_keyword_length = 3, max_items = 5 },
             prompt_path = {
                 name = "Path",
-                module = "aru.cmp.path",
+                module = "aru.agent.completion.path",
                 opts = {
-                    reference_triggers = true,
                     get_cwd = function(ctx) return vim.b[ctx.bufnr].aru_completion_cwd end,
+                },
+            },
+            prompt_symbol = {
+                name = "Symbol",
+                module = "aru.agent.completion.symbol",
+                opts = {
+                    get_cwd = function(ctx) return vim.b[ctx.bufnr].aru_completion_cwd end,
+                    get_invocation_buf = function(ctx)
+                        return vim.b[ctx.bufnr].aru_completion_invocation_buf
+                    end,
                 },
             },
             prompt_buffer = {

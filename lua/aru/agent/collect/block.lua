@@ -29,6 +29,7 @@ local function collect_surrounding(bufnr, n_lines, cursor, path, filetype)
 
     return {
         kind = "block",
+        source = path ~= "",
         path = path ~= "" and path or nil,
         filetype = filetype,
         start_line = start_line,
@@ -60,6 +61,7 @@ local function collect_visual_selection(bufnr, selection, path, filetype)
 
     return {
         kind = "block",
+        source = path ~= "",
         path = path ~= "" and path or nil,
         filetype = filetype,
         start_line = selection.start_row + 1,
@@ -130,6 +132,7 @@ local function context_item_from_node(bufnr, node, path, filetype)
 
     return {
         kind = "block",
+        source = path ~= "",
         path = path ~= "" and path or nil,
         filetype = filetype,
         start_line = start_row + 1,
@@ -163,10 +166,11 @@ local function find_textobject_outer_node(bufnr, cursor, max_lines)
     return best
 end
 
+---@param bufnr integer
 ---@param cursor [integer, integer]
 ---@param max_lines integer
-local function find_bounded_ancestor_node(cursor, max_lines)
-    local node = ts.node_at_cursor()
+local function find_bounded_ancestor_node(bufnr, cursor, max_lines)
+    local node = ts.node_at(bufnr, cursor[1] - 1, cursor[2])
     while node do
         if node:named() and is_bounded_context_node(node, max_lines) then return node end
         node = node:parent()
@@ -179,7 +183,7 @@ end
 local function collect_treesitter_outer(inv, surrounding_lines)
     local max_lines = surrounding_lines * 2 + 1
     local node = find_textobject_outer_node(inv.bufnr, inv.cursor, max_lines)
-        or find_bounded_ancestor_node(inv.cursor, max_lines)
+        or find_bounded_ancestor_node(inv.bufnr, inv.cursor, max_lines)
     return node and context_item_from_node(inv.bufnr, node, inv.path, inv.filetype) or nil
 end
 

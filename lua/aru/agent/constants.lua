@@ -60,6 +60,7 @@ M.NAMESPACE = {
     EDITOR = "aru_editor",
     READ_FLOAT = "aru_read_float",
     PROMPT_FOOTER = "aru_agent_prompt_footer",
+    PROMPT_REFERENCE = "aru_agent_prompt_reference",
 }
 
 M.AUGROUP = {

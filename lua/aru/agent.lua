@@ -22,6 +22,7 @@
 ---@field collect aru.agent.collect.Type[]
 ---@field prompt string|nil
 ---@field preset string|nil
+---@field context aru.agent.payload.ContextItem[]|nil
 
 ---@class aru.agent.ConfigState
 ---@field config aru.agent.config.Opts
@@ -130,8 +131,8 @@ local function send(request, state)
         return false
     end
 
-    local items = {}
-    if request.collect and #request.collect > 0 then
+    local items = request.context or {}
+    if not request.context and request.collect and #request.collect > 0 then
         items = collect.resolve(ctx, request.collect)
     end
 
@@ -197,6 +198,7 @@ function M.prompt(opts)
         send = function(request) return send(request, state) end,
         collect = opts and opts.collect,
         cwd = state.cwd,
+        invocation = state,
     })
 end
 

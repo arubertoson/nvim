@@ -3,43 +3,55 @@ local M = {}
 
 ---@class aru.agent.payload.ContextItem
 ---@field kind string
+---@field source boolean|nil
 ---@field path string|nil
 ---@field filetype string|nil
 ---@field start_line integer|nil
 ---@field end_line integer|nil
+---@field symbol string|nil
+---@field whole_file boolean|nil
 ---@field text string
 
 ---@class aru.agent.payload.Payload
 ---@field prompt string|nil
 ---@field context aru.agent.payload.ContextItem[]
 
+---@param value string
+local function escape_attribute(value)
+    return value
+        :gsub("&", "&amp;")
+        :gsub('"', "&quot;")
+        :gsub("<", "&lt;")
+        :gsub(">", "&gt;")
+        :gsub("'", "&apos;")
+end
+
+---@param item aru.agent.payload.ContextItem
+local function render_item(item)
+    local tag = item.source and "file" or item.kind
+    local attributes = {}
+    if item.path and item.path ~= "" then
+        local name = item.source and "name" or "file"
+        attributes[#attributes + 1] = (' %s="%s"'):format(name, escape_attribute(item.path))
+    end
+    if item.symbol then
+        attributes[#attributes + 1] = (' symbol="%s"'):format(escape_attribute(item.symbol))
+    end
+    if not item.whole_file and item.start_line and item.end_line then
+        attributes[#attributes + 1] = (' lines="%d-%d"'):format(item.start_line, item.end_line)
+    end
+    return ("<%s%s>\n%s\n</%s>"):format(tag, table.concat(attributes), item.text, tag)
+end
+
 ---@param payload aru.agent.payload.Payload
 ---@return string
 function M.render(payload)
-    local out = {}
-
-    if payload.prompt and payload.prompt ~= "" then
-        table.insert(out, payload.prompt)
-        table.insert(out, "")
-    end
-
+    local sections = {}
     for _, item in ipairs(payload.context) do
-        local label = item.kind
-        if item.path and item.path ~= "" then
-            label = ('<%s file="%s"'):format(item.kind, item.path)
-        end
-
-        if item.start_line and item.end_line then
-            label = ('%s lines="%d-%d">'):format(label, item.start_line, item.end_line)
-        end
-
-        table.insert(out, label)
-        table.insert(out, item.text)
-        table.insert(out, ("</%s>"):format(item.kind))
+        sections[#sections + 1] = render_item(item)
     end
-
-    local render = table.concat(out, "\n"):gsub("%s+$", "")
-    return render
+    if payload.prompt and payload.prompt ~= "" then sections[#sections + 1] = payload.prompt end
+    return table.concat(sections, "\n\n")
 end
 
 return M
