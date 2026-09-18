@@ -21,7 +21,7 @@ This specification covers:
 - inline file, line-range, and symbol references;
 - path and symbol completion in the agent prompt;
 - reference parsing and derived reference states;
-- live compact context preview and an exact payload preview;
+- live reference highlighting and an expanded context overview;
 - reference highlighting;
 - context composition and deduplication;
 - submission-time resolution; and
@@ -301,7 +301,7 @@ owns `<C-p>`.
 
 No line-number completion is required after `:`.
 
-## Live context preview
+## Live reference feedback
 
 The prompt owns one debounced preview refresh. `TextChanged` and `TextChangedI`
 schedule a refresh after 75–100 ms. A newer text change supersedes the pending
@@ -310,28 +310,22 @@ refresh.
 Completion acceptance and moving the cursor out of a reference request an
 immediate refresh. Submission bypasses the debounce and resolves synchronously.
 
-The preview refresh must be side-effect-free from the user's perspective: it
+The reference refresh must be side-effect-free from the user's perspective: it
 must not notify for an absent optional diagnostic, move windows, change the
 cursor, or submit a process.
 
-### Compact footer
+### Action footer
 
-The footer displays resolved context in request order:
-
-```text
-ctx 4 · block agent.lua:181-188 · diagnostic · float.lua#send:402-438 · runtime.lua:35-72
-```
-
-`ctx N` counts Context Items that would be attached. Editing references use an
-ellipsis marker and unresolved references use `?`:
+The prompt displays only its highlighted actions, right-aligned at the bottom:
 
 ```text
-ctx 2 · block agent.lua:181-188 · …agent.lua#sen
-ctx 1 · block agent.lua:181-188 · ?missing.lua#send
+<editable prompt text>
+
+                                [CR] read   [^CR] new session   [^G] generate   [^P] session   [^X] overview
 ```
 
-When the summary exceeds available width, retain the first entries and end with
-`+N`. The action footer remains visible below or above the context summary.
+Inline References remain visible in the prompt itself. The prompt does not
+repeat derived context in a summary row; `<C-x>` owns further context inspection.
 
 ### Inline highlights
 
@@ -344,18 +338,18 @@ Prompt-owned extmarks decorate complete reference spans:
 Extmarks are cleared and rebuilt from the latest parse result. They do not own
 reference identity or context state.
 
-### Exact payload preview
+### Context overview
 
-The prompt provides `<C-x>` to inspect the exact request that would be sent. It
-opens a read-only temporary window containing the rendered payload, including
-context blocks and the prompt text.
+The prompt provides `<C-x>` to inspect an expanded overview of the context that
+would be attached. It opens a read-only temporary window listing Context Items
+in request order without displaying their source contents or duplicating the
+prompt text.
 
-If references are unresolved, the preview still opens but begins with a clear
-non-payload warning section naming them. The warning section is UI-only and is
-never sent to the agent.
+Editing and unresolved references appear in a separate section with their state
+and concise resolution error when available.
 
-Closing the payload preview returns focus to the existing prompt without changing
-its text or derived context.
+The overview opens in Normal mode for cursor navigation. Closing it returns focus
+to the existing prompt without changing its text or derived context.
 
 ## Context composition
 
@@ -448,9 +442,9 @@ notification names the reference and does not mutate or close the prompt.
 ## Ownership and lifecycle
 
 - The prompt session owns its debounce timer, reference extmark namespace, and
-  payload-preview window.
+  context-overview window.
 - Closing the prompt stops and closes its timer, clears its extmarks, and closes
-  its payload preview.
+  its context overview.
 - Hidden buffers loaded solely for reference resolution remain subject to the
   existing buffer-cache policy.
 - Reference and symbol caches contain derived data only and may be discarded at
@@ -479,8 +473,8 @@ second symbol scanner.
 ### Prompt
 
 `lua/aru/agent/prompt.lua` owns debounce lifecycle, cursor-aware refresh,
-reference extmarks, compact footer rendering, exact-preview presentation, and
-submission refusal without closing the prompt.
+reference extmarks, action-footer rendering, expanded context-overview
+presentation, and submission refusal without closing the prompt.
 
 ### Payload
 
@@ -490,7 +484,7 @@ must render source context before prompt text and match Pi's whole-file format.
 ## Acceptance criteria
 
 - Typing `@` opens project-relative path completion.
-- A completed file reference appears in the context footer without leaving the
+- A completed file reference is highlighted as resolved without leaving the
   reference.
 - Adding `#` or `:` removes the former whole-file context until the selector
   resolves.
@@ -502,8 +496,9 @@ must render source context before prompt text and match Pi's whole-file format.
 - An incomplete reference under the cursor is shown as editing, not as an error.
 - Leaving an incomplete reference makes it unresolved.
 - An unresolved reference prevents submission without closing the prompt.
-- The compact footer accurately describes all context that would be attached.
-- `<C-x>` shows the exact rendered payload and returns to the prompt when closed.
+- The prompt does not duplicate context in an inline summary.
+- `<C-x>` shows a concise context overview in Normal mode and returns to the
+  prompt when closed.
 - Explicit references combine with invocation and diagnostic context.
 - Exact duplicate ranges are rendered once.
 - Whole files use Pi's native `<file name="...">` representation.
@@ -528,9 +523,9 @@ must render source context before prompt text and match Pi's whole-file format.
 - path and symbol completion candidates;
 - `<C-p>` completion navigation versus tmux handoff;
 - debounced refresh supersession and cleanup;
-- compact preview formatting and truncation;
+- right-aligned action footer rendering;
 - reference extmark replacement;
-- exact payload preview contents and lifecycle;
+- expanded context overview contents, Normal mode, and lifecycle;
 - context ordering and exact-range deduplication;
 - Pi-compatible whole-file rendering;
 - range and symbol metadata rendering with escaped attributes;

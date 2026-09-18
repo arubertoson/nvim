@@ -7,7 +7,6 @@ local constants = require("aru.agent.constants")
 local channels = require("aru.agent.channels")
 local collect = require("aru.agent.collect")
 local context = require("aru.agent.context")
-local payload = require("aru.agent.payload")
 local session = require("aru.agent.session")
 local ui = require("aru.agent.ui")
 
@@ -47,16 +46,24 @@ local BLOCK_COLLECT = { collect.COLLECT.BLOCK }
 ---@type aru.agent.prompt.State|nil
 local _prompt_state = nil
 
+---@class aru.agent.prompt.Action
+---@field key string
+---@field label string
+
 ---@param state aru.agent.prompt.State
----@return string
-local function action_footer(state)
+---@return aru.agent.prompt.Action[]
+local function footer_actions(state)
     local continuable, session_index = session.can_continue(state.cwd)
-    if continuable then
-        return ("[CR] continue S%d   [^CR] new session   [^G] generate   [^P] session   [^X] payload"):format(
-            session_index
-        )
-    end
-    return "[CR] read   [^CR] new session   [^G] generate   [^P] session   [^X] payload"
+    return {
+        {
+            key = "CR",
+            label = continuable and ("continue S%d"):format(session_index) or "read",
+        },
+        { key = "^CR", label = "new session" },
+        { key = "^G", label = "generate" },
+        { key = "^P", label = "session" },
+        { key = "^X", label = "overview" },
+    }
 end
 
 local function prompt_width()
@@ -112,37 +119,6 @@ local function context_label(item)
 end
 
 ---@param state aru.agent.prompt.State
----@param width integer
-local function context_footer(state, width)
-    if not state.build then return nil end
-    local entries = {}
-    for _, item in ipairs(state.build.context) do
-        entries[#entries + 1] = context_label(item)
-    end
-    for _, ref in ipairs(state.build.references) do
-        if ref.state == "editing" then
-            entries[#entries + 1] = "…" .. ref.raw:sub(2)
-        elseif ref.state == "unresolved" then
-            entries[#entries + 1] = "?" .. ref.raw:sub(2)
-        end
-    end
-    if #entries == 0 then return nil end
-
-    local prefix = ("ctx %d"):format(#state.build.context)
-    local visible = prefix
-    for index, entry in ipairs(entries) do
-        local suffix = " · " .. entry
-        local remaining = #entries - index
-        local overflow = remaining > 0 and (" · +%d"):format(remaining) or ""
-        if vim.fn.strdisplaywidth(visible .. suffix .. overflow) > width then
-            return visible .. (remaining + 1 > 0 and (" · +%d"):format(remaining + 1) or "")
-        end
-        visible = visible .. suffix
-    end
-    return visible
-end
-
----@param state aru.agent.prompt.State
 local function render_footer(state)
     local buf = state.buf
     local total = vim.api.nvim_buf_line_count(buf)
@@ -152,31 +128,39 @@ local function render_footer(state)
 
     local width = prompt_width()
     local content_rows = prompt_content_rows(buf, width)
-    local virt_lines = {}
-    local spacer_rows = math.max(1, PROMPT_MIN_ROWS - content_rows)
+
+    local action_chunks = {}
+    local action_width = 0
+    for index, action in ipairs(footer_actions(state)) do
+        if index > 1 then
+            action_chunks[#action_chunks + 1] = { "   ", "Normal" }
+            action_width = action_width + 3
+        end
+        local key = "[" .. action.key .. "]"
+        local label = " " .. action.label
+        action_chunks[#action_chunks + 1] = { key, "Special" }
+        action_chunks[#action_chunks + 1] = { label, constants.UI.HIGHLIGHT_COMMENT }
+        action_width = action_width + vim.fn.strdisplaywidth(key .. label)
+    end
+    local available_width = width - PROMPT_LEFT_PADDING
+    local action_padding = math.max(0, available_width - action_width)
+    table.insert(action_chunks, 1, { string.rep(" ", action_padding), "Normal" })
+
+    local footer_lines = {}
+    local spacer_rows = math.max(1, PROMPT_MIN_ROWS - content_rows + 1)
     for _ = 1, spacer_rows do
-        virt_lines[#virt_lines + 1] = { { "", "Normal" } }
+        footer_lines[#footer_lines + 1] = { { "", "Normal" } }
     end
+    footer_lines[#footer_lines + 1] = action_chunks
 
-    local summary = context_footer(state, width - PROMPT_LEFT_PADDING)
-    if summary then
-        virt_lines[#virt_lines + 1] = { { summary, constants.UI.HIGHLIGHT_COMMENT } }
-    end
-
-    local action = action_footer(state)
-    local padding = math.max(0, width - PROMPT_LEFT_PADDING - vim.fn.strdisplaywidth(action))
-    virt_lines[#virt_lines + 1] = {
-        { string.rep(" ", padding) .. action, constants.UI.HIGHLIGHT_COMMENT },
-    }
-
-    local opts = { virt_lines = virt_lines, virt_lines_above = false }
+    local footer_opts = { virt_lines = footer_lines, virt_lines_above = false }
     if show_placeholder then
-        opts.virt_text = { { PLACEHOLDER_TEXT, constants.UI.HIGHLIGHT_COMMENT } }
-        opts.virt_text_pos = "overlay"
+        footer_opts.virt_text = { { PLACEHOLDER_TEXT, constants.UI.HIGHLIGHT_COMMENT } }
+        footer_opts.virt_text_pos = "overlay"
     end
 
     vim.api.nvim_buf_clear_namespace(buf, state.footer_ns, 0, -1)
-    vim.api.nvim_buf_set_extmark(buf, state.footer_ns, footer_idx, 0, opts)
+    vim.api.nvim_buf_set_extmark(buf, state.footer_ns, footer_idx, 0, footer_opts)
 end
 
 ---@param state aru.agent.prompt.State
@@ -348,41 +332,52 @@ local function completion_bufnrs(invocation_buf)
 end
 
 ---@param state aru.agent.prompt.State
-local function close_payload_preview(state)
+local function close_context_overview(state)
     if state.preview_win and vim.api.nvim_win_is_valid(state.preview_win) then
         vim.api.nvim_win_close(state.preview_win, true)
     end
 end
 
+---@param built aru.agent.context.BuildResult
+local function context_overview_lines(built)
+    local lines = { "Context overview", "", ("Context Items (%d)"):format(#built.context) }
+    if #built.context == 0 then
+        lines[#lines + 1] = "None"
+    else
+        for index, item in ipairs(built.context) do
+            lines[#lines + 1] = ("%d. %s"):format(index, context_label(item))
+        end
+    end
+
+    if #built.blocking > 0 then
+        lines[#lines + 1] = ""
+        lines[#lines + 1] = ("Unresolved references (%d)"):format(#built.blocking)
+        for _, ref in ipairs(built.blocking) do
+            local marker = ref.state == "editing" and "…" or "?"
+            local detail = ref.error and (" — " .. ref.error) or ""
+            lines[#lines + 1] = ("%s %s%s"):format(marker, ref.raw, detail)
+        end
+    end
+    return lines
+end
+
 ---@param state aru.agent.prompt.State
-local function show_payload_preview(state)
-    local built = build_context(state, true)
+local function show_context_overview(state)
+    local built = build_context(state)
     state.build = built
     render_references(state)
     render_footer(state)
 
-    close_payload_preview(state)
-    local rendered = payload.render({
-        prompt = read_prompt_text(state.buf),
-        context = built.context,
-    })
-    local sections = {}
-    if #built.blocking > 0 then
-        local warnings = { "NOT PART OF PAYLOAD — unresolved inline references:" }
-        for _, ref in ipairs(built.blocking) do
-            warnings[#warnings + 1] = ("- %s: %s"):format(ref.raw, ref.error or ref.state)
-        end
-        sections[#sections + 1] = table.concat(warnings, "\n")
-    end
-    sections[#sections + 1] = rendered
-
+    close_context_overview(state)
+    local overview_lines = context_overview_lines(built)
     local preview_buf = ui.create_scratch_buf({
         filetype = constants.UI.FILETYPE_MARKDOWN,
-        lines = vim.split(table.concat(sections, "\n\n"), "\n", { plain = true }),
+        lines = overview_lines,
     })
     vim.bo[preview_buf].modifiable = false
+    vim.bo[preview_buf].readonly = true
     local width = math.min(math.max(40, vim.o.columns - 12), 120)
-    local height = math.min(math.max(8, vim.o.lines - 8), 35)
+    local height = math.min(math.max(8, #overview_lines + 2), 35)
     local preview_win = vim.api.nvim_open_win(preview_buf, false, {
         relative = "editor",
         row = math.max(0, math.floor((vim.o.lines - height) / 2)),
@@ -391,7 +386,7 @@ local function show_payload_preview(state)
         height = height,
         style = constants.UI.STYLE_MINIMAL,
         border = require("aru.custom").border or constants.UI.BORDER_ROUNDED,
-        title = " payload ",
+        title = " context overview ",
         title_pos = constants.UI.TITLE_POS_LEFT,
         zindex = PROMPT_LAYOUT.ZINDEX + 1,
     })
@@ -399,7 +394,7 @@ local function show_payload_preview(state)
     state.preview_win = preview_win
 
     local close = function()
-        if _prompt_state == state then close_payload_preview(state) end
+        if _prompt_state == state then close_context_overview(state) end
     end
     vim.keymap.set("n", "q", close, { buffer = preview_buf, silent = true })
     vim.keymap.set("n", "<Esc>", close, { buffer = preview_buf, silent = true })
@@ -419,12 +414,17 @@ local function show_payload_preview(state)
         end,
     })
     vim.api.nvim_set_current_win(preview_win)
+    vim.cmd("stopinsert")
+    vim.api.nvim_win_set_cursor(preview_win, { 1, 0 })
 end
 
 ---@param deps aru.agent.prompt.Deps
 function M.open(deps)
     if _prompt_state then
-        if vim.api.nvim_win_is_valid(_prompt_state.win) then
+        local prompt_is_valid = vim.api.nvim_win_is_valid(_prompt_state.win)
+            and vim.api.nvim_buf_is_valid(_prompt_state.buf)
+            and vim.api.nvim_win_get_buf(_prompt_state.win) == _prompt_state.buf
+        if prompt_is_valid then
             vim.api.nvim_set_current_win(_prompt_state.win)
             return
         end
@@ -518,7 +518,7 @@ function M.open(deps)
         submit_prompt(channels.DESTINATION.TMUX, nil)
     end, map_opts)
     vim.keymap.set({ "n", "i" }, "<C-x>", function()
-        if _prompt_state then show_payload_preview(_prompt_state) end
+        if _prompt_state then show_context_overview(_prompt_state) end
     end, map_opts)
     vim.keymap.set({ "n", "i" }, PROMPT_NEWLINE_KEY, insert_prompt_newline, map_opts)
     vim.keymap.set({ "n", "i" }, PROMPT_CLOSE_KEY, close_prompt, map_opts)

@@ -241,6 +241,33 @@ local function open_prompt(send)
     return vim.api.nvim_get_current_buf()
 end
 
+T["prompt integration"]["shows only right-aligned actions around the prompt"] = function()
+    local prompt_buf = open_prompt(function() return true end)
+    local text = "read @lua/agent.lua:1-2"
+    vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, { text })
+    vim.api.nvim_win_set_cursor(0, { 1, #text })
+    vim.wait(200)
+
+    local actions_row
+    for _, mark in
+        ipairs(vim.api.nvim_buf_get_extmarks(prompt_buf, -1, 0, -1, {
+            details = true,
+        }))
+    do
+        local details = mark[4]
+        MiniTest.expect.equality(details.virt_lines_above == true, false)
+        if details.virt_lines then actions_row = details.virt_lines[#details.virt_lines] end
+    end
+    MiniTest.expect.equality(actions_row[1][1]:match("^ *$") ~= nil, true)
+    MiniTest.expect.equality(actions_row[1][2], "Normal")
+    MiniTest.expect.equality(
+        vim.iter(actions_row)
+            :any(function(chunk) return vim.deep_equal(chunk, { "[CR]", "Special" }) end),
+        true
+    )
+    invoke_insert_mapping(prompt_buf, "<CR>")
+end
+
 T["prompt integration"]["refuses unresolved submission without closing the prompt"] = function()
     local sent = false
     local prompt_buf = open_prompt(function()
@@ -260,7 +287,8 @@ T["prompt integration"]["refuses unresolved submission without closing the promp
     MiniTest.expect.equality(sent, false)
     MiniTest.expect.equality(vim.api.nvim_buf_is_valid(prompt_buf), true)
     MiniTest.expect.equality(notification, "Cannot submit unresolved reference @missing.lua")
-    invoke_insert_mapping(prompt_buf, "<Esc>")
+    vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, { "read @lua/agent.lua" })
+    invoke_insert_mapping(prompt_buf, "<CR>")
 end
 
 T["prompt integration"]["submission re-resolves changed buffer contents"] = function()
@@ -280,7 +308,7 @@ T["prompt integration"]["submission re-resolves changed buffer contents"] = func
     MiniTest.expect.equality(request.prompt, text)
 end
 
-T["prompt integration"]["exact preview warns and returns to the existing prompt"] = function()
+T["prompt integration"]["overview is concise, navigable, and returns to the prompt"] = function()
     local prompt_buf = open_prompt(function() return true end)
     local text = "read @missing.lua"
     vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, { text })
@@ -288,15 +316,18 @@ T["prompt integration"]["exact preview warns and returns to the existing prompt"
 
     invoke_insert_mapping(prompt_buf, "<C-X>")
     MiniTest.expect.equality(vim.api.nvim_get_current_buf() ~= prompt_buf, true)
-    MiniTest.expect.equality(
-        vim.api.nvim_buf_get_lines(0, 0, 1, false)[1],
-        "NOT PART OF PAYLOAD — unresolved inline references:"
-    )
+    MiniTest.expect.equality(vim.api.nvim_get_mode().mode, "n")
+    local overview = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+    MiniTest.expect.equality(overview[1], "Context overview")
+    MiniTest.expect.equality(vim.tbl_contains(overview, "Unresolved references (1)"), true)
+    MiniTest.expect.equality(table.concat(overview, "\n"):find("<file", 1, true), nil)
+
     vim.api.nvim_win_close(0, true)
     vim.wait(50)
     MiniTest.expect.equality(vim.api.nvim_get_current_buf(), prompt_buf)
     MiniTest.expect.equality(vim.api.nvim_buf_get_lines(prompt_buf, 0, -1, false), { text })
-    invoke_insert_mapping(prompt_buf, "<Esc>")
+    vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, { "read @lua/agent.lua" })
+    invoke_insert_mapping(prompt_buf, "<CR>")
 end
 
 return T
