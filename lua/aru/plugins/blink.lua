@@ -41,7 +41,9 @@ blink.setup({
             },
         },
         menu = {
-            auto_show = function(ctx) return ctx.mode ~= "default" end,
+            auto_show = function(ctx)
+                return ctx.mode ~= "default" or vim.b[ctx.bufnr].aru_agent_prompt == true
+            end,
             border = "rounded",
             -- Minimum width should be controlled by components
             min_width = 1,
@@ -63,12 +65,32 @@ blink.setup({
     },
 
     sources = {
-        default = { "lsp", "path", "snippets", "buffer" }, -- , "lazydev" },
+        default = function()
+            if vim.b.aru_agent_prompt then return { "prompt_path", "prompt_buffer" } end
+            return { "lsp", "path", "snippets", "buffer" }
+        end,
         providers = {
             -- lsp = { min_keyword_length = 2, name = "LSP", fallbacks = { "lazydev" } },
-            -- path = { min_keyword_length = 0 },
+            path = { module = "aru.cmp.path" },
             -- snippets = { min_keyword_length = 1 },
             buffer = { min_keyword_length = 3, max_items = 5 },
+            prompt_path = {
+                name = "Path",
+                module = "aru.cmp.path",
+                opts = {
+                    reference_triggers = true,
+                    get_cwd = function(ctx) return vim.b[ctx.bufnr].aru_completion_cwd end,
+                },
+            },
+            prompt_buffer = {
+                name = "Active",
+                module = "blink.cmp.sources.buffer",
+                min_keyword_length = 3,
+                max_items = 5,
+                opts = {
+                    get_bufnrs = function() return vim.b.aru_completion_bufnrs or {} end,
+                },
+            },
             -- lazydev = { name = "Development", module = "lazydev.integrations.blink" },
         },
     },

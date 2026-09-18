@@ -13,6 +13,7 @@ local ui = require("aru.agent.ui")
 
 ---@class aru.agent.prompt.Deps
 ---@field send fun(request: aru.agent.Request): boolean
+---@field collect aru.agent.collect.Type[]|nil
 ---@field cwd string
 
 local PROMPT_LAYOUT = constants.UI.PROMPT
@@ -31,6 +32,7 @@ local BLOCK_COLLECT = { collect.COLLECT.BLOCK }
 ---@field footer_ns integer
 ---@field augroup integer
 ---@field send fun(request: aru.agent.Request): boolean
+---@field collect aru.agent.collect.Type[]
 ---@field cwd string
 
 ---@type aru.agent.prompt.State|nil
@@ -164,7 +166,7 @@ local function submit_prompt(destination, force_new_session)
     send({
         destination = destination,
         force_new_session = force_new_session,
-        collect = BLOCK_COLLECT,
+        collect = state.collect,
         prompt = prompt_text,
     })
 end
@@ -194,6 +196,29 @@ local function insert_prompt_newline()
     resize_prompt(state)
 end
 
+---@param invocation_buf integer
+---@return integer[]
+local function completion_bufnrs(invocation_buf)
+    local bufnrs = {}
+    local included = {}
+
+    for _, item in ipairs(require("aru.nav.active").items()) do
+        if vim.uv.fs_stat(item.path) then
+            local bufnr = item.bufnr
+            if not bufnr then bufnr = vim.fn.bufadd(item.path) end
+            if not vim.api.nvim_buf_is_loaded(bufnr) then vim.fn.bufload(bufnr) end
+
+            bufnrs[#bufnrs + 1] = bufnr
+            included[bufnr] = true
+        end
+    end
+
+    if require("aru.buf").is_normal_file(invocation_buf) and not included[invocation_buf] then
+        bufnrs[#bufnrs + 1] = invocation_buf
+    end
+    return bufnrs
+end
+
 ---@param deps aru.agent.prompt.Deps
 function M.open(deps)
     if _prompt_state then
@@ -204,10 +229,17 @@ function M.open(deps)
         close_prompt()
     end
 
+    local invocation_buf = vim.api.nvim_get_current_buf()
+    local completion_cwd = vim.fn.getcwd()
+    local completion_buffers = completion_bufnrs(invocation_buf)
     local buf = ui.create_scratch_buf({
-        filetype = constants.UI.FILETYPE_MARKDOWN,
+        filetype = constants.UI.FILETYPE_PROMPT,
         lines = { "" },
     })
+    vim.bo[buf].syntax = constants.UI.FILETYPE_MARKDOWN
+    vim.b[buf].aru_agent_prompt = true
+    vim.b[buf].aru_completion_cwd = completion_cwd
+    vim.b[buf].aru_completion_bufnrs = completion_buffers
 
     local win = vim.api.nvim_open_win(buf, true, prompt_win_config(buf))
     ui.apply_win_options(win, {
@@ -230,6 +262,7 @@ function M.open(deps)
         footer_ns = footer_ns,
         augroup = augroup,
         send = deps.send,
+        collect = deps.collect or BLOCK_COLLECT,
         cwd = deps.cwd,
     }
     _prompt_state = state

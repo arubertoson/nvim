@@ -34,6 +34,7 @@ M.TMUX = {
 
 M.UI = {
     FILETYPE_MARKDOWN = "markdown",
+    FILETYPE_PROMPT = "aru_agent_prompt",
     HIGHLIGHT_COMMENT = "Comment",
     STYLE_MINIMAL = "minimal",
     BORDER_ROUNDED = "rounded",

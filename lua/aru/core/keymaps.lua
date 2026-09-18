@@ -349,6 +349,7 @@ map(
 -- Agent (Pi)
 -- ============================================================================
 -- <leader>p  = open Pi prompt (normal: surrounding context, visual: selection)
+-- <leader>pd = open Pi prompt with the diagnostic at the cursor
 -- <leader>P  = focus/unfocus the read response float (toggle)
 -- <M-h>      = previous response in the selected Agent Session
 -- <M-l>      = next response in the selected Agent Session
@@ -377,6 +378,13 @@ map({ "n", "x" }, "<leader>p", function()
     end
     require("aru.agent").prompt({ visual_mode = visual_mode })
 end, { desc = "Pi: open prompt" })
+
+map("n", "<leader>pd", function()
+    local collect = require("aru.agent.collect").COLLECT
+    require("aru.agent").prompt({
+        collect = { collect.DIAGNOSTIC, collect.BLOCK },
+    })
+end, { desc = "Pi: prompt with cursor diagnostic" })
 
 map(
     "n",

@@ -23,9 +23,9 @@ M.CODE_TRIGGERS = {
 }
 -- stylua: ignore end
 
--- XXX: path completion not working in this setup, need to add trigger for that as well.
+local PATH_TRIGGERS = "[/\\~`%-]"
 
---- Check if the character before cursor matches code trigger patterns
+--- Check if the character before cursor matches code or path trigger patterns
 --- @return boolean
 local function has_code_char_before()
     local cursor = vim.api.nvim_win_get_cursor(0)
@@ -42,7 +42,7 @@ local function has_code_char_before()
     local ft = vim.bo.filetype
     local pat = M.CODE_TRIGGERS[ft] or M.CODE_TRIGGERS.default
 
-    return prev_char:match(pat) ~= nil
+    return prev_char:match(pat) ~= nil or prev_char:match(PATH_TRIGGERS) ~= nil
 end
 
 --- Check if the character before cursor matches code trigger patterns

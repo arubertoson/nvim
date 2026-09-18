@@ -46,6 +46,7 @@
 
 ---@class aru.agent.PromptOpts
 ---@field visual_mode string|nil
+---@field collect aru.agent.collect.Type[]|nil
 
 local M = {}
 
@@ -194,6 +195,7 @@ function M.prompt(opts)
     local state = capture_invocation_state(opts and opts.visual_mode)
     return prompt_ui.open({
         send = function(request) return send(request, state) end,
+        collect = opts and opts.collect,
         cwd = state.cwd,
     })
 end
