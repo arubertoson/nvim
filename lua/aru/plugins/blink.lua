@@ -66,7 +66,7 @@ blink.setup({
 
     sources = {
         default = function()
-            if vim.b.aru_agent_prompt then return { "prompt_path", "prompt_buffer" } end
+            if vim.b.aru_agent_prompt then return { "prompt_files", "prompt_buffer" } end
             return { "lsp", "path", "snippets", "buffer" }
         end,
         providers = {
@@ -74,18 +74,17 @@ blink.setup({
             path = { module = "aru.cmp.path" },
             -- snippets = { min_keyword_length = 1 },
             buffer = { min_keyword_length = 3, max_items = 5 },
-            prompt_path = {
-                name = "Path",
-                module = "aru.cmp.path",
+            prompt_files = {
+                name = "Files",
+                module = "aru.cmp.files",
+                async = true,
                 opts = {
-                    reference_triggers = true,
                     get_cwd = function(ctx) return vim.b[ctx.bufnr].aru_completion_cwd end,
                 },
             },
             prompt_buffer = {
                 name = "Active",
-                module = "blink.cmp.sources.buffer",
-                min_keyword_length = 3,
+                module = "aru.cmp.buffer",
                 max_items = 5,
                 opts = {
                     get_bufnrs = function() return vim.b.aru_completion_bufnrs or {} end,
