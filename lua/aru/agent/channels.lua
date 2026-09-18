@@ -17,6 +17,7 @@ M.DESTINATION = {
 ---@field message string
 ---@field label string
 ---@field cwd string|nil
+---@field response aru.agent.Response|nil
 ---@field run fun(stdin: string, on_event: fun(event: table), on_exit: fun(result: vim.SystemCompleted)): vim.SystemObj|nil
 
 ---@class aru.agent.channels.Channel

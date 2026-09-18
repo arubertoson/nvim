@@ -18,7 +18,7 @@
 
 ---@class aru.agent.Request
 ---@field destination aru.agent.channels.Destination
----@field session aru.agent.runtime.SessionPolicy|nil
+---@field force_new_session boolean|nil
 ---@field collect aru.agent.collect.Type[]
 ---@field prompt string|nil
 ---@field preset string|nil
@@ -111,24 +111,23 @@ local function capture_invocation_state(visual_mode)
 end
 
 ---@param request aru.agent.Request
----@return aru.agent.runtime.SessionPolicy|nil
-local function resolve_session_policy(request)
-    if request.destination == channels.DESTINATION.EDITOR then return runtime.SESSION.NONE end
-    if request.destination == channels.DESTINATION.FLOAT then
-        return request.session or runtime.SESSION.NEW
-    end
-    return nil
-end
-
----@param request aru.agent.Request
 ---@param state aru.agent.InvocationState
 ---@return boolean
 local function send(request, state)
-    local cfg = config.get()
-    local session_policy = resolve_session_policy(request)
+    if request.destination == channels.DESTINATION.FLOAT and session.is_streaming() then
+        vim.notify("An agent response is already streaming", vim.log.levels.WARN)
+        return false
+    end
 
+    local cfg = config.get()
     ---@type aru.agent.ConfigState
     local ctx = { config = cfg, state = state }
+
+    local channel = channels.get(request.destination)
+    if not channel then
+        log.error("Channel does not exist", request.destination)
+        return false
+    end
 
     local items = {}
     if request.collect and #request.collect > 0 then
@@ -139,34 +138,49 @@ local function send(request, state)
         prompt = request.prompt,
         context = items,
     })
+    local label = vim.fn.fnamemodify(cfg.executable, ":t")
+    local response
+    local run = function(_, _, _) error("Tmux transports do not run a local process") end
 
-    ---@type aru.agent.channels.Transport
-    local transport = {
-        message = message,
-        label = vim.fn.fnamemodify(cfg.executable, ":t"),
-        cwd = state.cwd,
+    if request.destination == channels.DESTINATION.FLOAT then
+        runtime.assert_explicit_session(ctx)
+        local agent_session
+        agent_session, response =
+            session.begin_read(state.cwd, label, request.force_new_session == true)
+        local cmd = runtime.command(ctx, request, { kind = "explicit", id = agent_session.id })
         run = function(stdin, on_event, on_exit)
             vim.fs.mkdir(cfg.session_dir, { parents = true })
-            local cmd = runtime.command(ctx, request, session_policy)
             process.json({
                 executable = cmd[1],
                 args = vim.list_slice(cmd, 2),
                 stdin = stdin,
                 cwd = state.cwd,
                 on_event = on_event,
-                on_exit = function(result)
-                    if result.code == 0 then session.mark_success(session_policy, state.cwd) end
-                    on_exit(result)
-                end,
+                on_exit = on_exit,
             })
-        end,
-    }
-
-    local channel = channels.get(request.destination)
-    if not channel then
-        log.error("Channel does not exist", request.destination)
-        return false
+        end
+    elseif request.destination == channels.DESTINATION.EDITOR then
+        local cmd = runtime.command(ctx, request, { kind = "none" })
+        run = function(stdin, on_event, on_exit)
+            process.json({
+                executable = cmd[1],
+                args = vim.list_slice(cmd, 2),
+                stdin = stdin,
+                cwd = state.cwd,
+                on_event = on_event,
+                on_exit = on_exit,
+            })
+        end
     end
+
+    ---@type aru.agent.channels.Transport
+    local transport = {
+        message = message,
+        label = label,
+        cwd = state.cwd,
+        response = response,
+        run = run,
+    }
 
     return channel.send(transport, ctx)
 end
@@ -180,6 +194,7 @@ function M.prompt(opts)
     local state = capture_invocation_state(opts and opts.visual_mode)
     return prompt_ui.open({
         send = function(request) return send(request, state) end,
+        cwd = state.cwd,
     })
 end
 
@@ -188,15 +203,68 @@ M.float = {}
 ---@param direction "down"|"up"
 function M.float.scroll(direction) return require("aru.agent.channels.float").scroll(direction) end
 
-function M.float.page_prev() return require("aru.agent.channels.float").page_prev() end
+local function navigate_response(delta)
+    if session.navigate_response(delta) then
+        require("aru.agent.channels.float").show_selected()
+    end
+end
 
-function M.float.page_next() return require("aru.agent.channels.float").page_next() end
+local function navigate_session(delta)
+    if session.navigate_session(delta) then require("aru.agent.channels.float").show_selected() end
+end
+
+function M.float.response_prev() navigate_response(-1) end
+
+function M.float.response_next() navigate_response(1) end
+
+function M.float.session_prev() navigate_session(-1) end
+
+function M.float.session_next() navigate_session(1) end
 
 function M.float.focus() return require("aru.agent.channels.float").focus() end
 
 function M.float.close() return require("aru.agent.channels.float").close() end
 
+---@return boolean
+function M.sessions_clear()
+    if session.is_streaming() then
+        vim.notify(
+            "Cannot clear agent sessions while a response is streaming",
+            vim.log.levels.ERROR
+        )
+        return false
+    end
+
+    local session_count, response_count = session.counts()
+    local session_dir = config.get().session_dir
+    local store_exists = vim.uv.fs_stat(session_dir) ~= nil
+    local ok, err = pcall(vim.fs.rm, session_dir, { recursive = true })
+    if not ok and not tostring(err):find("ENOENT", 1, true) then
+        vim.notify("Failed to clear agent sessions: " .. tostring(err), vim.log.levels.ERROR)
+        return false
+    end
+
+    require("aru.agent.channels.float").close()
+    session.clear()
+
+    if session_count == 0 and response_count == 0 and not store_exists then
+        vim.notify("Agent sessions already empty", vim.log.levels.INFO)
+    else
+        vim.notify(
+            ("Cleared %d agent sessions and %d responses"):format(session_count, response_count),
+            vim.log.levels.INFO
+        )
+    end
+    return true
+end
+
 ---@param opts aru.agent.config.Opts|nil
-function M.setup(opts) config.setup(opts) end
+function M.setup(opts)
+    config.setup(opts)
+    vim.api.nvim_create_user_command("AgentSessionsClear", M.sessions_clear, {
+        desc = "Clear agent sessions and responses",
+        force = true,
+    })
+end
 
 return M

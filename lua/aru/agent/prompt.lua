@@ -8,12 +8,12 @@ local M = {}
 local constants = require("aru.agent.constants")
 local channels = require("aru.agent.channels")
 local collect = require("aru.agent.collect")
-local runtime = require("aru.agent.runtime")
 local session = require("aru.agent.session")
 local ui = require("aru.agent.ui")
 
 ---@class aru.agent.prompt.Deps
 ---@field send fun(request: aru.agent.Request): boolean
+---@field cwd string
 
 local PROMPT_LAYOUT = constants.UI.PROMPT
 local PROMPT_MIN_ROWS = PROMPT_LAYOUT.MIN_ROWS
@@ -31,17 +31,22 @@ local BLOCK_COLLECT = { collect.COLLECT.BLOCK }
 ---@field footer_ns integer
 ---@field augroup integer
 ---@field send fun(request: aru.agent.Request): boolean
+---@field cwd string
 
 ---@type aru.agent.prompt.State|nil
 local _prompt_state = nil
 
+---@param state aru.agent.prompt.State
 ---@return string
-local function footer_line()
-    if session.can_continue() then
-        return "[CR] continue   [^CR] new session   [^G] generate   [^P] session"
+local function footer_line(state)
+    local continuable, session_index = session.can_continue(state.cwd)
+    if continuable then
+        return ("[CR] continue S%d   [^CR] new session   [^G] generate   [^P] session"):format(
+            session_index
+        )
     end
 
-    return "[CR] read   [^G] generate   [^P] session"
+    return "[CR] read   [^CR] new session   [^G] generate   [^P] session"
 end
 
 local function prompt_width()
@@ -98,7 +103,7 @@ local function render_footer(state)
         virt_lines[#virt_lines + 1] = { { "", "Normal" } }
     end
 
-    local line = footer_line()
+    local line = footer_line(state)
     local padding = math.max(0, width - PROMPT_LEFT_PADDING - vim.fn.strdisplaywidth(line))
     virt_lines[#virt_lines + 1] = {
         { string.rep(" ", padding) .. line, constants.UI.HIGHLIGHT_COMMENT },
@@ -144,8 +149,8 @@ local function read_prompt_text(buf)
 end
 
 ---@param destination aru.agent.channels.Destination
----@param session_policy aru.agent.runtime.SessionPolicy|nil
-local function submit_prompt(destination, session_policy)
+---@param force_new_session boolean|nil
+local function submit_prompt(destination, force_new_session)
     if not _prompt_state then return end
     local state = _prompt_state
 
@@ -158,20 +163,15 @@ local function submit_prompt(destination, session_policy)
 
     send({
         destination = destination,
-        session = session_policy,
+        force_new_session = force_new_session,
         collect = BLOCK_COLLECT,
         prompt = prompt_text,
     })
 end
 
-local function submit_float_read()
-    local policy = session.can_continue() and runtime.SESSION.CONTINUE or runtime.SESSION.NEW
-    submit_prompt(channels.DESTINATION.FLOAT, policy)
-end
+local function submit_float_read() submit_prompt(channels.DESTINATION.FLOAT, false) end
 
-local function submit_float_new_session()
-    submit_prompt(channels.DESTINATION.FLOAT, runtime.SESSION.NEW)
-end
+local function submit_float_new_session() submit_prompt(channels.DESTINATION.FLOAT, true) end
 
 local function insert_prompt_newline()
     if not _prompt_state then return end
@@ -230,6 +230,7 @@ function M.open(deps)
         footer_ns = footer_ns,
         augroup = augroup,
         send = deps.send,
+        cwd = deps.cwd,
     }
     _prompt_state = state
 
@@ -255,7 +256,7 @@ function M.open(deps)
     vim.keymap.set(
         { "n", "i" },
         "<C-g>",
-        function() submit_prompt(channels.DESTINATION.EDITOR, runtime.SESSION.NONE) end,
+        function() submit_prompt(channels.DESTINATION.EDITOR, nil) end,
         map_opts
     )
     vim.keymap.set(

@@ -348,10 +348,12 @@ map(
 -- ============================================================================
 -- Agent (Pi)
 -- ============================================================================
--- <leader>p = open Pi prompt (normal: surrounding context, visual: selection)
--- <leader>P = focus/unfocus the read response float (toggle)
--- <M-h>      = previous read float page
--- <M-l>      = next read float page
+-- <leader>p  = open Pi prompt (normal: surrounding context, visual: selection)
+-- <leader>P  = focus/unfocus the read response float (toggle)
+-- <M-h>      = previous response in the selected Agent Session
+-- <M-l>      = next response in the selected Agent Session
+-- <M-H>      = previous Agent Session
+-- <M-L>      = next Agent Session
 -- <M-d>      = scroll read float down  (works from any buffer)
 -- <M-u>      = scroll read float up    (works from any buffer)
 -- q          = close read float when open, nop otherwise
@@ -385,14 +387,26 @@ map(
 map(
     { "n", "i" },
     "<M-h>",
-    function() require("aru.agent").float.page_prev() end,
-    { desc = "Pi: previous read page" }
+    function() require("aru.agent").float.response_prev() end,
+    { desc = "Pi: previous response" }
 )
 map(
     { "n", "i" },
     "<M-l>",
-    function() require("aru.agent").float.page_next() end,
-    { desc = "Pi: next read page" }
+    function() require("aru.agent").float.response_next() end,
+    { desc = "Pi: next response" }
+)
+map(
+    { "n", "i" },
+    "<M-H>",
+    function() require("aru.agent").float.session_prev() end,
+    { desc = "Pi: previous Agent Session" }
+)
+map(
+    { "n", "i" },
+    "<M-L>",
+    function() require("aru.agent").float.session_next() end,
+    { desc = "Pi: next Agent Session" }
 )
 map(
     { "n", "i" },

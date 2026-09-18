@@ -9,7 +9,8 @@ inside Neovim.
 - **Executable**: the concrete command or path, such as `pi-dev` or a local build.
 - **Runtime**: the CLI and streaming protocol shared by compatible executables.
 - **Destination**: where a handoff goes: the read Float, the Editor, or tmux.
-- **Session policy**: whether a process starts, continues, or avoids a saved session.
+- **Agent Session**: a Read conversation owned by this integration and targeted by an explicit runtime session ID.
+- **Response**: the retained output of one Read request within an Agent Session.
 
 The built-in `pi` runtime can be used with any compatible executable:
 
@@ -51,24 +52,30 @@ require("aru.agent").setup({
 })
 ```
 
-- The first request starts a saved session.
-- Later requests automatically continue it while Neovim remembers a successful
-  session for the current working directory.
-- `<C-CR>` always starts fresh.
-- Closing Neovim intentionally clears continuation memory.
-- Each response is retained as a page for the lifetime of Neovim.
+- The first request creates an Agent Session with an explicit runtime identity.
+- `<CR>` continues the Selected Session when its working directory matches the
+  prompt invocation; otherwise it creates a new Agent Session.
+- `<C-CR>` always creates a new Agent Session.
+- Agent Sessions and Responses remain navigable for the lifetime of Neovim.
+- Submitted prompts are not retained or rendered.
+- Only one Response can stream at a time. Navigation remains available while it
+  streams in the background.
 
 Float controls:
 
 | Key | Action |
 | --- | --- |
 | `<leader>P` | Focus, unfocus, or restore the Float |
-| `<M-h>` / `<M-l>` | Previous / next response page |
+| `<M-h>` / `<M-l>` | Previous / next Response in the Selected Session |
+| `<M-H>` / `<M-L>` | Previous / next Agent Session |
 | `<M-u>` / `<M-d>` | Scroll up / down |
 | `q` / `<Esc>` | Close while focused |
 
+`:AgentSessionsClear` removes all in-memory Agent Sessions and the disposable
+Session Store. It refuses to run while a Response is streaming.
+
 Float visibility has `before_open` and `after_close` lifecycle hooks. They run
-once per hidden/visible transition, not for page changes, and receive the
+once per hidden/visible transition, not for Response selection changes, and receive the
 resolved `{ side, width }` layout. The local no-neck-pain integration uses them
 to expand the center window while the Float is visible and restore its previous
 width afterward.
@@ -111,7 +118,7 @@ OpenCode or Claude Code.
 
 ## Intentional limits
 
-- Continuation discovery does not survive a Neovim restart.
+- Agent Session navigation does not survive a Neovim restart.
 - Generate has no conversational state or alternative history.
 - Tmux handoff is send-only.
 - Runtime registration is not public yet.

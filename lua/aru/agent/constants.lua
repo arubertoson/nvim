@@ -9,9 +9,9 @@ M.RUNTIME = {
     pi = {
         JSON_ARGS = { "--mode", "json" },
         NO_SESSION = "--no-session",
-        CONTINUE = "--continue",
         PRESET = "--preset",
         SESSION_DIR = "--session-dir",
+        SESSION_ID = "--session-id",
     },
 }
 

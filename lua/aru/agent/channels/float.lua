@@ -1,6 +1,5 @@
 ---@module "aru.agent.channels.float"
----Streams agent responses into an anchored read-only floating window with
----page-based history. Each float response is a page; navigate with page_prev/page_next.
+---Streams Read output into Responses and renders the selected Response in a float.
 
 local M = {}
 
@@ -8,42 +7,31 @@ local logger = require("aru.log")
 local config = require("aru.agent.config")
 local constants = require("aru.agent.constants")
 local line_acc = require("aru.agent.lines")
+local process = require("aru.agent.process")
 local progress = require("aru.agent.progress")
+local session = require("aru.agent.session")
 local stream = require("aru.agent.stream")
 local ui = require("aru.agent.ui")
-local process = require("aru.agent.process")
 
----@class aru.agent.channels.float.Page
----@field lines string[]
----@field label string
-
----@class aru.agent.channels.float.State: aru.agent.progress.State
+---@class aru.agent.channels.float.WindowState
 ---@field buf integer
 ---@field win integer
 ---@field ns integer
 ---@field augroup integer
----@field pending string
----@field display_pending boolean
----@field display_pending_lines integer
----@field streaming boolean
 ---@field user_scrolled boolean
----@field title_label string
----@field stream_id integer
 ---@field layout aru.agent.config.FloatLayout
+
+---@class aru.agent.channels.float.StreamState: aru.agent.progress.State
+---@field response aru.agent.Response
+---@field answer { lines: string[], pending: string }
 
 local markview_autocmds_ready = false
 
----@type aru.agent.channels.float.Page[]
-local _pages = {}
+---@type aru.agent.channels.float.WindowState|nil
+local _window = nil
 
----@type integer
-local _page_index = 0
-
----@type integer
-local _stream_id = 0
-
----@type aru.agent.channels.float.State|nil
-local _state = nil
+---@type aru.agent.channels.float.StreamState|nil
+local _stream = nil
 
 ---@param name "before_open"|"after_close"
 ---@param layout aru.agent.config.FloatLayout
@@ -86,14 +74,15 @@ local function render_markview(buf)
     pcall(actions.render, buf, { enable = true, hybrid_mode = false })
 end
 
----@param state aru.agent.channels.float.State
-local function stop_spinner(state) progress.stop(state) end
+local function stop_spinner()
+    if _stream then progress.stop(_stream) end
+end
 
 local function close_float()
-    if not _state then return end
-    local state = _state
-    _state = nil
-    stop_spinner(state)
+    if not _window then return end
+    local state = _window
+    _window = nil
+    stop_spinner()
     pcall(vim.api.nvim_del_augroup_by_id, state.augroup)
     ui.close_win_buf(state.win, state.buf)
     run_lifecycle_hook("after_close", state.layout)
@@ -107,6 +96,7 @@ local function max_height()
 end
 
 ---@param buf integer
+---@param width integer
 local function estimated_rows(buf, width)
     local rows = 0
     for _, line in ipairs(vim.api.nvim_buf_get_lines(buf, 0, -1, false)) do
@@ -115,7 +105,7 @@ local function estimated_rows(buf, width)
     return math.max(1, rows)
 end
 
----@param state aru.agent.channels.float.State
+---@param state aru.agent.channels.float.WindowState
 local function content_rows(state)
     if vim.api.nvim_win_is_valid(state.win) and vim.api.nvim_win_text_height then
         local ok, height =
@@ -128,13 +118,13 @@ local function content_rows(state)
     return estimated_rows(state.buf, state.layout.width)
 end
 
----@param state aru.agent.channels.float.State
+---@param state aru.agent.channels.float.WindowState
 local function anchor_top(state)
     if not vim.api.nvim_win_is_valid(state.win) then return end
     pcall(vim.api.nvim_win_set_cursor, state.win, { 1, 0 })
 end
 
----@param state aru.agent.channels.float.State
+---@param state aru.agent.channels.float.WindowState
 local function resize(state)
     if not vim.api.nvim_win_is_valid(state.win) then return end
     local new_h = math.min(content_rows(state), max_height())
@@ -143,33 +133,47 @@ local function resize(state)
     if not state.user_scrolled then anchor_top(state) end
 end
 
----@param state aru.agent.channels.float.State
-local function title(state)
-    local page_info = #_pages > 1 and (" %d/%d"):format(_page_index, #_pages) or ""
-    if state.streaming then
-        return (" %s%s %s %s "):format(
-            state.title_label,
-            page_info,
-            progress.frame(state),
-            state.phrase
-        )
+---@return string
+local function title()
+    local selected = session.selection()
+    if not selected then error("Cannot title a response float without a selection") end
+
+    local prefix = (" %s · S%d/%d · R%d/%d"):format(
+        selected.response.label,
+        selected.session_index,
+        selected.session_count,
+        selected.response_index,
+        selected.response_count
+    )
+    if _stream and selected.response == _stream.response then
+        return ("%s · %s %s "):format(prefix, progress.frame(_stream), _stream.phrase)
     end
-    return (" %s%s "):format(state.title_label, page_info)
+    return prefix .. " "
 end
 
----@param state aru.agent.channels.float.State
-local function refresh_title(state)
-    if vim.api.nvim_win_is_valid(state.win) then
-        vim.api.nvim_win_set_config(state.win, { title = title(state) })
+local function refresh_title()
+    if _window and vim.api.nvim_win_is_valid(_window.win) then
+        vim.api.nvim_win_set_config(_window.win, { title = title() })
     end
 end
 
----@param state aru.agent.channels.float.State
-local function start_spinner(state)
-    progress.start(state, {
-        is_current = function() return _state == state end,
-        refresh = function() refresh_title(state) end,
-    })
+local function sync_spinner()
+    if not _stream then return end
+
+    if _window and session.is_selected(_stream.response) then
+        if _stream.spinner_timer then return end
+        local active = _stream
+        progress.start(active, {
+            is_current = function()
+                return _stream == active
+                    and _window ~= nil
+                    and session.is_selected(active.response)
+            end,
+            refresh = refresh_title,
+        })
+    else
+        progress.stop(_stream)
+    end
 end
 
 ---@param buf integer
@@ -180,88 +184,21 @@ local function set_modifiable(buf, modifiable)
 end
 
 ---@param buf integer
----@param start integer
----@param end_ integer
 ---@param lines string[]
-local function set_lines(buf, start, end_, lines)
+local function set_lines(buf, lines)
     set_modifiable(buf, true)
-    pcall(vim.api.nvim_buf_set_lines, buf, start, end_, false, lines)
+    pcall(vim.api.nvim_buf_set_lines, buf, 0, -1, false, lines)
     set_modifiable(buf, false)
 end
 
----@param state aru.agent.channels.float.State
----@param delta string
-local function append(state, delta)
-    if not vim.api.nvim_buf_is_valid(state.buf) then return end
-
-    local complete, pending = line_acc.split_pending(state.pending, delta)
-    state.pending = pending
-
-    local line_count = vim.api.nvim_buf_line_count(state.buf)
-    local replace_start = line_count
-    local replace_end = line_count
-
-    if state.display_pending then
-        replace_start = math.max(0, line_count - state.display_pending_lines)
-        replace_end = line_count
-    elseif line_count == 1 and vim.api.nvim_buf_get_lines(state.buf, 0, 1, false)[1] == "" then
-        replace_start = 0
-        replace_end = 1
-    end
-
-    local replacement = complete
-    if state.pending ~= "" then
-        table.insert(replacement, state.pending)
-        state.display_pending = true
-        state.display_pending_lines = 1
-    else
-        state.display_pending = false
-        state.display_pending_lines = 0
-    end
-
-    if not vim.tbl_isempty(replacement) then
-        set_lines(state.buf, replace_start, replace_end, replacement)
-        render_markview(state.buf)
-    elseif replace_start == 0 and replace_end == 1 then
-        set_lines(state.buf, 0, 1, { "" })
-        render_markview(state.buf)
-    end
-
-    resize(state)
-end
-
----@param state aru.agent.channels.float.State
-local function save_current_page(state)
-    if not vim.api.nvim_buf_is_valid(state.buf) then return end
-    local page = _pages[_page_index]
-    if not page then return end
-    page.lines = vim.api.nvim_buf_get_lines(state.buf, 0, -1, false)
-end
-
----@param state aru.agent.channels.float.State
-local function flush(state)
-    stop_spinner(state)
-    state.streaming = false
-    refresh_title(state)
-
-    if state.pending ~= "" and not state.display_pending then
-        local pending = state.pending
-        state.pending = ""
-        append(state, pending)
-    end
-    state.pending = ""
-    state.display_pending = false
-    state.display_pending_lines = 0
-
-    save_current_page(state)
-end
-
----@param state aru.agent.channels.float.State
+---@param state aru.agent.channels.float.WindowState
 ---@param direction "down"|"up"
 local function scroll(state, direction)
     if not vim.api.nvim_win_is_valid(state.win) then return end
     if not vim.api.nvim_buf_is_valid(state.buf) then return end
-    if state.streaming then return end
+
+    local selected = session.selection()
+    if selected and selected.response.status == "streaming" then return end
 
     local win_height = vim.api.nvim_win_get_height(state.win)
     local amount = vim.v.count > 0 and vim.v.count or math.max(1, math.floor(win_height / 2))
@@ -275,39 +212,36 @@ local function scroll(state, direction)
     end)
 end
 
----@param state aru.agent.channels.float.State
+---@param state aru.agent.channels.float.WindowState
 local function install_keymaps(state)
     for _, mapping in ipairs({
         { lhs = "<C-d>", direction = "down" },
         { lhs = "<C-u>", direction = "up" },
     }) do
-        local dir = mapping.direction
+        local direction = mapping.direction
         local lhs = mapping.lhs
         for _, mode in ipairs({ "n", "i" }) do
             vim.keymap.set(mode, lhs, function()
-                local scroll_fn = function()
-                    if _state then scroll(_state, dir) end
+                local scroll_current = function()
+                    if _window then scroll(_window, direction) end
                 end
                 if mode == "i" then
-                    vim.schedule(scroll_fn)
+                    vim.schedule(scroll_current)
                 else
-                    scroll_fn()
+                    scroll_current()
                 end
             end, {
                 buffer = state.buf,
                 silent = true,
-                desc = "Scroll float " .. dir,
+                desc = "Scroll float " .. direction,
             })
         end
     end
 end
 
 ---@param lines string[]
----@param opts { streaming: boolean|nil, runtime_label: string|nil }
----@return aru.agent.channels.float.State
-local function create_float_window(lines, opts)
-    opts = opts or {}
-
+---@return aru.agent.channels.float.WindowState
+local function create_float_window(lines)
     local buf = ui.create_scratch_buf({
         filetype = constants.UI.FILETYPE_MARKDOWN,
         modifiable = false,
@@ -335,7 +269,7 @@ local function create_float_window(lines, opts)
         height = math.max(1, height),
         style = constants.UI.STYLE_MINIMAL,
         border = custom.border or constants.UI.BORDER_ROUNDED,
-        title = (" %s "):format(opts.runtime_label or "agent"),
+        title = " agent ",
         title_pos = constants.UI.TITLE_POS_LEFT,
         zindex = ui_layout.ZINDEX,
     })
@@ -356,38 +290,29 @@ local function create_float_window(lines, opts)
 
     local ns = vim.api.nvim_create_namespace(constants.NAMESPACE.READ_FLOAT)
     local augroup = vim.api.nvim_create_augroup(constants.AUGROUP.READ_FLOAT, { clear = true })
-    ---@type aru.agent.channels.float.State
+    ---@type aru.agent.channels.float.WindowState
     local state = {
         buf = buf,
         win = win,
         ns = ns,
         augroup = augroup,
-        pending = "",
-        display_pending = false,
-        display_pending_lines = 0,
-        streaming = opts.streaming == true,
         user_scrolled = false,
-        title_label = opts.runtime_label or "agent",
-        stream_id = 0,
         layout = layout,
     }
-    progress.init(state)
-    _state = state
+    _window = state
+
     vim.api.nvim_create_autocmd("WinClosed", {
         group = augroup,
         pattern = tostring(win),
         callback = function()
-            if _state ~= state then return end
-            _state = nil
-            stop_spinner(state)
+            if _window ~= state then return end
+            _window = nil
+            stop_spinner()
             pcall(vim.api.nvim_del_augroup_by_id, state.augroup)
             run_lifecycle_hook("after_close", state.layout)
         end,
     })
     install_keymaps(state)
-    refresh_title(state)
-    resize(state)
-    if state.streaming then start_spinner(state) end
 
     local map_opts = { buffer = buf, silent = true, nowait = true }
     vim.keymap.set("n", "q", close_float, map_opts)
@@ -395,116 +320,147 @@ local function create_float_window(lines, opts)
 
     attach_markview(buf)
     render_markview(buf)
+    refresh_title()
     resize(state)
+    sync_spinner()
 
     return state
 end
 
----@param index integer
----@param opts { streaming: boolean|nil }|nil
----@return aru.agent.channels.float.State|nil
-local function show_page(index, opts)
-    opts = opts or {}
-    local page = _pages[index]
-    if not page then return nil end
+---@return aru.agent.channels.float.WindowState|nil
+function M.show_selected()
+    local selected = session.selection()
+    if not selected then return nil end
 
-    _page_index = index
-
-    local state
-    if
-        _state
-        and vim.api.nvim_win_is_valid(_state.win)
-        and vim.api.nvim_buf_is_valid(_state.buf)
-    then
-        state = _state
-        stop_spinner(state)
-        state.pending = ""
-        state.display_pending = false
-        state.display_pending_lines = 0
-        state.streaming = opts.streaming == true
+    local state = _window
+    if state and vim.api.nvim_win_is_valid(state.win) and vim.api.nvim_buf_is_valid(state.buf) then
+        stop_spinner()
         state.user_scrolled = false
-        state.title_label = page.label
-        set_lines(state.buf, 0, -1, page.lines)
+        set_lines(state.buf, selected.response.lines)
         render_markview(state.buf)
-        refresh_title(state)
+        refresh_title()
         resize(state)
-        if state.streaming then start_spinner(state) end
-    else
-        state = create_float_window(page.lines, {
-            streaming = opts.streaming,
-            runtime_label = page.label,
-        })
+        sync_spinner()
+        return state
     end
 
-    return state
+    return create_float_window(selected.response.lines)
+end
+
+---@param active aru.agent.channels.float.StreamState
+---@return string[]
+local function streamed_lines(active)
+    local result = {}
+    vim.list_extend(result, active.answer.lines)
+    if active.answer.pending ~= "" then result[#result + 1] = active.answer.pending end
+    if #result == 0 then result[1] = "" end
+    return result
+end
+
+---@param active aru.agent.channels.float.StreamState
+local function save_stream(active)
+    active.response.lines = streamed_lines(active)
+    if not session.is_selected(active.response) or not _window then return end
+
+    set_lines(_window.buf, active.response.lines)
+    render_markview(_window.buf)
+    resize(_window)
+end
+
+---@param active aru.agent.channels.float.StreamState
+---@param delta string
+local function append(active, delta)
+    line_acc.push(active.answer, delta)
+    save_stream(active)
+end
+
+---@param active aru.agent.channels.float.StreamState
+---@param status "complete"|"error"
+local function finish(active, status)
+    line_acc.flush(active.answer)
+    save_stream(active)
+    session.finish(active.response, status)
+    progress.stop(active)
+    _stream = nil
+    if session.is_selected(active.response) and _window then
+        refresh_title()
+        resize(_window)
+    end
 end
 
 ---@param transport aru.agent.channels.Transport
 ---@param _ctx aru.agent.ConfigState|nil
 ---@return boolean
 function M.send(transport, _ctx)
-    if _state and _state.streaming then save_current_page(_state) end
+    if _stream then
+        vim.notify("An agent response is already streaming", vim.log.levels.WARN)
+        return false
+    end
+    if not transport.response then error("Float transport requires an owning Response") end
+    if transport.response.status ~= "streaming" then
+        error("Float transport Response must be streaming")
+    end
 
-    table.insert(_pages, { lines = { "" }, label = transport.label })
-    _page_index = #_pages
+    ---@type aru.agent.channels.float.StreamState
+    local active = {
+        response = transport.response,
+        answer = { lines = {}, pending = "" },
+    }
+    progress.init(active)
+    _stream = active
 
-    _stream_id = _stream_id + 1
-    local stream_id = _stream_id
-
-    logger.debug("Sending float channel page", _page_index, transport.message)
-
-    local state = show_page(_page_index, { streaming = true })
-    if not state then return false end
-    state.stream_id = stream_id
-
-    transport.run(transport.message, function(event)
-        if _state ~= state or state.stream_id ~= stream_id then return end
-        stream.dispatch(event, {
-            on_thinking = function()
-                if progress.update_phrase(state) then refresh_title(state) end
-            end,
-            on_text = function(delta) append(state, delta) end,
-        })
-    end, function(result)
-        if _state ~= state or state.stream_id ~= stream_id then return end
-        if result.code ~= 0 then
-            local err_line = process.stderr_summary(result)
-            logger.error("Float channel failed", result.code, err_line)
-            append(state, "\n[error: " .. err_line .. "]")
-        end
-        flush(state)
+    logger.debug("Sending float channel response", transport.message)
+    local ok, err = pcall(function()
+        M.show_selected()
+        transport.run(transport.message, function(event)
+            if _stream ~= active then return end
+            stream.dispatch(event, {
+                on_thinking = function()
+                    if progress.update_phrase(active) and session.is_selected(active.response) then
+                        refresh_title()
+                    end
+                end,
+                on_text = function(delta) append(active, delta) end,
+            })
+        end, function(result)
+            if _stream ~= active then return end
+            if result.code ~= 0 then
+                local err_line = process.stderr_summary(result)
+                logger.error("Float channel failed", result.code, err_line)
+                append(active, "\n[error: " .. err_line .. "]")
+                finish(active, "error")
+                return
+            end
+            finish(active, "complete")
+        end)
     end)
+
+    if not ok then
+        local err_line = tostring(err):match("[^\n]+") or tostring(err)
+        logger.error("Float channel failed to start", err_line)
+        append(active, "\n[error: " .. err_line .. "]")
+        finish(active, "error")
+        error(err)
+    end
 
     return true
 end
 
----@param delta integer
-local function navigate_page(delta)
-    if _state and _state.streaming then return end
-    local target = _page_index + delta
-    if target < 1 or target > #_pages then return end
-    show_page(target)
-end
-
-function M.page_prev() navigate_page(-1) end
-
-function M.page_next() navigate_page(1) end
-
 function M.restore()
-    if #_pages == 0 then
+    if not session.selection() then
         logger.info("No previous float response to restore")
         vim.notify("No response available to restore", vim.log.levels.INFO)
         return
     end
-    show_page(_page_index > 0 and _page_index or #_pages)
+    M.show_selected()
 end
 
 function M.focus()
-    if _state and vim.api.nvim_win_is_valid(_state.win) then
-        if vim.api.nvim_get_current_win() == _state.win then
+    if _window and vim.api.nvim_win_is_valid(_window.win) then
+        if vim.api.nvim_get_current_win() == _window.win then
             vim.cmd("wincmd p")
         else
-            vim.api.nvim_set_current_win(_state.win)
+            vim.api.nvim_set_current_win(_window.win)
         end
     else
         M.restore()
@@ -513,7 +469,7 @@ end
 
 ---@param direction "down"|"up"
 function M.scroll(direction)
-    if _state then scroll(_state, direction) end
+    if _window then scroll(_window, direction) end
 end
 
 function M.close() close_float() end
