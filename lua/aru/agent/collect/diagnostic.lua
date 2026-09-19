@@ -1,8 +1,6 @@
 ---@module "aru.agent.collect.diagnostic"
 local M = {}
 
-local log = require("aru.log")
-
 local severity_names = {
     [vim.diagnostic.severity.ERROR] = "ERROR",
     [vim.diagnostic.severity.WARN] = "WARN",
@@ -68,12 +66,7 @@ end
 ---@return aru.agent.payload.ContextItem|nil
 function M.collect(inv)
     local diag = diagnostic_at_cursor(inv.bufnr, inv.cursor)
-    if not diag then
-        log.info("No diagnostic found at cursor position")
-        vim.notify("No diagnostic found at cursor position", vim.log.levels.INFO)
-
-        return nil
-    end
+    if not diag then return nil end
 
     return construct_diagnostic_context_item(diag, inv)
 end

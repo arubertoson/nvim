@@ -11,64 +11,24 @@ local T = MiniTest.new_set({
             root = vim.fn.tempname()
             vim.fs.mkdir(vim.fs.joinpath(root, "src", "deep"), { parents = true })
             vim.fs.mkdir(vim.fs.joinpath(root, ".hidden"), { parents = true })
-            vim.fn.writefile({ "content" }, vim.fs.joinpath(root, "src", "child.lua"))
+            vim.fn.writefile({
+                "local function child()",
+                "    return true",
+                "end",
+            }, vim.fs.joinpath(root, "src", "child.lua"))
             vim.fn.writefile({ "content" }, vim.fs.joinpath(root, "src", "deep", "list.zig"))
             vim.fn.writefile({ "content" }, vim.fs.joinpath(root, ".hidden", "secret.zig"))
         end,
-        post_case = function() vim.fn.delete(root, "rf") end,
+        post_case = function()
+            vim.cmd("silent! %bwipeout!")
+            vim.fn.delete(root, "rf")
+        end,
     },
 })
 
-local function complete(line, bounds)
-    local response
-    local source = require("aru.cmp.path").new({
-        reference_triggers = true,
-        get_cwd = function() return root end,
-    })
-    source:get_completions({
-        line = line,
-        cursor = { 1, #line },
-        bounds = bounds,
-    }, function(result) response = result end)
-
-    MiniTest.expect.equality(vim.wait(1000, function() return response ~= nil end), true)
-    return response
-end
-
-T["path source"] = MiniTest.new_set()
-
-T["path source"]["completes project-relative agent references"] = function()
-    local response = complete("@src/ch", { start_col = 6, length = 2 })
-    local child = vim.iter(response.items)
-        :find(function(item) return item.label == "child.lua" end)
-
-    MiniTest.expect.no_equality(child, nil)
-    MiniTest.expect.equality(child.textEdit.range, {
-        start = { line = 0, character = 5 },
-        ["end"] = { line = 0, character = 7 },
-    })
-end
-
-T["path source"]["completes unprefixed relative paths"] = function()
-    local response = complete("src/", { start_col = 5, length = 0 })
-
-    MiniTest.expect.equality(
-        vim.iter(response.items):any(function(item) return item.label == "child.lua" end),
-        true
-    )
-end
-
-T["path source"]["adds agent reference trigger characters"] = function()
-    local source = require("aru.cmp.path").new({ reference_triggers = true })
-    local triggers = source:get_trigger_characters()
-
-    MiniTest.expect.equality(vim.tbl_contains(triggers, "@"), true)
-    MiniTest.expect.equality(vim.tbl_contains(triggers, "`"), true)
-end
-
 local function complete_files(line)
     local response
-    local source = require("aru.cmp.files").new({
+    local source = require("aru.agent.completion.files").new({
         get_cwd = function() return root end,
     })
     source:get_completions({
@@ -102,47 +62,67 @@ T["project file source"]["includes hidden files"] = function()
     MiniTest.expect.equality(response.items[1].label, ".hidden/secret.zig")
 end
 
-T["project file source"]["only completes marked references"] = function()
+T["project file source"]["only completes inline references"] = function()
     local response = complete_files("list.zig")
 
     MiniTest.expect.equality(response.items, {})
 end
 
-T["marked buffer source"] = MiniTest.new_set()
+T["project file source"]["adds inline reference trigger characters"] = function()
+    local source =
+        require("aru.agent.completion.files").new({ get_cwd = function() return root end })
+    local triggers = source:get_trigger_characters()
 
-T["marked buffer source"]["only completes hash references"] = function()
-    local bufnr = vim.api.nvim_create_buf(false, true)
-    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "activebufferword" })
+    MiniTest.expect.equality(vim.tbl_contains(triggers, "@"), true)
+    MiniTest.expect.equality(vim.tbl_contains(triggers, "#"), true)
+end
 
-    local source = require("aru.cmp.buffer").new({
-        get_bufnrs = function() return { bufnr } end,
+T["symbol source"] = MiniTest.new_set()
+
+local function complete_symbols(line)
+    local path = vim.fs.joinpath(root, "src", "child.lua")
+    local invocation_buf = vim.fn.bufadd(path)
+    vim.fn.bufload(invocation_buf)
+    vim.bo[invocation_buf].filetype = "lua"
+    local source = require("aru.agent.completion.symbol").new({
+        get_cwd = function() return root end,
+        get_invocation_buf = function() return invocation_buf end,
     })
     local response
     source:get_completions({
-        line = "#active",
-        cursor = { 1, 7 },
-        bounds = { start_col = 2, length = 6 },
+        line = line,
+        cursor = { 1, #line },
     }, function(result) response = result end)
-
-    MiniTest.expect.equality(vim.wait(1000, function() return response ~= nil end), true)
-    MiniTest.expect.equality(
-        vim.iter(response.items):any(function(item) return item.label == "activebufferword" end),
-        true
-    )
-    vim.api.nvim_buf_delete(bufnr, { force = true })
+    return response
 end
 
-T["marked buffer source"]["returns nothing without a hash reference"] = function()
-    local source = require("aru.cmp.buffer").new({ get_bufnrs = function() return {} end })
-    local response
-    source:get_completions({
-        line = "active",
-        cursor = { 1, 6 },
-        bounds = { start_col = 1, length = 6 },
-    }, function(result) response = result end)
+T["symbol source"]["lists symbols immediately after an explicit file hash"] = function()
+    local response = complete_symbols("@src/child.lua#")
 
-    MiniTest.expect.equality(response.items, {})
-    MiniTest.expect.equality(source:get_trigger_characters(), { "#" })
+    MiniTest.expect.equality(response.items[1].label, "child")
+    MiniTest.expect.equality(response.items[1].textEdit.range, {
+        start = { line = 0, character = 15 },
+        ["end"] = { line = 0, character = 15 },
+    })
+end
+
+T["symbol source"]["lists invocation-buffer symbols after a current-file hash"] = function()
+    local response = complete_symbols("@#")
+
+    MiniTest.expect.equality(response.items[1].label, "child")
+end
+
+T["symbol source"]["filters symbols using the selector text"] = function()
+    local response = complete_symbols("@src/child.lua#chi")
+
+    MiniTest.expect.equality(response.items[1].label, "child")
+    MiniTest.expect.equality(response.items[1].textEdit, {
+        newText = "child",
+        range = {
+            start = { line = 0, character = 15 },
+            ["end"] = { line = 0, character = 18 },
+        },
+    })
 end
 
 return T

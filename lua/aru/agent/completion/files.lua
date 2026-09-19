@@ -1,28 +1,26 @@
----@module "aru.cmp.files"
+---@module "aru.agent.completion.files"
 ---Blink source for fuzzy project-file references in agent prompts.
 
 local M = {}
 
 local CACHE_TTL_MS = 5000
-local REFERENCE_MARKERS = { ["@"] = true, ["`"] = true }
-
----@class aru.cmp.files.Opts
+---@class aru.agent.completion.files.Opts
 ---@field get_cwd fun(context: blink.cmp.Context): string
 ---@field max_results integer|nil
 ---@field cache_ttl_ms integer|nil
 
----@class aru.cmp.files.Request
+---@class aru.agent.completion.files.Request
 ---@field callback fun(files: string[]|nil)
 ---@field cancelled boolean
 
----@class aru.cmp.files.CacheEntry
+---@class aru.agent.completion.files.CacheEntry
 ---@field files string[]|nil
 ---@field expires_at integer|nil
----@field pending aru.cmp.files.Request[]|nil
+---@field pending aru.agent.completion.files.Request[]|nil
 
----@class aru.cmp.files.Source
----@field opts aru.cmp.files.Opts
----@field cache table<string, aru.cmp.files.CacheEntry>
+---@class aru.agent.completion.files.Source
+---@field opts aru.agent.completion.files.Opts
+---@field cache table<string, aru.agent.completion.files.CacheEntry>
 local Source = {}
 Source.__index = Source
 
@@ -30,16 +28,12 @@ Source.__index = Source
 ---@param cursor_col integer
 ---@return { start_col: integer, query: string }|nil
 local function reference_at_cursor(line, cursor_col)
-    local before_cursor = line:sub(1, cursor_col)
-    local token_start = before_cursor:find("%S+$")
-    if not token_start then return nil end
-
-    local token = before_cursor:sub(token_start)
-    if not REFERENCE_MARKERS[token:sub(1, 1)] then return nil end
+    local ref = require("aru.agent.reference").at_cursor(line, cursor_col)
+    if not ref or ref.selector or ref.invalid then return nil end
 
     return {
-        start_col = token_start,
-        query = token:sub(2),
+        start_col = ref.span.start_col + 1,
+        query = ref.path or "",
     }
 end
 
@@ -61,7 +55,7 @@ local function parse_files(output)
     return files
 end
 
----@param self aru.cmp.files.Source
+---@param self aru.agent.completion.files.Source
 ---@param cwd string
 ---@param callback fun(files: string[]|nil)
 ---@return fun()|nil
@@ -142,17 +136,17 @@ local function completion_items(files, reference, context, cwd, max_results)
     return items
 end
 
----@param opts aru.cmp.files.Opts
----@return aru.cmp.files.Source
+---@param opts aru.agent.completion.files.Opts
+---@return aru.agent.completion.files.Source
 function M.new(opts)
-    vim.validate("aru.cmp.files.get_cwd", opts.get_cwd, "function")
-    vim.validate("aru.cmp.files.max_results", opts.max_results, "number", true)
-    vim.validate("aru.cmp.files.cache_ttl_ms", opts.cache_ttl_ms, "number", true)
+    vim.validate("aru.agent.completion.files.get_cwd", opts.get_cwd, "function")
+    vim.validate("aru.agent.completion.files.max_results", opts.max_results, "number", true)
+    vim.validate("aru.agent.completion.files.cache_ttl_ms", opts.cache_ttl_ms, "number", true)
 
     return setmetatable({ opts = opts, cache = {} }, Source)
 end
 
-function Source:get_trigger_characters() return { "@", "`", "/", ".", "\\" } end
+function Source:get_trigger_characters() return { "@", "#", "/", ".", "\\" } end
 
 ---@param context blink.cmp.Context
 ---@param callback fun(response: blink.cmp.CompletionResponse)
