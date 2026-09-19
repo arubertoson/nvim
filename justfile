@@ -29,9 +29,12 @@ hooks-install:
     @git config core.hooksPath .githooks
     @echo "Git hooks installed. Commits will run: just check"
 
-# Install the configuration-owned StyLua and LuaLS versions.
+# Install configuration-owned tools and expose runtime executables on a stable path.
 tools-install:
     @mise install
+    @mkdir -p tools/bin
+    @rm -f tools/bin/sqls
+    @install -m 755 "$(mise exec -- which sqls)" tools/bin/sqls
 
 # Install Node-based language servers and formatters from tools/lsp.
 lsp-install:

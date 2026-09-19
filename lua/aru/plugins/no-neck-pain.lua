@@ -80,10 +80,12 @@ local function apply_layout_for_filetype(buf)
     hide_separator(win)
 
     local is_markdown = vim.bo[buf].filetype == "markdown"
+    local is_sqlite_query = vim.b[buf].aru_sqlite_query == true
     local target_width = is_markdown and markdown_width or default_width
+    local center_buffer = is_markdown or is_sqlite_query
     local right_enabled = _G.NoNeckPain.config.buffers.right.enabled
 
-    if right_enabled ~= is_markdown then nnp.toggle_side("right") end
+    if right_enabled ~= center_buffer then nnp.toggle_side("right") end
 
     if _G.NoNeckPain.config.width ~= target_width then nnp.resize(target_width) end
 end
@@ -98,6 +100,7 @@ nnp.setup({
     width = default_width,
     minSideBufferWidth = 0,
     autocmds = {
+        enableOnTabEnter = true,
         skipEnteringNoNeckPainBuffer = true,
     },
     callbacks = {

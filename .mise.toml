@@ -2,5 +2,6 @@
 _.path = ["{{config_root}}/tools/lsp/node_modules/.bin"]
 
 [tools]
+"aqua:sqls-server/sqls" = "0.2.48"
 lua-language-server = "3.15.0"
 stylua = "2.3.0"

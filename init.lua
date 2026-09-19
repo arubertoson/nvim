@@ -64,9 +64,16 @@ vim.loader.enable()
 -- visual artifacts and ensures consistent UI behavior.
 require("vim._core.ui2").enable({})
 
--- Ensure that we have a clean tools directory only available for our nvim instance.
-local lsp_bin = vim.fs.joinpath(vim.fn.stdpath("config"), "tools", "lsp", "node_modules", ".bin")
-if vim.fn.isdirectory(lsp_bin) == 1 then vim.env.PATH = lsp_bin .. ":" .. (vim.env.PATH or "") end
+-- Ensure that configuration-owned tools are only available to this Neovim instance.
+local tools = vim.fs.joinpath(vim.fn.stdpath("config"), "tools")
+local tool_paths = {
+    vim.fs.joinpath(tools, "bin"),
+    vim.fs.joinpath(tools, "lsp", "node_modules", ".bin"),
+}
+for index = #tool_paths, 1, -1 do
+    local path = tool_paths[index]
+    if vim.fn.isdirectory(path) == 1 then vim.env.PATH = path .. ":" .. (vim.env.PATH or "") end
+end
 
 require("aru.startup").load({
     -- Install and add plugins to the runtime path before we start working

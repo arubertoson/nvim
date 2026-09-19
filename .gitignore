@@ -1,4 +1,5 @@
 .aider*
+/tools/bin/
 /tools/lsp/node_modules/
 /tools/fff/
 
