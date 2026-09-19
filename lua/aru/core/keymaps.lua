@@ -175,12 +175,8 @@ map(
 )
 
 -- ============================================================================
--- Active files (quick file switching)
+-- Active files
 -- ============================================================================
-map("n", "<C-j>", function() require("aru.nav").active.select(1) end, { desc = "Active file 1" })
-map("n", "<C-k>", function() require("aru.nav").active.select(2) end, { desc = "Active file 2" })
-map("n", "<C-l>", function() require("aru.nav").active.select(3) end, { desc = "Active file 3" })
-
 map(
     "n",
     "<localleader>a",
