@@ -2,11 +2,7 @@ local package_root_markers =
     { "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb", "bun.lock" }
 local biome_config_files = { "biome.json", "biome.jsonc" }
 
-local function root_markers_with_git()
-    if vim.fn.has("nvim-0.11.3") == 1 then return { package_root_markers, { ".git" } } end
-
-    return vim.list_extend(vim.deepcopy(package_root_markers), { ".git" })
-end
+local function root_markers_with_git() return { package_root_markers, { ".git" } } end
 
 local function buf_dir(bufnr)
     local filename = vim.api.nvim_buf_get_name(bufnr)

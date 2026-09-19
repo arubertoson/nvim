@@ -21,17 +21,15 @@ vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter" }, {
         -- Lazy version, it's going to try to start the treesitter parser for every
         -- filetyp, this will trigger on all things that open a buffer in neovim
         -- and it's a bit unyieldy. But it works.
-        local ok, _ = pcall(vim.treesitter.start)
+        local ok = pcall(vim.treesitter.start, ev.buf)
         if not ok then
-            local bufnr = vim.api.nvim_get_current_buf()
-            local bufname = vim.api.nvim_buf_get_name(bufnr)
-            local ft = vim.api.nvim_get_option_value("filetype", { buf = bufnr })
+            local bufname = vim.api.nvim_buf_get_name(ev.buf)
+            local ft = vim.api.nvim_get_option_value("filetype", { buf = ev.buf })
 
             log.debug("Treesitter failed to start", bufname, ft)
             return
         end
 
-        vim.wo[ev.win].foldexpr = vim.treesitter.foldexpr
         vim.bo[ev.buf].indentexpr = require("nvim-treesitter").indentexpr
     end,
 })

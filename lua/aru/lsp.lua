@@ -30,17 +30,6 @@ local diagnostic_config = {
     },
 }
 
-local function override_floating_preview()
-    local original = vim.lsp.util.open_floating_preview
-    vim.lsp.util.open_floating_preview = function(contents, syntax, opts, ...)
-        opts = vim.tbl_deep_extend("keep", opts or {}, {
-            border = custom.border or "rounded",
-            title_pos = "center",
-        })
-        return original(contents, syntax, opts, ...)
-    end
-end
-
 local function map_buffer_keys(bufnr)
     local function map(lhs, rhs, desc, mode)
         vim.keymap.set(mode or "n", lhs, rhs, {
@@ -102,49 +91,24 @@ local function map_buffer_keys(bufnr)
     map("<leader>li", "<cmd>checkhealth vim.lsp<cr>", "LSP health")
 end
 
-local function setup_smart_hover(client, bufnr)
-    if not client:supports_method("textDocument/hover") then return end
+local function setup_buffer(bufnr)
+    if vim.b[bufnr].aru_lsp_buffer_setup then return end
 
-    vim.keymap.set("n", "K", function()
-        local params = vim.lsp.util.make_position_params(0, "utf-16")
-        local results = vim.lsp.buf_request_sync(bufnr, "textDocument/hover", params, 500)
-
-        if results and next(results) then
-            for _, result in pairs(results) do
-                if result.result and result.result.contents then return vim.lsp.buf.hover() end
-            end
-        end
-
-        vim.cmd("normal! K")
-    end, { buffer = bufnr, noremap = true, silent = true, desc = "Smart hover" })
-end
-
-local function setup_semantic_tokens(client, bufnr)
-    if not client:supports_method("textDocument/semanticTokens/full") then return end
-
-    vim.api.nvim_create_autocmd("LspTokenUpdate", {
-        once = true,
-        buffer = bufnr,
-        callback = function(ev)
-            vim.treesitter.stop(ev.buf)
-            vim.api.nvim_set_hl(0, "DiagnosticUnnecessary", {})
-        end,
-    })
+    map_buffer_keys(bufnr)
+    vim.b[bufnr].aru_lsp_buffer_setup = true
 end
 
 local function setup_inlay_hints(client, bufnr)
-    if not client:supports_method("textDocument/inlayHint") then return end
+    if vim.b[bufnr].aru_lsp_inlay_hints_setup then return end
+    if not client:supports_method("textDocument/inlayHint", bufnr) then return end
 
-    vim.api.nvim_buf_set_var(bufnr, "aru_inlay_hints", true)
+    vim.b[bufnr].aru_inlay_hints = true
     vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
 
-    local function current_state()
-        local ok, value = pcall(vim.api.nvim_buf_get_var, bufnr, "aru_inlay_hints")
-        return ok and value or false
-    end
+    local function current_state() return vim.b[bufnr].aru_inlay_hints end
 
     local function set_state(value)
-        vim.api.nvim_buf_set_var(bufnr, "aru_inlay_hints", value)
+        vim.b[bufnr].aru_inlay_hints = value
         vim.lsp.inlay_hint.enable(value, { bufnr = bufnr })
     end
 
@@ -173,10 +137,13 @@ local function setup_inlay_hints(client, bufnr)
         function() set_state(not current_state()) end,
         { buffer = bufnr, noremap = true, silent = true, desc = "Toggle inlay hints" }
     )
+
+    vim.b[bufnr].aru_lsp_inlay_hints_setup = true
 end
 
 local function setup_codelens(client, bufnr)
-    if not client:supports_method("textDocument/codeLens") then return end
+    if vim.b[bufnr].aru_lsp_codelens_setup then return end
+    if not client:supports_method("textDocument/codeLens", bufnr) then return end
 
     vim.keymap.set("n", "<leader>lc", vim.lsp.codelens.run, {
         buffer = bufnr,
@@ -185,12 +152,8 @@ local function setup_codelens(client, bufnr)
         desc = "Run code lens",
     })
 
-    vim.api.nvim_create_autocmd({ "BufEnter", "CursorHold", "InsertLeave" }, {
-        group = vim.api.nvim_create_augroup(("aru_codelens_%d"):format(bufnr), { clear = true }),
-        buffer = bufnr,
-        callback = function(event) vim.lsp.codelens.enable(true, { bufnr = event.buf }) end,
-        desc = "Refresh code lens",
-    })
+    vim.lsp.codelens.enable(true, { bufnr = bufnr })
+    vim.b[bufnr].aru_lsp_codelens_setup = true
 end
 
 local function on_attach(event)
@@ -198,9 +161,7 @@ local function on_attach(event)
     if not client then return end
 
     local bufnr = event.buf
-    map_buffer_keys(bufnr)
-    setup_smart_hover(client, bufnr)
-    setup_semantic_tokens(client, bufnr)
+    setup_buffer(bufnr)
     setup_inlay_hints(client, bufnr)
     setup_codelens(client, bufnr)
 end
@@ -224,6 +185,13 @@ local function has_loaded_buffers(client)
 end
 
 local function arm_gc(client)
+    local current = vim.lsp.get_client_by_id(client.id)
+    if not current then
+        clear_timer(client.id)
+        return
+    end
+
+    client = current
     if has_loaded_buffers(client) then
         clear_timer(client.id)
         return
@@ -234,11 +202,15 @@ local function arm_gc(client)
     local timer = vim.uv.new_timer()
     if not timer then return end
 
-    timer:start(gc_ttl, 0, function()
-        clear_timer(client.id)
-        local current = vim.lsp.get_client_by_id(client.id)
-        if current and not has_loaded_buffers(current) then pcall(current.stop, current, true) end
-    end)
+    timer:start(
+        gc_ttl,
+        0,
+        vim.schedule_wrap(function()
+            clear_timer(client.id)
+            local current = vim.lsp.get_client_by_id(client.id)
+            if current and not has_loaded_buffers(current) then current:stop(true) end
+        end)
+    )
 
     gc_timers[client.id] = timer
 end
@@ -264,7 +236,6 @@ end
 
 function M.setup()
     vim.diagnostic.config(diagnostic_config)
-    override_floating_preview()
     setup_gc()
 
     vim.api.nvim_create_autocmd("LspAttach", {

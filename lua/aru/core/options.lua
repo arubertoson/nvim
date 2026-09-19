@@ -59,20 +59,6 @@ vim.go.guicursor = "n-v-sm:block,i-t-ci-ve-c:ver25,r-cr-o:hor20"
 vim.opt.ignorecase = true
 vim.opt.smartcase = true
 
--- https://www.reddit.com/r/neovim/comments/1jmqd7t/sorry_ufo_these_7_lines_replaced_you/
--- Nice and simple folding:
-vim.o.foldenable = true
-vim.o.foldlevel = 99
-vim.o.foldlevelstart = 99
-vim.o.foldtext = ""
-vim.o.foldmethod = "expr"
--- Folds are handled by treesitter when the autocommand in core/autocommands.lua is triggered.
--- it sets upt the foldexpr for the attached window. If the attached lsp client supports folding
--- then it'll take over the foldexpr as provided in modules/lsp/spec.lua
-vim.o.foldexpr = ""
-vim.opt.foldcolumn = "0"
-vim.opt.fillchars:append({ fold = " " })
-
 if require("aru.env").is_ssh_shell() then
     vim.g.clipboard = {
         name = "osc52-ssh",

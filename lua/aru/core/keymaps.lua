@@ -95,13 +95,11 @@ end, { expr = true })
 -- [d     = vim.diagnostic.jump (prev)
 --
 -- <leader>l* namespace (LSP actions):
--- <leader>lf = vim.lsp.buf.format
+-- <leader>lf = format through Conform
 -- <leader>ld = toggle diagnostics
 -- <leader>lh = toggle inlay hints
 -- <leader>li = :checkhealth vim.lsp
 -- <leader>lc = vim.lsp.codelens.run (if supported)
--- <leader>ls = vim.lsp.buf.signature_help (if supported)
--- <leader>lt = vim.lsp.buf.typehierarchy("supertypes") (if supported)
 --
 -- <leader>w* namespace (workspace):
 -- <leader>ws = vim.lsp.buf.workspace_symbol
@@ -112,11 +110,13 @@ end, { expr = true })
 --
 -- <leader>o* namespace (organize):
 -- <leader>oi = organize imports (code action)
---
--- <leader>t* namespace (toggle):
--- <leader>tv = toggle virtual text diagnostics
 
-map("n", "<leader>lf", vim.lsp.buf.format, { desc = "LSP format buffer" })
+map(
+    "n",
+    "<leader>lf",
+    function() require("conform").format({ async = true, lsp_format = "fallback" }) end,
+    { desc = "Format file" }
+)
 map(
     "n",
     "<leader>ld",

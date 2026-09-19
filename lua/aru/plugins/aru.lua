@@ -5,5 +5,4 @@
 --- internal files.
 
 require("aru.nav").setup()
-require("aru.lsp").setup()
 require("aru.neodev").setup()

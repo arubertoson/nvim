@@ -5,34 +5,66 @@
 ---
 --- npm install -g @tailwindcss/language-server
 
---- Appends `new_names` to `root_files` if `field` is found in any such file in any ancestor of `fname`.
----
---- NOTE: this does a "breadth-first" search, so is broken for multi-project workspaces:
---- https://github.com/neovim/nvim-lspconfig/issues/3818#issuecomment-2848836794
----
---- @param root_files string[] List of root-marker files to append to.
---- @param new_names string[] Potential root-marker filenames (e.g. `{ 'package.json', 'package.json5' }`) to inspect for the given `field`.
---- @param field string Field to search for in the given `new_names` files.
---- @param fname string Full path of the current buffer name to start searching upwards from.
-local function root_markers_with_field(root_files, new_names, field, fname)
-    local path = vim.fn.fnamemodify(fname, ":h")
-    local found = vim.fs.find(new_names, { path = path, upward = true, type = "file" })
+local function buffer_dir(filename)
+    if filename == "" then return vim.fn.getcwd() end
+    return vim.fs.dirname(filename)
+end
 
-    for _, f in ipairs(found or {}) do
-        -- Match the given `field`.
-        for line in io.lines(f) do
-            if line:find(field) then
-                root_files[#root_files + 1] = vim.fs.basename(f)
-                break
+local function read_file(filename)
+    local ok, lines = pcall(vim.fn.readfile, filename)
+    if ok then return table.concat(lines, "\n") end
+end
+
+local function find_file_containing(filename, names, needle)
+    local files = vim.fs.find(names, {
+        path = buffer_dir(filename),
+        upward = true,
+        type = "file",
+        limit = math.huge,
+    })
+
+    for _, file in ipairs(files) do
+        local contents = read_file(file)
+        if contents and contents:find(needle, 1, true) then return file end
+    end
+end
+
+local function find_tailwind_package(filename)
+    local packages = vim.fs.find("package.json", {
+        path = buffer_dir(filename),
+        upward = true,
+        type = "file",
+        limit = math.huge,
+    })
+
+    for _, package in ipairs(packages) do
+        local contents = read_file(package)
+        local ok, decoded = pcall(vim.json.decode, contents or "")
+        if ok and type(decoded) == "table" then
+            for _, field in ipairs({
+                "dependencies",
+                "devDependencies",
+                "peerDependencies",
+                "optionalDependencies",
+            }) do
+                local dependencies = decoded[field]
+                if type(dependencies) == "table" and dependencies.tailwindcss then
+                    return package
+                end
             end
         end
     end
-
-    return root_files
 end
 
-local function insert_package_json(root_files, field, fname)
-    return root_markers_with_field(root_files, { "package.json", "package.json5" }, field, fname)
+local function nearest_root(paths)
+    local root
+    for _, path in ipairs(paths) do
+        if path then
+            local candidate = vim.fs.dirname(path)
+            if not root or #candidate > #root then root = candidate end
+        end
+    end
+    return root
 end
 
 ---@type vim.lsp.Config
@@ -141,7 +173,9 @@ vim.lsp.config("tailwindcss", {
     end,
     workspace_required = true,
     root_dir = function(bufnr, on_dir)
-        local root_files = {
+        local filename = vim.api.nvim_buf_get_name(bufnr)
+        local path = buffer_dir(filename)
+        local config = vim.fs.find({
             -- Generic
             "tailwind.config.js",
             "tailwind.config.cjs",
@@ -157,14 +191,21 @@ vim.lsp.config("tailwindcss", {
             "theme/static_src/tailwind.config.mjs",
             "theme/static_src/tailwind.config.ts",
             "theme/static_src/postcss.config.js",
-            -- Fallback for tailwind v4, where tailwind.config.* is not required anymore
-            ".git",
-        }
-        local fname = vim.api.nvim_buf_get_name(bufnr)
-        root_files = insert_package_json(root_files, "tailwindcss", fname)
-        root_files =
-            root_markers_with_field(root_files, { "mix.lock", "Gemfile.lock" }, "tailwind", fname)
-        on_dir(vim.fs.dirname(vim.fs.find(root_files, { path = fname, upward = true })[1]))
+        }, { path = path, upward = true, type = "file" })[1]
+        local package = find_tailwind_package(filename)
+        local framework_lock =
+            find_file_containing(filename, { "mix.lock", "Gemfile.lock" }, "tailwind")
+
+        local css_import
+        if vim.bo[bufnr].filetype == "css" then
+            local contents = read_file(filename)
+            if contents and contents:match("@import%s+[\"']tailwindcss[\"']") then
+                css_import = filename
+            end
+        end
+
+        local root = nearest_root({ config, package, framework_lock, css_import })
+        if root then on_dir(root) end
     end,
 })
 

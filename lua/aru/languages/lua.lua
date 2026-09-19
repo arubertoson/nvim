@@ -3,7 +3,7 @@
 --- Dynamic, project-aware configuration for lua-language-server in Neovim.
 ---
 --- What this module does:
---- 1) Registers lua_ls and stylua with sane defaults that do not nuke performance.
+--- 1) Registers lua_ls with sane defaults that do not nuke performance.
 --- 2) On attach, patches the lua_ls client so it answers "workspace/configuration"
 ---    with settings that reflect the current project.
 --- 3) Classifies a project as "Neovim config or plugin" if it is under stdpath("config")
@@ -85,12 +85,6 @@ vim.lsp.config("lua_ls", {
             },
         },
     },
-})
-
-vim.lsp.config("stylua", {
-    cmd = { "stylua", "--lsp" },
-    filetypes = { "lua" },
-    root_markers = { ".stylua.toml", "stylua.toml", ".editorconfig" },
 })
 
 vim.lsp.enable({ "lua_ls" })

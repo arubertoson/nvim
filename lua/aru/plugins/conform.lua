@@ -39,7 +39,7 @@ conform.setup({
         html = { "prettier" },
         markdown = { "prettier" },
         yaml = { "prettier" },
-        python = { "ruff" },
+        python = { "ruff_organize_imports", "ruff_fix", "ruff_format" },
         rust = { "rustfmt" },
         zig = { "zigfmt" },
         ["*"] = { "trim_whitespace" },
@@ -61,7 +61,7 @@ conform.setup({
     --
     -- 	return {
     -- 		timeout_ms = 500,
-    -- 		lsp_fallback = true, -- Use LSP if no formatter configured
+    -- 		lsp_format = "fallback", -- Use LSP if no formatter configured
     -- 	}
     -- end,
 
@@ -69,9 +69,3 @@ conform.setup({
 })
 
 vim.o.formatexpr = "v:lua.require'conform'.formatexpr()"
-vim.keymap.set(
-    "n",
-    "<leader>lf",
-    function() require("conform").format({ async = true, lsp_fallback = true }) end,
-    { desc = "Format file" }
-)

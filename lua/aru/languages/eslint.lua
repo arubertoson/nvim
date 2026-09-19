@@ -56,29 +56,42 @@
 --- })
 --- ```
 
---- @param root_files string[] List of root-marker files to append to.
---- @param new_names string[] Potential root-marker filenames (e.g. `{ 'package.json', 'package.json5' }`) to inspect for the given `field`.
---- @param field string Field to search for in the given `new_names` files.
---- @param fname string Full path of the current buffer name to start searching upwards from.
-local function root_markers_with_field(root_files, new_names, field, fname)
-    local path = vim.fn.fnamemodify(fname, ":h")
-    local found = vim.fs.find(new_names, { path = path, upward = true, type = "file" })
+local biome_config_files = { "biome.json", "biome.jsonc" }
 
-    for _, f in ipairs(found or {}) do
-        -- Match the given `field`.
-        for line in io.lines(f) do
-            if line:find(field) then
-                root_files[#root_files + 1] = vim.fs.basename(f)
-                break
+local function package_json_has_biome(filename)
+    local packages = vim.fs.find("package.json", {
+        path = vim.fs.dirname(filename),
+        upward = true,
+        type = "file",
+        limit = math.huge,
+    })
+
+    for _, package in ipairs(packages) do
+        local ok, lines = pcall(vim.fn.readfile, package)
+        if ok and table.concat(lines, "\n"):find('"@biomejs/biome"', 1, true) then return true end
+    end
+
+    return false
+end
+
+local function find_eslint_package(filename, stop)
+    local packages = vim.fs.find("package.json", {
+        path = vim.fs.dirname(filename),
+        upward = true,
+        type = "file",
+        limit = math.huge,
+        stop = stop,
+    })
+
+    for _, package in ipairs(packages) do
+        local ok, lines = pcall(vim.fn.readfile, package)
+        if ok then
+            local decoded_ok, decoded = pcall(vim.json.decode, table.concat(lines, "\n"))
+            if decoded_ok and type(decoded) == "table" and decoded.eslintConfig ~= nil then
+                return package
             end
         end
     end
-
-    return root_files
-end
-
-local function insert_package_json(root_files, field, fname)
-    return root_markers_with_field(root_files, { "package.json", "package.json5" }, field, fname)
 end
 
 local lsp = vim.lsp
@@ -137,9 +150,8 @@ vim.lsp.config("eslint", {
         -- manager lock file.
         local root_markers =
             { "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb", "bun.lock" }
-        -- Give the root markers equal priority by wrapping them in a table
-        root_markers = vim.fn.has("nvim-0.11.3") == 1 and { root_markers, { ".git" } }
-            or vim.list_extend(root_markers, { ".git" })
+        -- Give package-manager markers priority over the Git fallback.
+        root_markers = { root_markers, { ".git" } }
 
         -- exclude deno
         if vim.fs.root(bufnr, { "deno.json", "deno.jsonc", "deno.lock" }) then return end
@@ -153,16 +165,22 @@ vim.lsp.config("eslint", {
         -- Eslint used to support package.json files as config files, but it doesn't anymore.
         -- We keep this for backward compatibility.
         local filename = vim.api.nvim_buf_get_name(bufnr)
-        local eslint_config_files_with_package_json =
-            insert_package_json(eslint_config_files, "eslintConfig", filename)
-        local is_buffer_using_eslint = vim.fs.find(eslint_config_files_with_package_json, {
+
+        -- Biome owns linting and code actions when both tools are configured.
+        if vim.fs.root(filename, biome_config_files) or package_json_has_biome(filename) then
+            return
+        end
+
+        local search_stop = vim.fs.dirname(project_root)
+        local eslint_config = vim.fs.find(eslint_config_files, {
             path = filename,
             type = "file",
             limit = 1,
             upward = true,
-            stop = vim.fs.dirname(project_root),
+            stop = search_stop,
         })[1]
-        if not is_buffer_using_eslint then return end
+        local eslint_package = find_eslint_package(filename, search_stop)
+        if not eslint_config and not eslint_package then return end
 
         on_dir(project_root)
     end,

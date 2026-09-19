@@ -86,8 +86,12 @@ require("aru.startup").load({
     -- start loading deferred functionality.
     vim.api.nvim_get_runtime_file("lua/aru/plugins/continue.lua", true),
 
-    -- We set up the lsp and language configs, these are lightweight and
-    -- should be loaded early as it can impact general file behavior.
+    -- Register shared LSP behavior before language modules enable servers,
+    -- ensuring every attachment is observed by the LspAttach handlers.
+    vim.api.nvim_get_runtime_file("lua/aru/plugins/lsp.lua", true),
+
+    -- Language configs are lightweight and should be loaded early as they can
+    -- impact general file behavior.
     vim.api.nvim_get_runtime_file("lua/aru/languages/*.lua", true),
 
     -- Core modules - basic editor functionality; options, keymaps, and
