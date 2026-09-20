@@ -201,18 +201,13 @@ local function sync_spinner()
 end
 
 ---@param buf integer
----@param modifiable boolean
-local function set_modifiable(buf, modifiable)
-    if not vim.api.nvim_buf_is_valid(buf) then return end
-    pcall(vim.api.nvim_set_option_value, "modifiable", modifiable, { buf = buf })
-end
-
----@param buf integer
 ---@param lines string[]
 local function set_lines(buf, lines)
-    set_modifiable(buf, true)
-    pcall(vim.api.nvim_buf_set_lines, buf, 0, -1, false, lines)
-    set_modifiable(buf, false)
+    if not vim.api.nvim_buf_is_valid(buf) then return end
+
+    vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 end
 
 ---@param state aru.agent.channels.float.WindowState

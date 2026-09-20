@@ -14,16 +14,16 @@ local providers = {
     [M.COLLECT.DIAGNOSTIC] = require("aru.agent.collect.diagnostic"),
 }
 
----@param ctx aru.agent.ConfigState
+---@param invocation aru.agent.InvocationState
 ---@param names aru.agent.collect.Type[]
 ---@return aru.agent.payload.ContextItem[]
-function M.resolve(ctx, names)
+function M.resolve(invocation, names)
     ---@type aru.agent.payload.ContextItem[]
     local items = {}
     for _, name in ipairs(names) do
         local provider = providers[name]
         if not provider then error("Unknown collect provider: " .. tostring(name)) end
-        local item = provider.collect(ctx.state)
+        local item = provider.collect(invocation)
         if item then table.insert(items, item) end
     end
 

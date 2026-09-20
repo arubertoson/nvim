@@ -4,8 +4,6 @@
 
 local M = {}
 
-local log = require("aru.log")
-
 ---@enum aru.agent.channels.Destination
 M.DESTINATION = {
     FLOAT = "float",
@@ -25,16 +23,11 @@ local CHANNELS = {
     [M.DESTINATION.EDITOR] = function() return require("aru.agent.channels.editor") end,
 }
 
----Returns the channel for a destination without validating availability.
 ---@param destination aru.agent.channels.Destination
----@return aru.agent.channels.Channel|nil
+---@return aru.agent.channels.Channel
 function M.get(destination)
     local load = CHANNELS[destination]
-    if not load then
-        log.error("Unknown destination", destination)
-        return nil
-    end
-
+    if not load then error("Missing channel for destination: " .. destination) end
     return load()
 end
 

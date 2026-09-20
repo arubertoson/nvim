@@ -446,8 +446,7 @@ function M.build(opts)
     for _, name in ipairs(opts.collect) do
         if name ~= "block" then ordered_collectors[#ordered_collectors + 1] = name end
     end
-    local items =
-        require("aru.agent.collect").resolve({ state = opts.invocation }, ordered_collectors)
+    local items = require("aru.agent.collect").resolve(opts.invocation, ordered_collectors)
     local blocking = {}
     for _, ref in ipairs(references) do
         if ref.context then

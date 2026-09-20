@@ -79,8 +79,7 @@ end
 function M.start(state, opts)
     M.stop(state)
 
-    local timer = vim.uv.new_timer()
-    if not timer then return end
+    local timer = assert(vim.uv.new_timer(), "Failed to create agent progress timer")
     state.spinner_timer = timer
     timer:start(SPINNER_INTERVAL_MS, SPINNER_INTERVAL_MS, function()
         vim.schedule(function()
@@ -95,11 +94,14 @@ end
 ---@param state aru.agent.progress.State
 ---@return nil
 function M.stop(state)
-    if state.spinner_timer then
-        pcall(state.spinner_timer.stop, state.spinner_timer)
-        pcall(state.spinner_timer.close, state.spinner_timer)
-        state.spinner_timer = nil
-    end
+    local timer = state.spinner_timer
+    if not timer then return end
+
+    state.spinner_timer = nil
+    if timer:is_closing() then error("Agent progress timer was closed outside its owner") end
+
+    timer:stop()
+    timer:close()
 end
 
 return M

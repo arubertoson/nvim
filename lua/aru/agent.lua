@@ -51,8 +51,6 @@
 
 local M = {}
 
-local log = require("aru.log")
-
 local config = require("aru.agent.config")
 local payload = require("aru.agent.payload")
 local collect = require("aru.agent.collect")
@@ -128,14 +126,10 @@ local function send(request, state)
     local ctx = { config = cfg, state = state }
 
     local channel = channels.get(request.destination)
-    if not channel then
-        log.error("Channel does not exist", request.destination)
-        return false
-    end
 
     local items = request.context or {}
     if not request.context and request.collect and #request.collect > 0 then
-        items = collect.resolve(ctx, request.collect)
+        items = collect.resolve(state, request.collect)
     end
 
     local message = payload.render({
