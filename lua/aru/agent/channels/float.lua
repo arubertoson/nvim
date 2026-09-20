@@ -16,7 +16,6 @@ local ui = require("aru.agent.ui")
 ---@class aru.agent.channels.float.WindowState
 ---@field buf integer
 ---@field win integer
----@field ns integer
 ---@field augroup integer
 ---@field user_scrolled boolean
 ---@field layout aru.agent.config.FloatLayout
@@ -302,13 +301,11 @@ local function create_float_window(lines)
         scrolloff = 0,
     })
 
-    local ns = vim.api.nvim_create_namespace(constants.NAMESPACE.READ_FLOAT)
     local augroup = vim.api.nvim_create_augroup(constants.AUGROUP.READ_FLOAT, { clear = true })
     ---@type aru.agent.channels.float.WindowState
     local state = {
         buf = buf,
         win = win,
-        ns = ns,
         augroup = augroup,
         user_scrolled = false,
         layout = layout,

@@ -30,7 +30,6 @@ local M = {}
 ---@field span aru.agent.reference.Span
 ---@field state aru.agent.reference.State
 ---@field error string|nil
----@field context aru.agent.payload.ContextItem|nil
 ---@field incomplete boolean
 ---@field invalid boolean
 
@@ -182,7 +181,6 @@ local function parse_line(line, row, cursor, out)
                 span = span,
                 state = state,
                 error = ref_error,
-                context = nil,
                 incomplete = incomplete,
                 invalid = invalid,
             }
@@ -218,20 +216,9 @@ end
 
 ---@param references aru.agent.reference.Reference[]
 ---@param cursor [integer, integer]|nil
----@param text string|nil
+---@param text string
 ---@return boolean changed
 function M.update_cursor(references, cursor, text)
-    if not text then
-        for _, ref in ipairs(references) do
-            if ref.incomplete and not ref.invalid then
-                local editing = M.cursor_in_span(cursor, ref.span)
-                ref.state = editing and "editing" or "unresolved"
-                ref.error = editing and nil or "incomplete reference"
-            end
-        end
-        return false
-    end
-
     local previous = {}
     for _, ref in ipairs(references) do
         previous[identity(ref)] = ref

@@ -21,9 +21,9 @@ local OVERVIEW_LAYOUT = constants.UI.CONTEXT_OVERVIEW
 local PROMPT_MIN_ROWS = PROMPT_LAYOUT.MIN_ROWS
 local PROMPT_MAX_ROWS = PROMPT_LAYOUT.MAX_ROWS
 local PROMPT_LEFT_PADDING = PROMPT_LAYOUT.LEFT_PADDING
+local PROMPT_BORDER_INSET = 3
 local PLACEHOLDER_TEXT = "<user types here>"
-local PROMPT_NEWLINE_KEY = "<M-CR>"
-local PROMPT_CLOSE_KEY = "<Esc>"
+local PROMPT_CLOSE_KEY = "q"
 local PREVIEW_DELAY_MS = 90
 
 local BLOCK_COLLECT = { collect.COLLECT.BLOCK }
@@ -85,6 +85,25 @@ local function prompt_width()
     )
 end
 
+---@param border string|table
+---@param index integer
+---@return string
+local function horizontal_border_char(border, index)
+    if type(border) == "table" then
+        local segment = border[index]
+        return type(segment) == "table" and segment[1] or segment
+    end
+    return ({
+        single = "─",
+        rounded = "─",
+        double = "═",
+        bold = "━",
+        solid = " ",
+        shadow = " ",
+        none = "",
+    })[border] or "─"
+end
+
 ---@param buf integer
 ---@param width integer
 local function prompt_content_rows(buf, width)
@@ -101,6 +120,8 @@ end
 ---@param buf integer
 local function prompt_win_config(buf)
     local custom = require("aru.custom")
+    local border = custom.border or constants.UI.BORDER_ROUNDED
+    local title_inset = string.rep(horizontal_border_char(border, 2), PROMPT_BORDER_INSET)
     local width = prompt_width()
     local content_rows = prompt_content_rows(buf, width)
     local desired_height = math.max(PROMPT_MIN_ROWS, content_rows) + 2
@@ -120,8 +141,11 @@ local function prompt_win_config(buf)
         width = width,
         height = height,
         style = constants.UI.STYLE_MINIMAL,
-        border = custom.border or constants.UI.BORDER_ROUNDED,
-        title = " prompt ",
+        border = border,
+        title = {
+            { title_inset, "FloatBorder" },
+            { " prompt ", "FloatTitle" },
+        },
         title_pos = constants.UI.TITLE_POS_LEFT,
         zindex = PROMPT_LAYOUT.ZINDEX,
     }
@@ -149,41 +173,32 @@ local function render_footer(state)
     local first_line = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] or ""
     local show_placeholder = total == 1 and first_line == ""
 
-    local width = prompt_width()
-    local content_rows = prompt_content_rows(buf, width)
-
     local action_chunks = {}
-    local action_width = 0
     for index, action in ipairs(footer_actions(state)) do
-        if index > 1 then
-            action_chunks[#action_chunks + 1] = { "   ", "Normal" }
-            action_width = action_width + 3
-        end
-        local key = "[" .. action.key .. "]"
-        local label = " " .. action.label
-        action_chunks[#action_chunks + 1] = { key, "Special" }
-        action_chunks[#action_chunks + 1] = { label, constants.UI.HIGHLIGHT_COMMENT }
-        action_width = action_width + vim.fn.strdisplaywidth(key .. label)
+        if index > 1 then action_chunks[#action_chunks + 1] = { "   ", "Normal" } end
+        action_chunks[#action_chunks + 1] = { "[" .. action.key .. "]", "Special" }
+        action_chunks[#action_chunks + 1] = {
+            " " .. action.label,
+            constants.UI.HIGHLIGHT_COMMENT,
+        }
     end
-    local available_width = width - PROMPT_LEFT_PADDING
-    local action_padding = math.max(0, available_width - action_width)
-    table.insert(action_chunks, 1, { string.rep(" ", action_padding), "Normal" })
-
-    local footer_lines = {}
-    local spacer_rows = math.max(1, PROMPT_MIN_ROWS - content_rows + 1)
-    for _ = 1, spacer_rows do
-        footer_lines[#footer_lines + 1] = { { "", "Normal" } }
-    end
-    footer_lines[#footer_lines + 1] = action_chunks
-
-    local footer_opts = { virt_lines = footer_lines, virt_lines_above = false }
-    if show_placeholder then
-        footer_opts.virt_text = { { PLACEHOLDER_TEXT, constants.UI.HIGHLIGHT_COMMENT } }
-        footer_opts.virt_text_pos = "overlay"
-    end
+    local border = require("aru.custom").border or constants.UI.BORDER_ROUNDED
+    action_chunks[#action_chunks + 1] = {
+        string.rep(horizontal_border_char(border, 6), PROMPT_BORDER_INSET),
+        "FloatBorder",
+    }
+    vim.api.nvim_win_set_config(state.win, {
+        footer = action_chunks,
+        footer_pos = "right",
+    })
 
     vim.api.nvim_buf_clear_namespace(buf, state.footer_ns, 0, -1)
-    vim.api.nvim_buf_set_extmark(buf, state.footer_ns, footer_idx, 0, footer_opts)
+    if show_placeholder then
+        vim.api.nvim_buf_set_extmark(buf, state.footer_ns, footer_idx, 0, {
+            virt_text = { { PLACEHOLDER_TEXT, constants.UI.HIGHLIGHT_COMMENT } },
+            virt_text_pos = "overlay",
+        })
+    end
 end
 
 ---@param state aru.agent.prompt.State
@@ -232,7 +247,6 @@ end
 local function build_context(state)
     return context.build({
         prompt = read_prompt_text(state.buf),
-        cursor = nil,
         cwd = state.cwd,
         invocation = state.invocation,
         collect = state.collect,
@@ -241,12 +255,7 @@ end
 
 ---@param state aru.agent.prompt.State
 ---@param references aru.agent.reference.Reference[]
-local function set_references(state, references)
-    for _, ref in ipairs(references) do
-        ref.context = nil
-    end
-    state.references = references
-end
+local function set_references(state, references) state.references = references end
 
 ---@param state aru.agent.prompt.State
 local function parse_prompt(state)
@@ -339,24 +348,6 @@ end
 
 local function submit_float_read() submit_prompt(channels.DESTINATION.FLOAT, false) end
 local function submit_float_new_session() submit_prompt(channels.DESTINATION.FLOAT, true) end
-
-local function insert_prompt_newline()
-    if not _prompt_state then return end
-    local state = _prompt_state
-    if not vim.api.nvim_buf_is_valid(state.buf) or not vim.api.nvim_win_is_valid(state.win) then
-        return
-    end
-
-    local cursor = vim.api.nvim_win_get_cursor(state.win)
-    local row, col = cursor[1], cursor[2]
-    local line = vim.api.nvim_buf_get_lines(state.buf, row - 1, row, false)[1] or ""
-    vim.api.nvim_buf_set_lines(state.buf, row - 1, row, false, {
-        line:sub(1, col),
-        line:sub(col + 1),
-    })
-    vim.api.nvim_win_set_cursor(state.win, { row + 1, 0 })
-    prompt_changed(state)
-end
 
 ---@param buf integer
 local function context_overview_win_config(buf)
@@ -570,7 +561,6 @@ function M.open(deps)
     local map_opts = { buffer = buf, silent = true, nowait = true }
     vim.keymap.set({ "n", "i" }, "<CR>", submit_float_read, map_opts)
     vim.keymap.set({ "n", "i" }, "<C-CR>", submit_float_new_session, map_opts)
-    vim.keymap.set({ "n", "i" }, "<C-j>", submit_float_new_session, map_opts)
     vim.keymap.set(
         { "n", "i" },
         "<C-g>",
@@ -580,8 +570,7 @@ function M.open(deps)
     vim.keymap.set({ "n", "i" }, "<C-x>", function()
         if _prompt_state then show_context_overview(_prompt_state) end
     end, map_opts)
-    vim.keymap.set({ "n", "i" }, PROMPT_NEWLINE_KEY, insert_prompt_newline, map_opts)
-    vim.keymap.set({ "n", "i" }, PROMPT_CLOSE_KEY, close_prompt, map_opts)
+    vim.keymap.set("n", PROMPT_CLOSE_KEY, close_prompt, map_opts)
 
     vim.cmd("startinsert")
 end

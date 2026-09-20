@@ -52,7 +52,6 @@ local function current_invocation(selection)
         path = vim.api.nvim_buf_get_name(buf),
         filetype = vim.bo[buf].filetype,
         winid = vim.api.nvim_get_current_win(),
-        mode = selection and selection.mode or "n",
         cursor = vim.api.nvim_win_get_cursor(0),
         selection = selection,
     }
@@ -250,7 +249,6 @@ T["context"]["explicit visual selection is collected exactly"] = function()
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "before", "selected text", "after" })
 
     local selection = {
-        mode = "v",
         start_row = 1,
         start_col = 0,
         end_row = 1,
@@ -281,7 +279,6 @@ T["context"]["characterwise selection includes complete multibyte characters"] =
 
     MiniTest.expect.equality(opened, true)
     MiniTest.expect.equality(invocation.selection, {
-        mode = "v",
         start_row = 0,
         start_col = 1,
         end_row = 0,
@@ -365,7 +362,6 @@ T["generate"]["visual mode replaces and selects the captured range"] = function(
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "local old = true" })
 
     local selection = {
-        mode = "v",
         start_row = 0,
         start_col = 6,
         end_row = 0,

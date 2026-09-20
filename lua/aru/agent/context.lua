@@ -12,14 +12,15 @@ local reference_parser = require("aru.agent.reference")
 ---@field start_line integer
 ---@field end_line integer
 
----@class aru.agent.context.BuildResult
+---@class aru.agent.context.ResolveResult
 ---@field references aru.agent.reference.Reference[]
 ---@field context aru.agent.payload.ContextItem[]
 ---@field blocking aru.agent.reference.Reference[]
 
+---@class aru.agent.context.BuildResult: aru.agent.context.ResolveResult
+
 ---@class aru.agent.context.BuildOpts
 ---@field prompt string
----@field cursor [integer, integer]|nil
 ---@field cwd string
 ---@field invocation aru.agent.InvocationState
 ---@field collect aru.agent.collect.Type[]
@@ -374,7 +375,7 @@ function M.parse(text, cursor) return reference_parser.parse(text, cursor) end
 
 ---@param references aru.agent.reference.Reference[]
 ---@param cursor [integer, integer]|nil
----@param text string|nil
+---@param text string
 ---@return boolean changed
 function M.update_cursor(references, cursor, text)
     return reference_parser.update_cursor(references, cursor, text)
@@ -385,7 +386,6 @@ end
 ---@param invocation_buf integer
 function M.validate(references, cwd, invocation_buf)
     for _, ref in ipairs(references) do
-        ref.context = nil
         if not ref.invalid and not ref.incomplete then
             local _, resolution_error = resolve_reference(ref, cwd, invocation_buf)
             reference_parser.classify(ref, resolution_error)
@@ -397,34 +397,57 @@ end
 ---@param cursor [integer, integer]|nil
 ---@param cwd string
 ---@param invocation_buf integer
----@return aru.agent.reference.Reference[]
+---@return aru.agent.context.ResolveResult
 function M.resolve(text, cursor, cwd, invocation_buf)
     local references = M.parse(text, cursor)
+    local context = {}
+    local blocking = {}
     for _, ref in ipairs(references) do
+        local resolved
         if not ref.invalid and not ref.incomplete then
-            local resolved, resolution_error = resolve_reference(ref, cwd, invocation_buf)
-            ref.context = resolved and materialize_reference(resolved) or nil
+            local resolution_error
+            resolved, resolution_error = resolve_reference(ref, cwd, invocation_buf)
             reference_parser.classify(ref, resolution_error)
         end
+
+        if resolved then
+            context[#context + 1] = materialize_reference(resolved)
+        else
+            blocking[#blocking + 1] = ref
+        end
     end
-    return references
+    return {
+        references = references,
+        context = context,
+        blocking = blocking,
+    }
 end
 
 ---@param items aru.agent.payload.ContextItem[]
 ---@return aru.agent.payload.ContextItem[]
 function M.compose(items)
+    local whole_paths = {}
+    for _, item in ipairs(items) do
+        if item.source and item.path and item.whole_file then
+            whole_paths[normalized(item.path)] = true
+        end
+    end
+
     local composed = {}
     local seen = {}
     for _, item in ipairs(items) do
         local key
+        local covered_by_whole = false
         if item.source and item.path then
+            local path = normalized(item.path)
             if item.whole_file then
-                key = table.concat({ normalized(item.path), "whole" }, "\0")
+                key = table.concat({ path, "whole" }, "\0")
             elseif item.start_line and item.end_line then
-                key = table.concat({ normalized(item.path), item.start_line, item.end_line }, "\0")
+                covered_by_whole = whole_paths[path] == true
+                key = table.concat({ path, item.start_line, item.end_line }, "\0")
             end
         end
-        if not key or not seen[key] then
+        if not covered_by_whole and (not key or not seen[key]) then
             if key then seen[key] = true end
             composed[#composed + 1] = item
         end
@@ -435,30 +458,13 @@ end
 ---@param opts aru.agent.context.BuildOpts
 ---@return aru.agent.context.BuildResult
 function M.build(opts)
-    local references = M.resolve(opts.prompt, opts.cursor, opts.cwd, opts.invocation.bufnr)
-    local ordered_collectors = {}
-    for _, name in ipairs(opts.collect) do
-        if name == "block" then
-            ordered_collectors[#ordered_collectors + 1] = name
-            break
-        end
-    end
-    for _, name in ipairs(opts.collect) do
-        if name ~= "block" then ordered_collectors[#ordered_collectors + 1] = name end
-    end
-    local items = require("aru.agent.collect").resolve(opts.invocation, ordered_collectors)
-    local blocking = {}
-    for _, ref in ipairs(references) do
-        if ref.context then
-            items[#items + 1] = ref.context
-        else
-            blocking[#blocking + 1] = ref
-        end
-    end
+    local resolved = M.resolve(opts.prompt, nil, opts.cwd, opts.invocation.bufnr)
+    local items = require("aru.agent.collect").resolve(opts.invocation, opts.collect)
+    vim.list_extend(items, resolved.context)
     return {
-        references = references,
+        references = resolved.references,
         context = M.compose(items),
-        blocking = blocking,
+        blocking = resolved.blocking,
     }
 end
 
@@ -471,7 +477,5 @@ function M.symbol_candidates(ref, cwd, invocation_buf)
     if not source then return {} end
     return M.symbols(source)
 end
-
-function M.clear_caches() symbol_cache = {} end
 
 return M

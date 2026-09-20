@@ -67,7 +67,6 @@ M.UI = {
 
 M.NAMESPACE = {
     EDITOR = "aru_editor",
-    READ_FLOAT = "aru_read_float",
     PROMPT_FOOTER = "aru_agent_prompt_footer",
     PROMPT_REFERENCE = "aru_agent_prompt_reference",
 }
@@ -75,10 +74,6 @@ M.NAMESPACE = {
 M.AUGROUP = {
     READ_FLOAT = "AruReadFloat",
     PROMPT = "AruAgentPrompt",
-}
-
-M.SESSION = {
-    TEMP_CLEANUP_DELAY_MS = 60000,
 }
 
 return M

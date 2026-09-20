@@ -79,12 +79,18 @@ local function resolve(text, cursor)
 end
 
 T["context resolver"]["resolves whole files and inclusive ranges"] = function()
-    local refs = resolve("@lua/agent.lua @lua/agent.lua:3-5", nil)
+    local resolved = resolve("@lua/agent.lua @lua/agent.lua:3-5", nil)
 
-    MiniTest.expect.equality(refs[1].state, "resolved")
-    MiniTest.expect.equality(refs[1].context.whole_file, true)
-    MiniTest.expect.equality(refs[2].context.text, "function M.send(value)\n    return value\nend")
-    MiniTest.expect.equality({ refs[2].context.start_line, refs[2].context.end_line }, { 3, 5 })
+    MiniTest.expect.equality(resolved.references[1].state, "resolved")
+    MiniTest.expect.equality(resolved.context[1].whole_file, true)
+    MiniTest.expect.equality(
+        resolved.context[2].text,
+        "function M.send(value)\n    return value\nend"
+    )
+    MiniTest.expect.equality(
+        { resolved.context[2].start_line, resolved.context[2].end_line },
+        { 3, 5 }
+    )
 end
 
 T["context resolver"]["loaded unsaved contents win over disk"] = function()
@@ -93,25 +99,25 @@ T["context resolver"]["loaded unsaved contents win over disk"] = function()
     vim.fn.bufload(bufnr)
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "unsaved", "contents" })
 
-    local ref = resolve("@lua/agent.lua", nil)[1]
-    MiniTest.expect.equality(ref.context.text, "unsaved\ncontents")
+    local resolved = resolve("@lua/agent.lua", nil)
+    MiniTest.expect.equality(resolved.context[1].text, "unsaved\ncontents")
 end
 
 T["context resolver"]["editing a resolved file into a selector drops stale context"] = function()
-    local whole = resolve("@lua/agent.lua", { 0, 14 })[1]
-    local editing = resolve("@lua/agent.lua#", { 0, 15 })[1]
+    local whole = resolve("@lua/agent.lua", { 0, 14 })
+    local editing = resolve("@lua/agent.lua#", { 0, 15 })
 
-    MiniTest.expect.equality(whole.state, "resolved")
-    MiniTest.expect.equality(editing.state, "editing")
-    MiniTest.expect.equality(editing.context, nil)
+    MiniTest.expect.equality(whole.references[1].state, "resolved")
+    MiniTest.expect.equality(editing.references[1].state, "editing")
+    MiniTest.expect.equality(#editing.context, 0)
 end
 
 T["context resolver"]["invalid ranges are unresolved even under the cursor"] = function()
-    local reversed = resolve("@lua/agent.lua:5-2", { 0, 18 })[1]
-    local outside = resolve("@lua/agent.lua:1-99", { 0, 19 })[1]
+    local reversed = resolve("@lua/agent.lua:5-2", { 0, 18 })
+    local outside = resolve("@lua/agent.lua:1-99", { 0, 19 })
 
-    MiniTest.expect.equality(reversed.state, "unresolved")
-    MiniTest.expect.equality(outside.state, "unresolved")
+    MiniTest.expect.equality(reversed.references[1].state, "unresolved")
+    MiniTest.expect.equality(outside.references[1].state, "unresolved")
 end
 
 T["context resolver"]["resolves file and invocation-buffer symbols"] = function()
@@ -121,9 +127,15 @@ T["context resolver"]["resolves file and invocation-buffer symbols"] = function(
     vim.bo[bufnr].filetype = "lua"
     invocation_buf = bufnr
 
-    local refs = resolve("@lua/agent.lua#M.send @#M.send", nil)
-    MiniTest.expect.equality({ refs[1].state, refs[2].state }, { "resolved", "resolved" })
-    MiniTest.expect.equality(refs[1].context.text, "function M.send(value)\n    return value\nend")
+    local resolved = resolve("@lua/agent.lua#M.send @#M.send", nil)
+    MiniTest.expect.equality(
+        { resolved.references[1].state, resolved.references[2].state },
+        { "resolved", "resolved" }
+    )
+    MiniTest.expect.equality(
+        resolved.context[1].text,
+        "function M.send(value)\n    return value\nend"
+    )
 end
 
 T["context resolver"]["invalidates the symbol cache after a buffer change"] = function()
@@ -137,6 +149,58 @@ T["context resolver"]["invalidates the symbol cache after a buffer change"] = fu
     MiniTest.expect.equality(context.symbols(source)[1].name, "M.send")
     vim.api.nvim_buf_set_lines(bufnr, 2, 5, false, { "function M.changed() end" })
     MiniTest.expect.equality(context.symbols(source)[1].name, "M.changed")
+end
+
+T["context resolver"]["whole files supersede ranges without removing diagnostics"] = function()
+    local path = vim.fs.joinpath(root, "lua", "agent.lua")
+    local range = {
+        kind = "block",
+        source = true,
+        path = path,
+        start_line = 2,
+        end_line = 4,
+        text = "range",
+    }
+    local diagnostic = {
+        kind = "diagnostic",
+        path = path,
+        start_line = 3,
+        end_line = 3,
+        text = "diagnostic",
+    }
+    local whole = {
+        kind = "file",
+        source = true,
+        path = vim.fs.joinpath(root, "lua", "..", "lua", "agent.lua"),
+        whole_file = true,
+        text = "whole",
+    }
+
+    local composed = require("aru.agent.context").compose({ range, diagnostic, whole, whole })
+
+    MiniTest.expect.equality(composed, { diagnostic, whole })
+end
+
+T["context resolver"]["exact ranges are deduplicated without merging overlaps"] = function()
+    local path = vim.fs.joinpath(root, "lua", "agent.lua")
+    local first = {
+        kind = "block",
+        source = true,
+        path = path,
+        start_line = 2,
+        end_line = 4,
+        text = "first",
+    }
+    local duplicate = vim.tbl_extend("force", {}, first, { text = "duplicate" })
+    local overlap = vim.tbl_extend("force", {}, first, {
+        start_line = 3,
+        end_line = 5,
+        text = "overlap",
+    })
+
+    local composed = require("aru.agent.context").compose({ first, duplicate, overlap })
+
+    MiniTest.expect.equality(composed, { first, overlap })
 end
 
 T["payload"] = MiniTest.new_set()
@@ -194,7 +258,6 @@ local function open_prompt(send)
             path = path,
             filetype = "lua",
             winid = vim.api.nvim_get_current_win(),
-            mode = "n",
             cursor = { 1, 0 },
             selection = nil,
         },
@@ -202,6 +265,24 @@ local function open_prompt(send)
         send = send,
     })
     return vim.api.nvim_get_current_buf()
+end
+
+T["prompt integration"]["anchors actions in the window footer"] = function()
+    local prompt_buf = open_prompt(function() return true end)
+    local config = vim.api.nvim_win_get_config(0)
+    local footer = {}
+    for _, chunk in ipairs(config.footer) do
+        footer[#footer + 1] = chunk[1]
+    end
+
+    MiniTest.expect.equality(table.concat(footer):find("[CR] read", 1, true) ~= nil, true)
+
+    local namespace = vim.api.nvim_get_namespaces().aru_agent_prompt_footer
+    local marks = vim.api.nvim_buf_get_extmarks(prompt_buf, namespace, 0, -1, { details = true })
+    MiniTest.expect.equality(marks[1][4].virt_lines, nil)
+
+    vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, { "close" })
+    invoke_insert_mapping(prompt_buf, "<CR>")
 end
 
 T["prompt integration"]["refuses unresolved submission without closing the prompt"] = function()

@@ -29,7 +29,6 @@
 ---@field state aru.agent.InvocationState
 
 ---@class aru.agent.Selection
----@field mode string
 ---@field start_row integer 0-based
 ---@field start_col integer 0-based, inclusive
 ---@field end_row integer 0-based
@@ -41,7 +40,6 @@
 ---@field path string
 ---@field filetype string
 ---@field winid integer
----@field mode string
 ---@field cursor [integer, integer]
 ---@field selection aru.agent.Selection|nil
 
@@ -85,7 +83,6 @@ local function capture_selection(bufnr, visual_mode)
     local end_line = vim.api.nvim_buf_get_lines(bufnr, end_row, end_row + 1, false)[1] or ""
 
     return {
-        mode = visual_mode,
         start_row = first[2] - 1,
         start_col = math.max(0, first[3] - 1),
         end_row = end_row,
@@ -105,7 +102,6 @@ local function capture_invocation_state(visual_mode)
         path = vim.api.nvim_buf_get_name(bufnr),
         filetype = vim.api.nvim_get_option_value("filetype", { buf = bufnr }),
         winid = winid,
-        mode = visual_mode or vim.api.nvim_get_mode().mode,
         cursor = vim.api.nvim_win_get_cursor(winid),
         selection = capture_selection(bufnr, visual_mode),
     }
