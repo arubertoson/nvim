@@ -20,6 +20,16 @@ Apply these rules when adding or changing code in this repository.
 14. **Separate persistent and volatile data.** Keep durable domain state separate from buffer handles, windows, timers, extmarks, and other session resources.
 15. **Tests obey production contracts.** Tests should construct valid state rather than rely on defensive behavior that normal execution does not require.
 
+## Testing philosophy
+
+- Test observable outcomes and domain concepts, not implementation structure or coverage targets.
+- Prefer end-to-end and integration tests through real boundaries: Neovim APIs, buffers, filesystems, Treesitter, diagnostics, and subprocesses.
+- Do not mock internal modules to confirm how they collaborate. When an external service is unavailable, nondeterministic, slow, or costly, use a deterministic substitute at the outermost boundary, such as a fixture executable that implements the real process protocol.
+- Use test doubles only when they are necessary to control a genuine boundary condition, such as asynchronous completion or an external failure that cannot be produced reliably. Assert the resulting behavior rather than calls made to the double.
+- Keep one test for each distinct behavioral guarantee. Merge or remove tests that exercise the same outcome through different internal paths.
+- Avoid exhaustive validation matrices, branch-by-branch tests, tests of trivial helpers, and assertions against exact internal UI representation unless that representation is itself a supported contract.
+- A regression test is warranted when a failure affects a meaningful user workflow, external protocol, data integrity, or lifecycle invariant. Coverage percentage alone is not a reason to add a test.
+
 ## Working practices
 
 - Keep changes focused and avoid unrelated cleanup.

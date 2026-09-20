@@ -19,13 +19,13 @@
 ---@class aru.agent.Request
 ---@field destination aru.agent.channels.Destination
 ---@field force_new_session boolean|nil
----@field collect aru.agent.collect.Type[]
+---@field collect aru.agent.collect.Type[]|nil
 ---@field prompt string|nil
 ---@field preset string|nil
 ---@field context aru.agent.payload.ContextItem[]|nil
 
 ---@class aru.agent.ConfigState
----@field config aru.agent.config.Opts
+---@field config aru.agent.config.Config
 ---@field state aru.agent.InvocationState
 
 ---@class aru.agent.Selection
@@ -60,6 +60,7 @@ local runtime = require("aru.agent.runtime")
 local process = require("aru.agent.process")
 local channels = require("aru.agent.channels")
 local prompt_ui = require("aru.agent.prompt")
+local request_validation = require("aru.agent.request")
 local session = require("aru.agent.session")
 
 ---@param bufnr integer
@@ -74,23 +75,23 @@ local function capture_selection(bufnr, visual_mode)
     if start_pos[1] ~= 0 and start_pos[1] ~= bufnr then return nil end
     if end_pos[1] ~= 0 and end_pos[1] ~= bufnr then return nil end
 
-    local start_row = start_pos[2] - 1
-    local end_row = end_pos[2] - 1
-    local start_col = math.max(0, start_pos[3] - 1)
-    local end_col = end_pos[3]
+    local segments = vim.fn.getregionpos(start_pos, end_pos, {
+        type = visual_mode,
+        eol = true,
+    })
+    if #segments == 0 then return nil end
 
-    if visual_mode == "V" then
-        start_col = 0
-        local end_line = vim.api.nvim_buf_get_lines(bufnr, end_row, end_row + 1, false)[1] or ""
-        end_col = #end_line
-    end
+    local first = segments[1][1]
+    local last = segments[#segments][2]
+    local end_row = last[2] - 1
+    local end_line = vim.api.nvim_buf_get_lines(bufnr, end_row, end_row + 1, false)[1] or ""
 
     return {
         mode = visual_mode,
-        start_row = start_row,
-        start_col = start_col,
+        start_row = first[2] - 1,
+        start_col = math.max(0, first[3] - 1),
         end_row = end_row,
-        end_col = end_col,
+        end_col = math.min(#end_line, math.max(0, last[3])),
     }
 end
 
@@ -116,6 +117,7 @@ end
 ---@param state aru.agent.InvocationState
 ---@return boolean
 local function send(request, state)
+    request_validation.validate(request)
     if request.destination == channels.DESTINATION.FLOAT and session.is_streaming() then
         vim.notify("An agent response is already streaming", vim.log.levels.WARN)
         return false
@@ -164,7 +166,7 @@ local function send(request, state)
     elseif request.destination == channels.DESTINATION.EDITOR then
         local cmd = runtime.command(ctx, request, { kind = "none" })
         run = function(stdin, on_event, on_exit)
-            process.json({
+            return process.json({
                 executable = cmd[1],
                 args = vim.list_slice(cmd, 2),
                 stdin = stdin,
@@ -193,7 +195,13 @@ function M.send(request) return send(request, capture_invocation_state()) end
 
 ---@param opts aru.agent.PromptOpts|nil
 function M.prompt(opts)
-    local state = capture_invocation_state(opts and opts.visual_mode)
+    local visual_mode = opts and opts.visual_mode
+    if visual_mode == "\22" then
+        vim.notify("Agent prompts do not support blockwise selections", vim.log.levels.ERROR)
+        return false
+    end
+
+    local state = capture_invocation_state(visual_mode)
     return prompt_ui.open({
         send = function(request) return send(request, state) end,
         collect = opts and opts.collect,

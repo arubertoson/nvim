@@ -32,6 +32,7 @@ Output raw code only.]]
 ---@field end_col integer
 ---@field ns integer
 ---@field progress_id integer|nil
+---@field process vim.SystemObj|nil
 ---@field answer { lines: string[], pending: string }
 
 ---@type aru.agent.channels.editor.State|nil
@@ -79,9 +80,11 @@ local function stop_spinner(state) progress.stop(state) end
 
 local function cancel_active()
     if not _state then return end
-    stop_spinner(_state)
-    clear_progress(_state)
+    local state = _state
     _state = nil
+    stop_spinner(state)
+    clear_progress(state)
+    if state.process then pcall(state.process.kill, state.process, 15) end
 end
 
 ---@param state aru.agent.channels.editor.State
@@ -153,6 +156,7 @@ function M.send(transport, ctx)
         end_col = end_col,
         ns = vim.api.nvim_create_namespace(constants.NAMESPACE.EDITOR),
         progress_id = nil,
+        process = nil,
         answer = { lines = {}, pending = "" },
     }
     progress.init(state)
@@ -166,7 +170,7 @@ function M.send(transport, ctx)
     refresh_progress(state)
     start_spinner(state)
 
-    transport.run(stdin, function(event)
+    local ok, process_or_error = pcall(transport.run, stdin, function(event)
         if _state ~= state then return end
         stream.dispatch(event, {
             on_thinking = function()
@@ -176,6 +180,7 @@ function M.send(transport, ctx)
         })
     end, function(result)
         if _state ~= state then return end
+        state.process = nil
         _state = nil
         stop_spinner(state)
 
@@ -189,6 +194,16 @@ function M.send(transport, ctx)
 
         insert_answer(state)
     end)
+
+    if not ok then
+        if _state == state then
+            _state = nil
+            stop_spinner(state)
+            clear_progress(state)
+        end
+        error(process_or_error, 0)
+    end
+    if _state == state then state.process = process_or_error end
 
     return true
 end

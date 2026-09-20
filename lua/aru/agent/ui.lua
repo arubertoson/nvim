@@ -3,6 +3,42 @@
 
 local M = {}
 
+---@class aru.agent.ui.EditorSpaceOpts
+---@field horizontal_margin integer
+---@field vertical_margin integer
+---@field border_columns integer
+---@field border_rows integer
+
+---@param opts aru.agent.ui.EditorSpaceOpts
+---@return { width: integer, height: integer }
+function M.editor_space(opts)
+    return {
+        width = math.max(1, vim.o.columns - opts.horizontal_margin * 2 - opts.border_columns),
+        height = math.max(
+            1,
+            vim.o.lines - vim.o.cmdheight - opts.vertical_margin * 2 - opts.border_rows
+        ),
+    }
+end
+
+---@param available integer
+---@param min_size integer
+---@param max_size integer
+---@param ratio number
+---@return integer
+function M.responsive_size(available, min_size, max_size, ratio)
+    local target = math.floor(available * ratio)
+    return math.max(1, math.min(available, max_size, math.max(min_size, target)))
+end
+
+---@param total integer
+---@param content_size integer
+---@param border_size integer
+---@return integer
+function M.centered_offset(total, content_size, border_size)
+    return math.max(0, math.floor((total - content_size - border_size) / 2))
+end
+
 ---@class aru.agent.ui.ScratchBufOpts
 ---@field filetype string|nil
 ---@field lines string[]|nil

@@ -24,7 +24,7 @@ local function diagnostic_at_cursor(bufnr, cursor)
     local wanted
     for _, d in ipairs(diags) do
         local end_col = d.end_col or d.col
-        if d.col <= col and col <= end_col then
+        if d.col <= col and col < end_col then
             wanted = d
             break
         end

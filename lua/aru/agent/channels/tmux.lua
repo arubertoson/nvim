@@ -60,7 +60,7 @@ local function active_pane_in_window(window_id)
     return nil, nil
 end
 
----@param config aru.agent.config.Opts
+---@param config aru.agent.config.Config
 ---@return { pane_id: string }|nil
 local function find_target(config)
     local session = current_tmux_session()

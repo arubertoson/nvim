@@ -3,8 +3,6 @@
 
 local M = {}
 
-local log = require("aru.log")
-
 ---@enum aru.agent.collect.Type
 M.COLLECT = {
     BLOCK = "block",
@@ -24,12 +22,9 @@ function M.resolve(ctx, names)
     local items = {}
     for _, name in ipairs(names) do
         local provider = providers[name]
-        if not provider then
-            log.error("Unknown collect provider", name)
-        else
-            local item = provider.collect(ctx.state)
-            if item then table.insert(items, item) end
-        end
+        if not provider then error("Unknown collect provider: " .. tostring(name)) end
+        local item = provider.collect(ctx.state)
+        if item then table.insert(items, item) end
     end
 
     return items

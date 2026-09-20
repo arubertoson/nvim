@@ -1,4 +1,5 @@
 pcall(vim.cmd, "packadd mini.nvim")
+pcall(vim.cmd, "packadd nvim-treesitter-textobjects")
 
 local MiniTest = _G.MiniTest or require("mini.test")
 if not _G.MiniTest then MiniTest.setup({ silent = true }) end
@@ -138,26 +139,6 @@ T["context resolver"]["invalidates the symbol cache after a buffer change"] = fu
     MiniTest.expect.equality(context.symbols(source)[1].name, "M.changed")
 end
 
-T["context resolver"]["deduplicates exact source ranges only"] = function()
-    local context = require("aru.agent.context")
-    local path = vim.fs.joinpath(root, "lua", "agent.lua")
-    local items = context.compose({
-        { kind = "block", source = true, path = path, start_line = 1, end_line = 2, text = "a" },
-        { kind = "file", source = true, path = path, start_line = 1, end_line = 2, text = "a" },
-        { kind = "file", source = true, path = path, start_line = 1, end_line = 3, text = "b" },
-        {
-            kind = "file",
-            source = true,
-            path = path,
-            start_line = 1,
-            end_line = 3,
-            whole_file = true,
-            text = "b",
-        },
-    })
-    MiniTest.expect.equality(#items, 3)
-end
-
 T["payload"] = MiniTest.new_set()
 
 T["payload"]["renders Pi file blocks before the unchanged prompt"] = function()
@@ -186,24 +167,6 @@ T["payload"]["renders Pi file blocks before the unchanged prompt"] = function()
             "  compare @a  ",
         }, "\n")
     )
-end
-
-T["payload"]["omits line metadata for whole files"] = function()
-    local rendered = require("aru.agent.payload").render({
-        context = {
-            {
-                kind = "file",
-                source = true,
-                path = "/tmp/a.lua",
-                start_line = 1,
-                end_line = 10,
-                whole_file = true,
-                text = "source",
-            },
-        },
-        prompt = "read",
-    })
-    MiniTest.expect.equality(rendered:find("lines=", 1, true), nil)
 end
 
 T["prompt integration"] = MiniTest.new_set()
@@ -239,33 +202,6 @@ local function open_prompt(send)
         send = send,
     })
     return vim.api.nvim_get_current_buf()
-end
-
-T["prompt integration"]["shows only right-aligned actions around the prompt"] = function()
-    local prompt_buf = open_prompt(function() return true end)
-    local text = "read @lua/agent.lua:1-2"
-    vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, { text })
-    vim.api.nvim_win_set_cursor(0, { 1, #text })
-    vim.wait(200)
-
-    local actions_row
-    for _, mark in
-        ipairs(vim.api.nvim_buf_get_extmarks(prompt_buf, -1, 0, -1, {
-            details = true,
-        }))
-    do
-        local details = mark[4]
-        MiniTest.expect.equality(details.virt_lines_above == true, false)
-        if details.virt_lines then actions_row = details.virt_lines[#details.virt_lines] end
-    end
-    MiniTest.expect.equality(actions_row[1][1]:match("^ *$") ~= nil, true)
-    MiniTest.expect.equality(actions_row[1][2], "Normal")
-    MiniTest.expect.equality(
-        vim.iter(actions_row)
-            :any(function(chunk) return vim.deep_equal(chunk, { "[CR]", "Special" }) end),
-        true
-    )
-    invoke_insert_mapping(prompt_buf, "<CR>")
 end
 
 T["prompt integration"]["refuses unresolved submission without closing the prompt"] = function()

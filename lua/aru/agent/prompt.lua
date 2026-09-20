@@ -17,6 +17,7 @@ local ui = require("aru.agent.ui")
 ---@field invocation aru.agent.InvocationState
 
 local PROMPT_LAYOUT = constants.UI.PROMPT
+local OVERVIEW_LAYOUT = constants.UI.CONTEXT_OVERVIEW
 local PROMPT_MIN_ROWS = PROMPT_LAYOUT.MIN_ROWS
 local PROMPT_MAX_ROWS = PROMPT_LAYOUT.MAX_ROWS
 local PROMPT_LEFT_PADDING = PROMPT_LAYOUT.LEFT_PADDING
@@ -39,7 +40,7 @@ local BLOCK_COLLECT = { collect.COLLECT.BLOCK }
 ---@field collect aru.agent.collect.Type[]
 ---@field cwd string
 ---@field invocation aru.agent.InvocationState
----@field build aru.agent.context.BuildResult|nil
+---@field references aru.agent.reference.Reference[]
 ---@field preview_win integer|nil
 ---@field preview_buf integer|nil
 
@@ -66,14 +67,29 @@ local function footer_actions(state)
     }
 end
 
+local function prompt_space()
+    return ui.editor_space({
+        horizontal_margin = PROMPT_LAYOUT.HORIZONTAL_MARGIN,
+        vertical_margin = PROMPT_LAYOUT.VERTICAL_MARGIN,
+        border_columns = PROMPT_LAYOUT.BORDER_COLUMNS,
+        border_rows = PROMPT_LAYOUT.BORDER_ROWS,
+    })
+end
+
 local function prompt_width()
-    return math.min(PROMPT_LAYOUT.WIDTH, vim.o.columns - PROMPT_LAYOUT.BORDER_ROWS)
+    local space = prompt_space()
+    return ui.responsive_size(
+        space.width,
+        PROMPT_LAYOUT.MIN_WIDTH,
+        PROMPT_LAYOUT.MAX_WIDTH,
+        PROMPT_LAYOUT.WIDTH_RATIO
+    )
 end
 
 ---@param buf integer
 ---@param width integer
 local function prompt_content_rows(buf, width)
-    local text_width = width - PROMPT_LEFT_PADDING
+    local text_width = math.max(1, width - PROMPT_LEFT_PADDING)
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
     local rows = 0
     for _, line in ipairs(lines) do
@@ -88,12 +104,20 @@ local function prompt_win_config(buf)
     local custom = require("aru.custom")
     local width = prompt_width()
     local content_rows = prompt_content_rows(buf, width)
-    local height = math.max(PROMPT_MIN_ROWS, content_rows) + 2
-    local available_lines = vim.o.lines - vim.o.cmdheight
+    local desired_height = math.max(PROMPT_MIN_ROWS, content_rows) + 2
+    local space = prompt_space()
+    local max_height = ui.responsive_size(
+        space.height,
+        PROMPT_MIN_ROWS + 2,
+        PROMPT_MAX_ROWS + 2,
+        PROMPT_LAYOUT.HEIGHT_RATIO
+    )
+    local height = math.min(desired_height, max_height)
+    local editor_rows = vim.o.lines - vim.o.cmdheight
     return {
         relative = "editor",
-        row = math.max(0, math.floor((available_lines - height - PROMPT_LAYOUT.BORDER_ROWS) / 2)),
-        col = math.max(0, math.floor((vim.o.columns - width - PROMPT_LAYOUT.BORDER_ROWS) / 2)),
+        row = ui.centered_offset(editor_rows, height, PROMPT_LAYOUT.BORDER_ROWS),
+        col = ui.centered_offset(vim.o.columns, width, PROMPT_LAYOUT.BORDER_COLUMNS),
         width = width,
         height = height,
         style = constants.UI.STYLE_MINIMAL,
@@ -166,13 +190,13 @@ end
 ---@param state aru.agent.prompt.State
 local function render_references(state)
     vim.api.nvim_buf_clear_namespace(state.buf, state.reference_ns, 0, -1)
-    if not state.build then return end
     local highlights = {
         resolved = "Special",
+        pending = constants.UI.HIGHLIGHT_COMMENT,
         editing = constants.UI.HIGHLIGHT_COMMENT,
         unresolved = "DiagnosticError",
     }
-    for _, ref in ipairs(state.build.references) do
+    for _, ref in ipairs(state.references) do
         vim.api.nvim_buf_set_extmark(
             state.buf,
             state.reference_ns,
@@ -206,11 +230,10 @@ local function prompt_cursor(state)
 end
 
 ---@param state aru.agent.prompt.State
----@param authoritative boolean|nil
-local function build_context(state, authoritative)
+local function build_context(state)
     return context.build({
         prompt = read_prompt_text(state.buf),
-        cursor = authoritative and nil or prompt_cursor(state),
+        cursor = nil,
         cwd = state.cwd,
         invocation = state.invocation,
         collect = state.collect,
@@ -218,33 +241,58 @@ local function build_context(state, authoritative)
 end
 
 ---@param state aru.agent.prompt.State
-local function refresh(state)
-    if _prompt_state ~= state then return end
-    if not vim.api.nvim_buf_is_valid(state.buf) or not vim.api.nvim_win_is_valid(state.win) then
-        return
+---@param references aru.agent.reference.Reference[]
+local function set_references(state, references)
+    for _, ref in ipairs(references) do
+        ref.context = nil
     end
-    state.build = build_context(state)
-    render_references(state)
-    resize_prompt(state)
+    state.references = references
 end
 
 ---@param state aru.agent.prompt.State
----@param immediate boolean
-local function request_refresh(state, immediate)
+local function parse_prompt(state)
+    set_references(state, context.parse(read_prompt_text(state.buf), prompt_cursor(state)))
+    render_references(state)
+end
+
+---@type fun(state: aru.agent.prompt.State)
+local request_validation
+
+---@param state aru.agent.prompt.State
+local function update_cursor_state(state)
+    local changed =
+        context.update_cursor(state.references, prompt_cursor(state), read_prompt_text(state.buf))
+    render_references(state)
+    if changed then request_validation(state) end
+end
+
+---@param state aru.agent.prompt.State
+local function validate_prompt(state)
+    context.validate(state.references, state.cwd, state.invocation.bufnr)
+    render_references(state)
+end
+
+---@param state aru.agent.prompt.State
+request_validation = function(state)
     state.refresh_id = state.refresh_id + 1
     local refresh_id = state.refresh_id
     state.timer:stop()
-    if immediate then
-        refresh(state)
-        return
-    end
     state.timer:start(
         PREVIEW_DELAY_MS,
         0,
         vim.schedule_wrap(function()
-            if _prompt_state == state and state.refresh_id == refresh_id then refresh(state) end
+            if _prompt_state == state and state.refresh_id == refresh_id then
+                validate_prompt(state)
+            end
         end)
     )
+end
+
+---@param state aru.agent.prompt.State
+local function prompt_changed(state)
+    parse_prompt(state)
+    resize_prompt(state)
+    request_validation(state)
 end
 
 local function close_prompt()
@@ -270,8 +318,8 @@ local function submit_prompt(destination, force_new_session)
     local prompt_text = read_prompt_text(state.buf)
     if prompt_text:match("^%s*$") then return end
 
-    local built = build_context(state, true)
-    state.build = built
+    local built = build_context(state)
+    set_references(state, built.references)
     render_references(state)
     render_footer(state)
     if #built.blocking > 0 then
@@ -308,7 +356,55 @@ local function insert_prompt_newline()
         line:sub(col + 1),
     })
     vim.api.nvim_win_set_cursor(state.win, { row + 1, 0 })
-    request_refresh(state, true)
+    prompt_changed(state)
+end
+
+---@param buf integer
+local function context_overview_win_config(buf)
+    local space = ui.editor_space({
+        horizontal_margin = OVERVIEW_LAYOUT.HORIZONTAL_MARGIN,
+        vertical_margin = OVERVIEW_LAYOUT.VERTICAL_MARGIN,
+        border_columns = OVERVIEW_LAYOUT.BORDER_COLUMNS,
+        border_rows = OVERVIEW_LAYOUT.BORDER_ROWS,
+    })
+    local width = ui.responsive_size(
+        space.width,
+        OVERVIEW_LAYOUT.MIN_WIDTH,
+        OVERVIEW_LAYOUT.MAX_WIDTH,
+        OVERVIEW_LAYOUT.WIDTH_RATIO
+    )
+    local max_height = ui.responsive_size(
+        space.height,
+        OVERVIEW_LAYOUT.MIN_HEIGHT,
+        OVERVIEW_LAYOUT.MAX_HEIGHT,
+        OVERVIEW_LAYOUT.HEIGHT_RATIO
+    )
+    local desired_height =
+        math.max(OVERVIEW_LAYOUT.MIN_HEIGHT, vim.api.nvim_buf_line_count(buf) + 2)
+    local height = math.min(desired_height, max_height)
+    local editor_rows = vim.o.lines - vim.o.cmdheight
+    return {
+        relative = "editor",
+        row = ui.centered_offset(editor_rows, height, OVERVIEW_LAYOUT.BORDER_ROWS),
+        col = ui.centered_offset(vim.o.columns, width, OVERVIEW_LAYOUT.BORDER_COLUMNS),
+        width = width,
+        height = height,
+        style = constants.UI.STYLE_MINIMAL,
+        border = require("aru.custom").border or constants.UI.BORDER_ROUNDED,
+        title = " context overview ",
+        title_pos = constants.UI.TITLE_POS_LEFT,
+        zindex = PROMPT_LAYOUT.ZINDEX + 1,
+    }
+end
+
+---@param state aru.agent.prompt.State
+local function resize_context_overview(state)
+    if state.preview_win and vim.api.nvim_win_is_valid(state.preview_win) then
+        vim.api.nvim_win_set_config(
+            state.preview_win,
+            context_overview_win_config(assert(state.preview_buf))
+        )
+    end
 end
 
 ---@param state aru.agent.prompt.State
@@ -344,7 +440,7 @@ end
 ---@param state aru.agent.prompt.State
 local function show_context_overview(state)
     local built = build_context(state)
-    state.build = built
+    set_references(state, built.references)
     render_references(state)
     render_footer(state)
 
@@ -356,20 +452,8 @@ local function show_context_overview(state)
     })
     vim.bo[preview_buf].modifiable = false
     vim.bo[preview_buf].readonly = true
-    local width = math.min(math.max(40, vim.o.columns - 12), 120)
-    local height = math.min(math.max(8, #overview_lines + 2), 35)
-    local preview_win = vim.api.nvim_open_win(preview_buf, false, {
-        relative = "editor",
-        row = math.max(0, math.floor((vim.o.lines - height) / 2)),
-        col = math.max(0, math.floor((vim.o.columns - width) / 2)),
-        width = width,
-        height = height,
-        style = constants.UI.STYLE_MINIMAL,
-        border = require("aru.custom").border or constants.UI.BORDER_ROUNDED,
-        title = " context overview ",
-        title_pos = constants.UI.TITLE_POS_LEFT,
-        zindex = PROMPT_LAYOUT.ZINDEX + 1,
-    })
+    local preview_win =
+        vim.api.nvim_open_win(preview_buf, false, context_overview_win_config(preview_buf))
     state.preview_buf = preview_buf
     state.preview_win = preview_win
 
@@ -446,25 +530,23 @@ function M.open(deps)
         collect = deps.collect or BLOCK_COLLECT,
         cwd = deps.cwd,
         invocation = deps.invocation,
-        build = nil,
+        references = {},
         preview_win = nil,
         preview_buf = nil,
     }
     _prompt_state = state
-    refresh(state)
+    parse_prompt(state)
+    resize_prompt(state)
 
-    vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+    vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "CompleteDone" }, {
         group = augroup,
         buffer = buf,
-        callback = function()
-            resize_prompt(state)
-            request_refresh(state, false)
-        end,
+        callback = function() prompt_changed(state) end,
     })
-    vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI", "CompleteDone" }, {
+    vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
         group = augroup,
         buffer = buf,
-        callback = function() request_refresh(state, true) end,
+        callback = function() update_cursor_state(state) end,
     })
     vim.api.nvim_create_autocmd("WinLeave", {
         group = augroup,
@@ -475,6 +557,14 @@ function M.open(deps)
                 local current = vim.api.nvim_get_current_win()
                 if current ~= state.win and current ~= state.preview_win then close_prompt() end
             end)
+        end,
+    })
+    vim.api.nvim_create_autocmd("VimResized", {
+        group = augroup,
+        callback = function()
+            if _prompt_state ~= state then return end
+            resize_prompt(state)
+            resize_context_overview(state)
         end,
     })
 

@@ -88,10 +88,25 @@ local function close_float()
     run_lifecycle_hook("after_close", state.layout)
 end
 
+local function float_width()
+    local layout = constants.UI.READ_FLOAT
+    local available = math.max(1, vim.o.columns - layout.SIDE_MARGIN * 2 - layout.BORDER_COLUMNS)
+    return math.min(config.get().float.width, available)
+end
+
+---@param width integer
+local function float_col(width)
+    local layout = constants.UI.READ_FLOAT
+    if config.get().float.side == "left" then return layout.SIDE_MARGIN end
+    return math.max(0, vim.o.columns - width - layout.SIDE_MARGIN - layout.BORDER_COLUMNS)
+end
+
 local function max_height()
     local layout = constants.UI.READ_FLOAT
-    local available =
-        math.max(1, vim.o.lines - vim.o.cmdheight - layout.ROW - layout.BOTTOM_MARGIN)
+    local available = math.max(
+        1,
+        vim.o.lines - vim.o.cmdheight - layout.ROW - layout.BOTTOM_MARGIN - layout.BORDER_ROWS
+    )
     return math.max(1, math.floor(available * layout.HEIGHT_RATIO))
 end
 
@@ -127,9 +142,18 @@ end
 ---@param state aru.agent.channels.float.WindowState
 local function resize(state)
     if not vim.api.nvim_win_is_valid(state.win) then return end
-    local new_h = math.min(content_rows(state), max_height())
-    local cfg = vim.api.nvim_win_get_config(state.win)
-    if cfg.height ~= new_h then vim.api.nvim_win_set_config(state.win, { height = new_h }) end
+
+    local width = float_width()
+    state.layout.width = width
+    vim.api.nvim_win_set_config(state.win, {
+        relative = "editor",
+        row = constants.UI.READ_FLOAT.ROW,
+        col = float_col(width),
+        width = width,
+    })
+
+    local height = math.min(content_rows(state), max_height())
+    vim.api.nvim_win_set_config(state.win, { height = height })
     if not state.user_scrolled then anchor_top(state) end
 end
 
@@ -250,12 +274,7 @@ local function create_float_window(lines)
 
     local ui_layout = constants.UI.READ_FLOAT
     local float_opts = config.get().float
-    local width =
-        math.min(float_opts.width, math.max(1, vim.o.columns - ui_layout.SIDE_MARGIN * 2))
-    local col = ui_layout.SIDE_MARGIN
-    if float_opts.side == "right" then
-        col = math.max(0, vim.o.columns - width - ui_layout.SIDE_MARGIN)
-    end
+    local width = float_width()
     local layout = { side = float_opts.side, width = width }
     local height = math.min(estimated_rows(buf, width), max_height())
     local custom = require("aru.custom")
@@ -264,7 +283,7 @@ local function create_float_window(lines)
     local ok, win = pcall(vim.api.nvim_open_win, buf, false, {
         relative = "editor",
         row = ui_layout.ROW,
-        col = col,
+        col = float_col(width),
         width = width,
         height = math.max(1, height),
         style = constants.UI.STYLE_MINIMAL,
@@ -310,6 +329,12 @@ local function create_float_window(lines)
             stop_spinner()
             pcall(vim.api.nvim_del_augroup_by_id, state.augroup)
             run_lifecycle_hook("after_close", state.layout)
+        end,
+    })
+    vim.api.nvim_create_autocmd("VimResized", {
+        group = augroup,
+        callback = function()
+            if _window == state then resize(state) end
         end,
     })
     install_keymaps(state)

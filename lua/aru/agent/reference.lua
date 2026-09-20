@@ -4,7 +4,7 @@
 
 local M = {}
 
----@alias aru.agent.reference.State "editing"|"resolved"|"unresolved"
+---@alias aru.agent.reference.State "editing"|"pending"|"resolved"|"unresolved"
 
 ---@class aru.agent.reference.Span
 ---@field start_row integer
@@ -164,13 +164,24 @@ local function parse_line(line, row, cursor, out)
                 end_col = finish,
             }
             local editing = incomplete and M.cursor_in_span(cursor, span)
+            local state
+            local ref_error
+            if invalid then
+                state = "unresolved"
+                ref_error = syntax_error
+            elseif incomplete then
+                state = editing and "editing" or "unresolved"
+                ref_error = editing and nil or "incomplete reference"
+            else
+                state = "pending"
+            end
             out[#out + 1] = {
                 raw = raw,
                 path = path,
                 selector = selector,
                 span = span,
-                state = editing and "editing" or "unresolved",
-                error = editing and nil or syntax_error,
+                state = state,
+                error = ref_error,
                 context = nil,
                 incomplete = incomplete,
                 invalid = invalid,
@@ -194,15 +205,63 @@ function M.parse(text, cursor)
 end
 
 ---@param ref aru.agent.reference.Reference
+---@return string
+local function identity(ref)
+    return table.concat({
+        ref.raw,
+        ref.span.start_row,
+        ref.span.start_col,
+        ref.span.end_row,
+        ref.span.end_col,
+    }, "\0")
+end
+
+---@param references aru.agent.reference.Reference[]
 ---@param cursor [integer, integer]|nil
+---@param text string|nil
+---@return boolean changed
+function M.update_cursor(references, cursor, text)
+    if not text then
+        for _, ref in ipairs(references) do
+            if ref.incomplete and not ref.invalid then
+                local editing = M.cursor_in_span(cursor, ref.span)
+                ref.state = editing and "editing" or "unresolved"
+                ref.error = editing and nil or "incomplete reference"
+            end
+        end
+        return false
+    end
+
+    local previous = {}
+    for _, ref in ipairs(references) do
+        previous[identity(ref)] = ref
+    end
+
+    local changed = false
+    local reparsed = M.parse(text, cursor)
+    for _, ref in ipairs(reparsed) do
+        local old = previous[identity(ref)]
+        if old and not ref.incomplete and not ref.invalid then
+            ref.state = old.state
+            ref.error = old.error
+        elseif not old then
+            changed = true
+        end
+    end
+    if #references ~= #reparsed then changed = true end
+
+    for index = #references, 1, -1 do
+        references[index] = nil
+    end
+    vim.list_extend(references, reparsed)
+    return changed
+end
+
+---@param ref aru.agent.reference.Reference
 ---@param resolution_error string|nil
----@param recoverable boolean
-function M.classify(ref, cursor, resolution_error, recoverable)
+function M.classify(ref, resolution_error)
     if not resolution_error then
         ref.state = "resolved"
-        ref.error = nil
-    elseif recoverable and M.cursor_in_span(cursor, ref.span) then
-        ref.state = "editing"
         ref.error = nil
     else
         ref.state = "unresolved"

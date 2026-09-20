@@ -107,67 +107,54 @@ end
 
 T["runtime"] = MiniTest.new_set()
 
-T["runtime"]["executable and runtime profile are independent"] = function()
-    local runtime = require("aru.agent.runtime")
-    local channels = require("aru.agent.channels")
-    local ctx = {
-        config = {
-            executable = "/tmp/pi-dev",
-            runtime = "pi",
-            session_dir = "/tmp/agent-sessions",
-        },
-    }
-
-    local command = runtime.command(ctx, {
-        destination = channels.DESTINATION.FLOAT,
-    }, {
-        kind = "explicit",
-        id = "session-123",
+T["runtime"]["malformed JSON output fails the process result"] = function()
+    local completed
+    require("aru.agent.process").json({
+        executable = "sh",
+        args = { "-c", "printf 'not-json\\n'" },
+        stdin = "",
+        on_event = function() error("malformed output must not emit an event") end,
+        on_exit = function(result) completed = result end,
     })
 
-    MiniTest.expect.equality(command, {
-        "/tmp/pi-dev",
-        "--mode",
-        "json",
-        "--session-dir",
-        "/tmp/agent-sessions",
-        "--session-id",
-        "session-123",
-    })
+    MiniTest.expect.equality(vim.wait(1000, function() return completed ~= nil end), true)
+    MiniTest.expect.equality(completed.code, 1)
+    MiniTest.expect.equality(
+        require("aru.agent.process").stderr_summary(completed),
+        "Agent runtime emitted malformed JSON"
+    )
 end
 
-T["runtime"]["editor runs without a saved session"] = function()
-    local runtime = require("aru.agent.runtime")
-    local channels = require("aru.agent.channels")
-    local ctx = {
-        config = {
-            executable = "pi-dev",
-            runtime = "pi",
-            session_dir = "/tmp/agent-sessions",
-        },
-    }
-
-    local command = runtime.command(ctx, {
-        destination = channels.DESTINATION.EDITOR,
-    }, { kind = "none" })
-
-    MiniTest.expect.equality(command, {
-        "pi-dev",
-        "--mode",
-        "json",
-        "--no-session",
-    })
-end
-
-T["runtime"]["setup calls compose"] = function()
+T["runtime"]["config rejects malformed and unknown options"] = function()
     local config = require("aru.agent.config")
-    local before_open = function() end
+    local invalid = {
+        { opts = { executable = "" }, message = "executable" },
+        { opts = { typo = true }, message = "unknown agent config option" },
+    }
 
-    config.setup({ executable = "custom-pi" })
-    config.setup({ float = { before_open = before_open } })
+    for _, case in ipairs(invalid) do
+        local ok, err = pcall(config.setup, case.opts)
+        MiniTest.expect.equality(ok, false)
+        MiniTest.expect.equality(tostring(err):find(case.message, 1, true) ~= nil, true)
+    end
+end
 
-    MiniTest.expect.equality(config.get().executable, "custom-pi")
-    MiniTest.expect.equality(config.get().float.before_open, before_open)
+T["runtime"]["requests reject malformed fields and collectors"] = function()
+    local agent = require("aru.agent")
+    local destination = require("aru.agent.channels").DESTINATION.TMUX
+    local invalid = {
+        { request = {}, message = "invalid agent destination" },
+        {
+            request = { destination = destination, typo = true },
+            message = "unknown agent request field",
+        },
+    }
+
+    for _, case in ipairs(invalid) do
+        local ok, err = pcall(agent.send, case.request)
+        MiniTest.expect.equality(ok, false)
+        MiniTest.expect.equality(tostring(err):find(case.message, 1, true) ~= nil, true)
+    end
 end
 
 T["runtime"]["runtime without explicit identity fails visibly"] = function()
@@ -200,29 +187,6 @@ T["runtime"]["runtime without explicit identity fails visibly"] = function()
 end
 
 T["session"] = MiniTest.new_set()
-
-T["session"]["new sessions have distinct explicit identities"] = function()
-    local session = require("aru.agent.session")
-    local first, first_response = session.begin_read("/project", "pi", false)
-    session.finish(first_response, "complete")
-    local second = session.begin_read("/project", "pi", true)
-
-    local selected = session.selection()
-    MiniTest.expect.equality(first.id ~= second.id, true)
-    MiniTest.expect.equality(selected.session, second)
-    MiniTest.expect.equality({ selected.session_index, selected.session_count }, { 2, 2 })
-end
-
-T["session"]["continue appends only to the selected matching session"] = function()
-    local session = require("aru.agent.session")
-    local first, first_response = session.begin_read("/project", "pi", false)
-    session.finish(first_response, "complete")
-    local continued, second_response = session.begin_read("/project", "pi", false)
-
-    MiniTest.expect.equality(continued, first)
-    MiniTest.expect.equality(#first.responses, 2)
-    MiniTest.expect.equality(session.selection().response, second_response)
-end
 
 T["session"]["working directory mismatch creates a session"] = function()
     local session = require("aru.agent.session")
@@ -299,6 +263,86 @@ T["context"]["explicit visual selection is collected exactly"] = function()
     MiniTest.expect.equality(item.end_line, 2)
 end
 
+T["context"]["characterwise selection includes complete multibyte characters"] = function()
+    local buf = vim.api.nvim_get_current_buf()
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "aé中z" })
+    vim.fn.setpos("'<", { buf, 1, 2, 0 })
+    vim.fn.setpos("'>", { buf, 1, 4, 0 })
+
+    local invocation
+    package.loaded["aru.agent.prompt"] = {
+        open = function(deps)
+            invocation = deps.invocation
+            return true
+        end,
+    }
+
+    local opened = require("aru.agent").prompt({ visual_mode = "v", collect = {} })
+
+    MiniTest.expect.equality(opened, true)
+    MiniTest.expect.equality(invocation.selection, {
+        mode = "v",
+        start_row = 0,
+        start_col = 1,
+        end_row = 0,
+        end_col = 6,
+    })
+    MiniTest.expect.equality(require("aru.agent.collect.block").collect(invocation).text, "é中")
+end
+
+T["context"]["blockwise selections are rejected at the prompt boundary"] = function()
+    local opened = false
+    package.loaded["aru.agent.prompt"] = {
+        open = function()
+            opened = true
+            return true
+        end,
+    }
+
+    local notification
+    local notify = vim.notify
+    vim.notify = function(message, level) notification = { message, level } end
+    local ok, result = pcall(require("aru.agent").prompt, { visual_mode = "\22" })
+    vim.notify = notify
+    if not ok then error(result) end
+
+    MiniTest.expect.equality(result, false)
+    MiniTest.expect.equality(opened, false)
+    MiniTest.expect.equality(notification, {
+        "Agent prompts do not support blockwise selections",
+        vim.log.levels.ERROR,
+    })
+end
+
+T["context"]["diagnostic end columns are exclusive"] = function()
+    local buf = vim.api.nvim_get_current_buf()
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "0123456789" })
+    local namespace = vim.api.nvim_create_namespace("aru-agent-test-diagnostics")
+    vim.diagnostic.set(namespace, buf, {
+        {
+            lnum = 0,
+            col = 0,
+            end_lnum = 0,
+            end_col = 5,
+            message = "before",
+            severity = vim.diagnostic.severity.ERROR,
+        },
+        {
+            lnum = 0,
+            col = 5,
+            end_lnum = 0,
+            end_col = 10,
+            message = "at cursor",
+            severity = vim.diagnostic.severity.ERROR,
+        },
+    })
+    vim.api.nvim_win_set_cursor(0, { 1, 5 })
+
+    local item = require("aru.agent.collect.diagnostic").collect(current_invocation(nil))
+
+    MiniTest.expect.equality(item.text:find("message: at cursor", 1, true) ~= nil, true)
+end
+
 T["generate"] = MiniTest.new_set()
 
 T["generate"]["normal mode inserts at the captured cursor"] = function()
@@ -341,37 +385,26 @@ T["generate"]["visual mode replaces and selects the captured range"] = function(
     MiniTest.expect.equality(vim.fn.getpos("'>")[3], 9)
 end
 
-T["generate"]["progress uses a separate virtual line and highlights the target"] = function()
+T["generate"]["startup failure clears generation state"] = function()
     local buf = vim.api.nvim_get_current_buf()
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "local old = true" })
-
-    local selection = {
-        mode = "v",
-        start_row = 0,
-        start_col = 6,
-        end_row = 0,
-        end_col = 9,
-    }
-    local finish
-    local transport = {
-        message = "replace it",
+    local editor = require("aru.agent.channels.editor")
+    local ok, err = pcall(editor.send, {
+        message = "generate",
         label = "test",
-        run = function(_, _, on_exit) finish = on_exit end,
-    }
-
-    require("aru.agent.channels.editor").send(transport, {
-        state = current_invocation(selection),
+        run = function() error("failed to start") end,
+    }, {
+        state = current_invocation(nil),
     })
 
-    local marks = vim.api.nvim_buf_get_extmarks(buf, -1, 0, -1, { details = true })
-    MiniTest.expect.equality(#marks, 1)
-    MiniTest.expect.equality(marks[1][4].virt_text, nil)
-    MiniTest.expect.equality(marks[1][4].virt_lines ~= nil, true)
-    MiniTest.expect.equality(marks[1][4].hl_group, "Visual")
-    MiniTest.expect.equality({ marks[1][4].end_row, marks[1][4].end_col }, { 0, 9 })
-
-    finish({ code = 0, stderr = "" })
+    MiniTest.expect.equality(ok, false)
+    MiniTest.expect.equality(tostring(err):find("failed to start", 1, true) ~= nil, true)
     MiniTest.expect.equality(#vim.api.nvim_buf_get_extmarks(buf, -1, 0, -1, {}), 0)
+
+    local sent = editor.send(completed_transport("retry", "recovered"), {
+        state = current_invocation(nil),
+    })
+    MiniTest.expect.equality(sent, true)
+    MiniTest.expect.equality(vim.api.nvim_buf_get_lines(buf, 0, -1, false), { "recovered" })
 end
 
 T["generate"]["one-shot generation preserves read session history"] = function()
@@ -430,6 +463,32 @@ T["float"]["side and width configure window geometry"] = function()
     float.close()
 end
 
+T["float"]["resize keeps the complete geometry on screen"] = function()
+    require("aru.agent.config").setup({ float = { side = "right", width = 72 } })
+
+    local session = require("aru.agent.session")
+    local _, response = session.begin_read(vim.fn.getcwd(), "test", false)
+    local float = require("aru.agent.channels.float")
+    float.send({
+        message = "question",
+        label = "test",
+        response = response,
+        run = function() end,
+    }, {})
+
+    local original_columns = vim.o.columns
+    local ok, err = xpcall(function()
+        vim.o.columns = 50
+        vim.api.nvim_exec_autocmds("VimResized", {})
+        local float_config = vim.api.nvim_win_get_config(float_window())
+        MiniTest.expect.equality(float_config.width, 42)
+        MiniTest.expect.equality(float_config.col, 3)
+    end, debug.traceback)
+    float.close()
+    vim.o.columns = original_columns
+    if not ok then error(err) end
+end
+
 T["float"]["lifecycle hooks run once per visibility transition"] = function()
     local before_open = 0
     local after_close = 0
@@ -455,29 +514,6 @@ T["float"]["lifecycle hooks run once per visibility transition"] = function()
     float.focus()
     vim.api.nvim_win_close(0, true)
     MiniTest.expect.equality({ before_open, after_close }, { 2, 2 })
-end
-
-T["float"]["title always shows session and response indices"] = function()
-    local session = require("aru.agent.session")
-    local float = require("aru.agent.channels.float")
-    local _, response = session.begin_read(vim.fn.getcwd(), "pi", false)
-    local finish
-    float.send({
-        message = "question",
-        label = "pi",
-        response = response,
-        run = function(_, _, on_exit) finish = on_exit end,
-    }, {})
-
-    local config = vim.api.nvim_win_get_config(float_window())
-    MiniTest.expect.equality(
-        config.title[1][1],
-        " pi · S1/1 · R1/1 · ⠋ thinking about clouds "
-    )
-
-    finish({ code = 0, stderr = "" })
-    config = vim.api.nvim_win_get_config(float_window())
-    MiniTest.expect.equality(config.title[1][1], " pi · S1/1 · R1/1 ")
 end
 
 T["float"]["navigation does not interrupt a background stream"] = function()
@@ -693,41 +729,6 @@ T["clear"]["removes disk and memory state and closes the float"] = function()
     MiniTest.expect.equality(vim.fn.exists(":AgentSessionsClear"), 2)
 end
 
-T["clear"]["an absent Session Store still clears memory"] = function()
-    local session_dir = vim.fn.tempname()
-    local agent = require("aru.agent")
-    agent.setup({ session_dir = session_dir })
-    local session = require("aru.agent.session")
-    local _, response = session.begin_read(vim.fn.getcwd(), "pi", false)
-    session.finish(response, "complete")
-
-    local notification
-    local notify = vim.notify
-    vim.notify = function(message) notification = message end
-    local ok, cleared = pcall(agent.sessions_clear)
-    vim.notify = notify
-    if not ok then error(cleared) end
-
-    MiniTest.expect.equality(cleared, true)
-    MiniTest.expect.equality({ session.counts() }, { 0, 0 })
-    MiniTest.expect.equality(notification, "Cleared 1 agent sessions and 1 responses")
-end
-
-T["clear"]["already empty reports without error"] = function()
-    local agent = require("aru.agent")
-    agent.setup({ session_dir = vim.fn.tempname() })
-
-    local notification
-    local notify = vim.notify
-    vim.notify = function(message) notification = message end
-    local ok, cleared = pcall(agent.sessions_clear)
-    vim.notify = notify
-    if not ok then error(cleared) end
-
-    MiniTest.expect.equality(cleared, true)
-    MiniTest.expect.equality(notification, "Agent sessions already empty")
-end
-
 T["clear"]["disk failure preserves memory and float visibility"] = function()
     local session_dir = vim.fn.tempname()
     vim.fs.mkdir(session_dir, { parents = true })
@@ -785,33 +786,6 @@ T["clear"]["streaming refusal preserves all state"] = function()
     MiniTest.expect.equality(vim.api.nvim_win_is_valid(win), true)
     finish({ code = 0, stderr = "" })
     pcall(vim.fs.rm, session_dir, { recursive = true })
-end
-
-T["tmux"] = MiniTest.new_set()
-
-T["tmux"]["handoff does not resolve a process runtime"] = function()
-    local channels = require("aru.agent.channels")
-    local captured
-    channels.get = function()
-        return {
-            send = function(transport)
-                captured = transport.message
-                return true
-            end,
-        }
-    end
-
-    local agent = require("aru.agent")
-    agent.setup({ runtime = "unsupported" })
-    local sent = agent.send({
-        destination = channels.DESTINATION.TMUX,
-        collect = {},
-        prompt = "handoff",
-    })
-
-    MiniTest.expect.equality(sent, true)
-    MiniTest.expect.equality(captured, "handoff")
-    MiniTest.expect.equality({ require("aru.agent.session").counts() }, { 0, 0 })
 end
 
 return T

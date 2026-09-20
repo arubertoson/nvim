@@ -23,14 +23,18 @@ end
 ---@param opts aru.agent.process.RunOpts
 ---@return vim.SystemObj
 function M.json(opts)
+    local protocol_error
+
     local function handle_line(line)
         if line == "" then return end
         local ok, event = pcall(vim.json.decode, line)
         if ok and type(event) == "table" then
             vim.schedule(function() opts.on_event(event) end)
-        else
-            log.debug("Invalid JSON stream line", line)
+            return
         end
+
+        protocol_error = protocol_error or "Agent runtime emitted malformed JSON"
+        log.error(protocol_error, line)
     end
 
     local leftover = ""
@@ -58,6 +62,12 @@ function M.json(opts)
         if leftover ~= "" then
             handle_line(leftover)
             leftover = ""
+        end
+        if protocol_error and result.code == 0 then
+            result = vim.tbl_extend("force", result, {
+                code = 1,
+                stderr = protocol_error,
+            })
         end
         vim.schedule(function() opts.on_exit(result) end)
     end)
