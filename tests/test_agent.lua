@@ -141,7 +141,7 @@ end
 
 T["runtime"]["requests reject malformed fields and collectors"] = function()
     local agent = require("aru.agent")
-    local destination = require("aru.agent.channels").DESTINATION.TMUX
+    local destination = require("aru.agent.channels").DESTINATION.FLOAT
     local invalid = {
         { request = {}, message = "invalid agent destination" },
         {

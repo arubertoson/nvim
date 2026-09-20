@@ -55,7 +55,7 @@ The integration owns an ordered collection of sessions and one selected-session 
 - A session's `response_index` identifies the response restored when returning to that session.
 - Continue targets the Selected Session only when its working directory matches the prompt invocation working directory.
 - Starting a new session creates and selects a distinct Agent Session.
-- Generate and tmux handoff never create, select, continue, or clear Agent Sessions.
+- Generate never creates, selects, continues, or clears Agent Sessions.
 - Submitted prompts are not stored in session history.
 - Closing the response float does not remove sessions or responses.
 - The Session Store is owned exclusively by this integration and is disposable.
@@ -256,7 +256,7 @@ The float channel must not maintain a second response-history collection.
 - Replace the `continuable` boolean and `last_cwd` state in the session module.
 - Replace Pi `--continue` invocation for Read requests with explicit `--session-id` invocation.
 - Preserve current response rendering, scrolling, lifecycle hooks, Markview rendering, and error-line behavior.
-- Preserve existing Generate and tmux behavior.
+- Preserve existing Generate behavior.
 - Existing session files in the dedicated Session Store need not be imported into in-memory navigation.
 
 ## Acceptance criteria
@@ -276,7 +276,7 @@ The float channel must not maintain a second response-history collection.
 - `:AgentSessionsClear` removes the dedicated Session Store and all in-memory history.
 - `:AgentSessionsClear` leaves state unchanged when disk removal fails.
 - `:AgentSessionsClear` refuses to run while streaming.
-- Generate and tmux requests do not affect Agent Session history.
+- Generate requests do not affect Agent Session history.
 - Closing and restoring the float preserves both selected indices.
 - The complete test suite passes via `just check`.
 
@@ -298,7 +298,7 @@ The float channel must not maintain a second response-history collection.
 - clear with an absent Session Store;
 - failed disk removal preserving memory and float state;
 - clear while streaming preserving all state; and
-- isolation of Generate and tmux behavior.
+- isolation of Generate behavior.
 
 ## Out of scope
 

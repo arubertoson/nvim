@@ -10,13 +10,10 @@ local log = require("aru.log")
 M.DESTINATION = {
     FLOAT = "float",
     EDITOR = "editor",
-    TMUX = "tmux",
 }
 
 ---@class aru.agent.channels.Transport
 ---@field message string
----@field label string
----@field cwd string|nil
 ---@field response aru.agent.Response|nil
 ---@field run fun(stdin: string, on_event: fun(event: table), on_exit: fun(result: vim.SystemCompleted)): vim.SystemObj|nil
 
@@ -26,7 +23,6 @@ M.DESTINATION = {
 local CHANNELS = {
     [M.DESTINATION.FLOAT] = function() return require("aru.agent.channels.float") end,
     [M.DESTINATION.EDITOR] = function() return require("aru.agent.channels.editor") end,
-    [M.DESTINATION.TMUX] = function() return require("aru.agent.channels.tmux") end,
 }
 
 ---Returns the channel for a destination without validating availability.

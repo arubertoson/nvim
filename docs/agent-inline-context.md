@@ -27,8 +27,8 @@ This specification covers:
 - submission-time resolution; and
 - Pi-compatible payload rendering.
 
-The feature applies to Read, Generate, and tmux handoff requests created through
-the prompt. Agent Session and Response history remain unchanged.
+The feature applies to Read and Generate requests created through the prompt.
+Agent Session and Response history remain unchanged.
 
 ## Domain model
 
@@ -294,10 +294,6 @@ The prompt must preserve Blink navigation while its menu is visible:
 - `<C-p>` selects the previous item; and
 - the existing smart-accept mapping accepts the selected item.
 
-The prompt's tmux handoff mapping currently uses `<C-p>`. It must submit to tmux
-only when the completion menu is not visible; while the menu is visible Blink
-owns `<C-p>`.
-
 No line-number completion is required after `:`.
 
 ## Live reference feedback
@@ -320,7 +316,7 @@ The prompt displays only its highlighted actions, right-aligned at the bottom:
 ```text
 <editable prompt text>
 
-                                [CR] read   [^CR] new session   [^G] generate   [^P] session   [^X] overview
+                                                [CR] read   [^CR] new session   [^G] generate   [^X] overview
 ```
 
 Inline References remain visible in the prompt itself. The prompt does not
@@ -424,8 +420,8 @@ The renderer must not depend on a model interpreting XML as a strict schema.
 
 ## Submission
 
-Submitting with `<CR>`, `<C-CR>`, `<C-g>`, or tmux handoff performs an
-authoritative synchronous context build:
+Submitting with `<CR>`, `<C-CR>`, or `<C-g>` performs an authoritative
+synchronous context build:
 
 1. Parse the current prompt.
 2. Resolve every reference against current buffer contents.
@@ -504,7 +500,7 @@ must render source context before prompt text and match Pi's whole-file format.
 - Whole files use Pi's native `<file name="...">` representation.
 - Range and symbol source context use `<file>` with metadata attributes.
 - Context blocks precede the unchanged user prompt.
-- Read, Generate, and tmux handoff receive the same composed context.
+- Read and Generate receive the same composed context.
 - Closing the prompt releases all prompt-owned resources.
 - The complete test suite passes via `just check`.
 
@@ -521,7 +517,7 @@ must render source context before prompt text and match Pi's whole-file format.
 - symbol-cache invalidation by `changedtick`;
 - unsaved loaded-buffer content winning over disk content;
 - path and symbol completion candidates;
-- `<C-p>` completion navigation versus tmux handoff;
+- `<C-p>` completion navigation;
 - debounced refresh supersession and cleanup;
 - right-aligned action footer rendering;
 - reference extmark replacement;
@@ -531,7 +527,7 @@ must render source context before prompt text and match Pi's whole-file format.
 - range and symbol metadata rendering with escaped attributes;
 - submission refusal preserving prompt state;
 - authoritative re-resolution after a referenced buffer changes; and
-- identical context composition for Read, Generate, and tmux destinations.
+- identical context composition for Read and Generate destinations.
 
 ## Out of scope
 

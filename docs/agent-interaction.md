@@ -1,14 +1,14 @@
 # Agent Interaction
 
 A focused Neovim integration for sending editor context and user intent to an
-agent. It provides three interaction paths without recreating an agent chat UI
-inside Neovim.
+agent. It provides focused Read and Generate interactions without recreating an
+agent chat UI inside Neovim.
 
 ## Concepts
 
 - **Executable**: the concrete command or path, such as `pi-dev` or a local build.
 - **Runtime**: the CLI and streaming protocol shared by compatible executables.
-- **Destination**: where a handoff goes: the read Float, the Editor, or tmux.
+- **Destination**: where a request is handled: the read Float or the Editor.
 - **Agent Session**: a Read conversation owned by this integration and targeted by an explicit runtime session ID.
 - **Response**: the retained output of one Read request within an Agent Session.
 
@@ -18,7 +18,6 @@ The built-in `pi` runtime can be used with any compatible executable:
 require("aru.agent").setup({
     executable = "pi-dev",
     runtime = "pi",
-    target_window_name = "agent",
 })
 ```
 
@@ -34,7 +33,6 @@ Inside the prompt:
 | `<CR>` | Read, continuing the current session when available |
 | `<C-CR>` | Read in a fresh session |
 | `<C-g>` | Generate code in the Editor |
-| `<C-p>` | Send to the active tmux agent session |
 | `<M-CR>` | Insert a prompt newline |
 | `<Esc>` | Cancel |
 
@@ -96,19 +94,6 @@ There is no generated-alternative history and no streamed ghost-code acceptance
 flow. Further revisions use the current buffer as context for another one-shot
 request.
 
-## Session handoff
-
-Session handoff finds the active pane in the configured tmux window, validates
-that it runs the configured executable, pastes the rendered request, and submits
-it.
-
-- It does not start a process from Neovim.
-- It does not require a built-in runtime adapter.
-- It does not change tmux or Neovim focus.
-
-The default tmux window name is `agent` and is configurable with
-`target_window_name`.
-
 ## Runtime support
 
 Runtime adapters are currently built in. The executable and runtime are separate
@@ -120,5 +105,4 @@ OpenCode or Claude Code.
 
 - Agent Session navigation does not survive a Neovim restart.
 - Generate has no conversational state or alternative history.
-- Tmux handoff is send-only.
 - Runtime registration is not public yet.

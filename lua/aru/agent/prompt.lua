@@ -62,7 +62,6 @@ local function footer_actions(state)
         },
         { key = "^CR", label = "new session" },
         { key = "^G", label = "generate" },
-        { key = "^P", label = "session" },
         { key = "^X", label = "overview" },
     }
 end
@@ -578,14 +577,6 @@ function M.open(deps)
         function() submit_prompt(channels.DESTINATION.EDITOR, nil) end,
         map_opts
     )
-    vim.keymap.set({ "n", "i" }, "<C-p>", function()
-        local ok, cmp = pcall(require, "blink.cmp")
-        if ok and cmp.is_visible() then
-            cmp.select_prev()
-            return
-        end
-        submit_prompt(channels.DESTINATION.TMUX, nil)
-    end, map_opts)
     vim.keymap.set({ "n", "i" }, "<C-x>", function()
         if _prompt_state then show_context_overview(_prompt_state) end
     end, map_opts)

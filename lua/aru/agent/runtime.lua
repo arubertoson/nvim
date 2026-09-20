@@ -1,7 +1,6 @@
 ---@module "aru.agent.runtime"
 local M = {}
 
-local channels = require("aru.agent.channels")
 local constants = require("aru.agent.constants")
 
 ---@class aru.agent.runtime.NoSessionTarget
@@ -19,20 +18,6 @@ local constants = require("aru.agent.constants")
 ---@field PRESET string
 ---@field SESSION_DIR string
 ---@field SESSION_ID string|nil
-
----@param runtime aru.agent.runtime.Args
----@param args string[]
----@param destination aru.agent.channels.Destination
-local function extend_with_destination_args(runtime, args, destination)
-    if destination == channels.DESTINATION.TMUX then return end
-
-    local dest_args = runtime.JSON_ARGS
-    if not dest_args then error("No JSON_ARGS configured for runtime") end
-
-    for i = 1, #dest_args do
-        args[#args + 1] = dest_args[i]
-    end
-end
 
 ---@param runtime aru.agent.runtime.Args
 ---@param args string[]
@@ -83,7 +68,7 @@ function M.command(ctx, request, target)
         table.insert(args, request.preset)
     end
 
-    extend_with_destination_args(runtime, args, request.destination)
+    vim.list_extend(args, runtime.JSON_ARGS)
     extend_with_session_args(runtime, args, target, ctx.config.session_dir)
 
     return args

@@ -30,7 +30,6 @@ local CONTEXT_KEYS = {
 local DESTINATIONS = {
     [channels.DESTINATION.FLOAT] = true,
     [channels.DESTINATION.EDITOR] = true,
-    [channels.DESTINATION.TMUX] = true,
 }
 
 local COLLECTORS = {

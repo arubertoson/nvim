@@ -1,6 +1,6 @@
 ---@module "aru.agent"
----Coordinates Neovim-to-agent handoffs for editor context, tmux delivery,
----read floats, code generation, and the prompt UI. This module is
+---Coordinates Neovim-to-agent handoffs for editor context, read floats,
+---code generation, and the prompt UI. This module is
 ---the public facade; destination-specific UI state lives under `aru.agent.*`.
 ---
 ---Example:
@@ -8,7 +8,7 @@
 ---local agent = require("aru.agent")
 ---local channels = require("aru.agent.channels")
 ---local collect = require("aru.agent.collect")
----agent.setup({ executable = "pi-dev", runtime = "pi", target_window_name = "agent" })
+---agent.setup({ executable = "pi-dev", runtime = "pi" })
 ---agent.send({
 ---  destination = channels.DESTINATION.FLOAT,
 ---  collect = { collect.COLLECT.BLOCK },
@@ -144,7 +144,7 @@ local function send(request, state)
     })
     local label = vim.fn.fnamemodify(cfg.executable, ":t")
     local response
-    local run = function(_, _, _) error("Tmux transports do not run a local process") end
+    local run
 
     if request.destination == channels.DESTINATION.FLOAT then
         runtime.assert_explicit_session(ctx)
@@ -163,7 +163,7 @@ local function send(request, state)
                 on_exit = on_exit,
             })
         end
-    elseif request.destination == channels.DESTINATION.EDITOR then
+    else
         local cmd = runtime.command(ctx, request, { kind = "none" })
         run = function(stdin, on_event, on_exit)
             return process.json({
@@ -180,8 +180,6 @@ local function send(request, state)
     ---@type aru.agent.channels.Transport
     local transport = {
         message = message,
-        label = label,
-        cwd = state.cwd,
         response = response,
         run = run,
     }

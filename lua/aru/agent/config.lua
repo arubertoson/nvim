@@ -23,21 +23,18 @@ local M = {}
 ---@field executable string|nil
 ---@field runtime string|nil
 ---@field session_dir string|nil
----@field target_window_name string|nil
 ---@field float aru.agent.config.FloatOpts|nil
 
 ---@class aru.agent.config.Config
 ---@field executable string
 ---@field runtime string
 ---@field session_dir string
----@field target_window_name string
 ---@field float aru.agent.config.FloatConfig
 
 local defaults = {
     executable = "pi-dev",
     runtime = "pi",
     session_dir = vim.fn.stdpath("cache") .. "/aru/agent/sessions",
-    target_window_name = "agent",
     float = {
         side = "right",
         width = 60,
@@ -51,7 +48,6 @@ local CONFIG_KEYS = {
     executable = true,
     runtime = true,
     session_dir = true,
-    target_window_name = true,
     float = true,
 }
 
@@ -83,7 +79,7 @@ function M.setup(opts)
     if type(opts) ~= "table" then error("agent config must be a table") end
     validate_keys(opts, CONFIG_KEYS, "agent config")
 
-    for _, name in ipairs({ "executable", "runtime", "session_dir", "target_window_name" }) do
+    for _, name in ipairs({ "executable", "runtime", "session_dir" }) do
         if opts[name] ~= nil then validate_nonempty_string(opts[name], "agent " .. name) end
     end
 

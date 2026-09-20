@@ -21,17 +21,6 @@ M.EVENT = {
     TEXT_DELTA = "text_delta",
 }
 
-M.TMUX = {
-    COMMAND = "tmux",
-    SUBMIT_KEY = "C-m",
-    BUFFER_PREFIX = "aru-agent-",
-    FORMATS = {
-        SESSION_NAME = "#{session_name}",
-        WINDOWS = "#{window_id}\t#{window_name}",
-        PANES = "#{pane_id}\t#{pane_active}\t#{pane_current_command}",
-    },
-}
-
 M.UI = {
     FILETYPE_MARKDOWN = "markdown",
     FILETYPE_PROMPT = "aru_agent_prompt",
