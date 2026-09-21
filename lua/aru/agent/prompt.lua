@@ -47,6 +47,13 @@ local BLOCK_COLLECT = { collect.COLLECT.BLOCK }
 ---@type aru.agent.prompt.State|nil
 local _prompt_state = nil
 
+---@class aru.agent.prompt.Draft
+---@field lines string[]
+---@field cursor integer[]
+
+---@type aru.agent.prompt.Draft
+local _draft = { lines = { "" }, cursor = { 1, 0 } }
+
 ---@class aru.agent.prompt.Action
 ---@field key string
 ---@field label string
@@ -303,10 +310,27 @@ local function prompt_changed(state)
     request_validation(state)
 end
 
-local function close_prompt()
+---@param discard_draft boolean|nil
+local function close_prompt(discard_draft)
     if not _prompt_state then return end
     local state = _prompt_state
     _prompt_state = nil
+
+    if discard_draft then
+        _draft = { lines = { "" }, cursor = { 1, 0 } }
+    elseif vim.api.nvim_buf_is_valid(state.buf) then
+        _draft.lines = vim.api.nvim_buf_get_lines(state.buf, 0, -1, false)
+        if vim.api.nvim_win_is_valid(state.win) then
+            _draft.cursor = vim.api.nvim_win_get_cursor(state.win)
+            if vim.api.nvim_get_mode().mode:sub(1, 1) ~= "i" then
+                local line = _draft.lines[_draft.cursor[1]]
+                _draft.cursor[2] = math.min(_draft.cursor[2] + 1, #line)
+            end
+        else
+            local row = #_draft.lines
+            _draft.cursor = { row, #_draft.lines[row] }
+        end
+    end
 
     state.timer:stop()
     if not state.timer:is_closing() then state.timer:close() end
@@ -343,7 +367,7 @@ local function submit_prompt(destination, force_new_session)
         context = built.context,
         prompt = prompt_text,
     })
-    if sent then close_prompt() end
+    if sent then close_prompt(true) end
 end
 
 local function submit_float_read() submit_prompt(channels.DESTINATION.FLOAT, false) end
@@ -486,7 +510,10 @@ function M.open(deps)
     end
 
     local invocation_buf = deps.invocation.bufnr
-    local buf = ui.create_scratch_buf({ filetype = constants.UI.FILETYPE_PROMPT, lines = { "" } })
+    local buf = ui.create_scratch_buf({
+        filetype = constants.UI.FILETYPE_PROMPT,
+        lines = vim.deepcopy(_draft.lines),
+    })
     vim.bo[buf].syntax = constants.UI.FILETYPE_MARKDOWN
     vim.b[buf].aru_agent_prompt = true
     vim.b[buf].aru_completion_cwd = deps.cwd
@@ -500,7 +527,11 @@ function M.open(deps)
         foldcolumn = tostring(PROMPT_LEFT_PADDING),
         foldenable = false,
     })
-    vim.api.nvim_win_set_cursor(win, { 1, 0 })
+    local draft_line = _draft.lines[_draft.cursor[1]]
+    vim.api.nvim_win_set_cursor(win, {
+        _draft.cursor[1],
+        math.min(_draft.cursor[2], math.max(0, #draft_line - 1)),
+    })
 
     local footer_ns = vim.api.nvim_create_namespace(constants.NAMESPACE.PROMPT_FOOTER)
     local reference_ns = vim.api.nvim_create_namespace(constants.NAMESPACE.PROMPT_REFERENCE)
@@ -573,6 +604,7 @@ function M.open(deps)
     vim.keymap.set("n", PROMPT_CLOSE_KEY, close_prompt, map_opts)
 
     vim.cmd("startinsert")
+    vim.api.nvim_win_set_cursor(win, _draft.cursor)
 end
 
 return M

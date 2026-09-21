@@ -235,8 +235,8 @@ end
 
 T["prompt integration"] = MiniTest.new_set()
 
-local function invoke_insert_mapping(buf, lhs)
-    for _, mapping in ipairs(vim.api.nvim_buf_get_keymap(buf, "i")) do
+local function invoke_mapping(buf, mode, lhs)
+    for _, mapping in ipairs(vim.api.nvim_buf_get_keymap(buf, mode)) do
         if mapping.lhs == lhs then
             mapping.callback()
             return
@@ -244,6 +244,8 @@ local function invoke_insert_mapping(buf, lhs)
     end
     error("Missing prompt mapping " .. lhs)
 end
+
+local function invoke_insert_mapping(buf, lhs) invoke_mapping(buf, "i", lhs) end
 
 local function open_prompt(send)
     local path = vim.fs.joinpath(root, "lua", "agent.lua")
@@ -283,6 +285,26 @@ T["prompt integration"]["anchors actions in the window footer"] = function()
 
     vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, { "close" })
     invoke_insert_mapping(prompt_buf, "<CR>")
+end
+
+T["prompt integration"]["retains a closed draft until successful submission"] = function()
+    local prompt_buf = open_prompt(function() return true end)
+    local draft = { "compare these", "then explain the difference" }
+    vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, draft)
+    vim.api.nvim_win_set_cursor(0, { 2, 10 })
+    vim.cmd("stopinsert")
+    local cursor = vim.api.nvim_win_get_cursor(0)
+    cursor[2] = cursor[2] + 1
+
+    invoke_mapping(prompt_buf, "n", "q")
+    local reopened_buf = open_prompt(function() return true end)
+    MiniTest.expect.equality(vim.api.nvim_buf_get_lines(reopened_buf, 0, -1, false), draft)
+    MiniTest.expect.equality(vim.api.nvim_win_get_cursor(0), cursor)
+
+    invoke_insert_mapping(reopened_buf, "<CR>")
+    local empty_buf = open_prompt(function() return true end)
+    MiniTest.expect.equality(vim.api.nvim_buf_get_lines(empty_buf, 0, -1, false), { "" })
+    invoke_mapping(empty_buf, "n", "q")
 end
 
 T["prompt integration"]["refuses unresolved submission without closing the prompt"] = function()
