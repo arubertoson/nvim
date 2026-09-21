@@ -362,7 +362,7 @@ T["session"]["closing the scratchpad tab cleans up the active session"] = functi
     MiniTest.expect.equality(vim.o.tabline, initial_tabline)
 end
 
-T["session"]["losing an owned window or buffer closes the scratchpad"] = function()
+T["session"]["losing an owned window or result buffer closes the scratchpad"] = function()
     local session = require("aru.sqlite.session")
     local initial_tab_count = #vim.api.nvim_list_tabpages()
 
@@ -374,12 +374,6 @@ T["session"]["losing an owned window or buffer closes the scratchpad"] = functio
         {
             name = "result window",
             lose = function(active) vim.api.nvim_win_close(active.result_win, true) end,
-        },
-        {
-            name = "query buffer",
-            lose = function(active)
-                vim.api.nvim_win_set_buf(active.query_win, vim.api.nvim_create_buf(false, true))
-            end,
         },
         {
             name = "result buffer",
@@ -400,6 +394,36 @@ T["session"]["losing an owned window or buffer closes the scratchpad"] = functio
         MiniTest.expect.equality(vim.api.nvim_tabpage_is_valid(tabpage), false, case.name)
         MiniTest.expect.equality(#vim.api.nvim_list_tabpages(), initial_tab_count, case.name)
     end
+end
+
+T["session"]["editing a file in the query window keeps the scratchpad active"] = function()
+    local session = require("aru.sqlite.session")
+    local sql_path = vim.fn.tempname() .. ".sql"
+    vim.fn.writefile({ "SELECT 42;" }, sql_path)
+
+    session.open(vim.fn.tempname() .. ".db")
+    local active = session.current()
+    vim.api.nvim_set_current_win(active.query_win)
+    vim.cmd("edit " .. vim.fn.fnameescape(sql_path))
+
+    local adopted = vim.wait(1000, function()
+        local current = session.current()
+        return current ~= nil
+            and vim.api.nvim_buf_get_name(current.query_buf) == vim.fs.normalize(sql_path)
+            and vim.b[current.query_buf].aru_sqlite_query == true
+    end)
+    MiniTest.expect.equality(adopted, true)
+
+    active = session.current()
+    local file_buf = active.query_buf
+    MiniTest.expect.equality(active.ui.query_buf, file_buf)
+    MiniTest.expect.equality(vim.b[file_buf].aru_sqlite_query, true)
+    MiniTest.expect.equality(vim.bo[file_buf].filetype, "sql")
+    MiniTest.expect.equality(vim.fn.maparg("<leader>rr", "n", false, true).buffer, 1)
+
+    session.close()
+    MiniTest.expect.equality(vim.api.nvim_buf_is_valid(file_buf), true)
+    os.remove(sql_path)
 end
 
 T["session"]["requires a decision before discarding a query draft"] = function()

@@ -4,6 +4,7 @@
 local adapter = require("aru.sqlite.adapters.sqlite")
 local history = require("aru.sqlite.history")
 local render = require("aru.sqlite.render")
+local scope = require("aru.sqlite.scope")
 local ui = require("aru.sqlite.ui")
 
 local M = {}
@@ -29,6 +30,52 @@ local M = {}
 ---@type aru.sqlite.State
 local state = { kind = "inactive" }
 
+---@param query_buf integer
+local function configure_query_buffer(query_buf)
+    local options = { buffer = query_buf, silent = true }
+
+    vim.keymap.set(
+        "n",
+        "<leader>rr",
+        function() M.execute(scope.buffer(query_buf)) end,
+        vim.tbl_extend("force", options, { desc = "Execute SQLite buffer" })
+    )
+    vim.keymap.set(
+        "x",
+        "<leader>rr",
+        function() M.execute(scope.region(vim.fn.getpos("v"), vim.fn.getpos("."), vim.fn.mode())) end,
+        vim.tbl_extend("force", options, { desc = "Execute SQLite selection" })
+    )
+    vim.keymap.set("n", "<leader>rl", function()
+        local line = vim.api.nvim_win_get_cursor(0)[1]
+        M.execute(scope.line(query_buf, line))
+    end, vim.tbl_extend("force", options, { desc = "Execute SQLite line" }))
+    vim.keymap.set(
+        "n",
+        "[r",
+        function() M.navigate(-1) end,
+        vim.tbl_extend("force", options, { desc = "Previous SQLite result" })
+    )
+    vim.keymap.set(
+        "n",
+        "]r",
+        function() M.navigate(1) end,
+        vim.tbl_extend("force", options, { desc = "Next SQLite result" })
+    )
+    vim.keymap.set(
+        "n",
+        "<leader>rd",
+        M.delete_current,
+        vim.tbl_extend("force", options, { desc = "Delete current SQLite result" })
+    )
+    vim.keymap.set(
+        "n",
+        "<leader>rs",
+        M.toggle_sql_preview,
+        vim.tbl_extend("force", options, { desc = "Toggle SQLite execution SQL" })
+    )
+end
+
 ---@param active aru.sqlite.ActiveState
 local function render_current(active)
     local entry = history.current(active.history)
@@ -53,6 +100,11 @@ function M.open(db_path)
     local scratch_ui
     scratch_ui = ui.open(db_path, function()
         if state.kind == "active" and state.ui == scratch_ui then M.close() end
+    end, function(query_buf)
+        if state.kind ~= "active" or state.ui ~= scratch_ui then return end
+        state.query_buf = query_buf
+        vim.lsp.buf_attach_client(query_buf, state.lsp_client_id)
+        configure_query_buffer(query_buf)
     end)
     local lsp_client_id = vim.lsp.start(db_adapter:lsp_config(), {
         bufnr = scratch_ui.query_buf,
@@ -76,6 +128,7 @@ function M.open(db_path)
         lsp_client_id = lsp_client_id,
         process = nil,
     }
+    configure_query_buffer(state.query_buf)
     render_current(state)
     return state.query_buf
 end

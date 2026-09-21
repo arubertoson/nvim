@@ -1,7 +1,6 @@
 ---@module "aru.sqlite"
----Public commands and mappings for the SQLite scratchpad.
+---Public commands for the SQLite scratchpad.
 
-local scope = require("aru.sqlite.scope")
 local session = require("aru.sqlite.session")
 
 local M = {}
@@ -34,70 +33,7 @@ local function open(path)
     local db_path = vim.fs.normalize(expanded)
     if not confirm_replacement(db_path) then return end
 
-    local query_buf = session.open(db_path)
-    local options = { buffer = query_buf, silent = true }
-
-    vim.keymap.set(
-        "n",
-        "<leader>rr",
-        function() session.execute(scope.buffer(query_buf)) end,
-        vim.tbl_extend("force", options, {
-            desc = "Execute SQLite buffer",
-        })
-    )
-    vim.keymap.set(
-        "x",
-        "<leader>rr",
-        function()
-            session.execute(scope.region(vim.fn.getpos("v"), vim.fn.getpos("."), vim.fn.mode()))
-        end,
-        vim.tbl_extend("force", options, {
-            desc = "Execute SQLite selection",
-        })
-    )
-    vim.keymap.set(
-        "n",
-        "<leader>rl",
-        function()
-            local line = vim.api.nvim_win_get_cursor(0)[1]
-            session.execute(scope.line(query_buf, line))
-        end,
-        vim.tbl_extend("force", options, {
-            desc = "Execute SQLite line",
-        })
-    )
-    vim.keymap.set(
-        "n",
-        "[r",
-        function() session.navigate(-1) end,
-        vim.tbl_extend("force", options, {
-            desc = "Previous SQLite result",
-        })
-    )
-    vim.keymap.set(
-        "n",
-        "]r",
-        function() session.navigate(1) end,
-        vim.tbl_extend("force", options, {
-            desc = "Next SQLite result",
-        })
-    )
-    vim.keymap.set(
-        "n",
-        "<leader>rd",
-        session.delete_current,
-        vim.tbl_extend("force", options, {
-            desc = "Delete current SQLite result",
-        })
-    )
-    vim.keymap.set(
-        "n",
-        "<leader>rs",
-        session.toggle_sql_preview,
-        vim.tbl_extend("force", options, {
-            desc = "Toggle SQLite execution SQL",
-        })
-    )
+    session.open(db_path)
 end
 
 function M.setup()

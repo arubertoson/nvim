@@ -85,9 +85,11 @@ _Avoid_: Output buffer
   lines. `<leader>rl` executes the current line.
 - Empty or whitespace-only Execution Scopes are rejected before invoking the
   `sqlite3` CLI.
-- Results render in a fixed bottom split while query focus is retained.
-  Successful executions without tabular output are reported as completed with
-  no result set; this does not imply that zero rows were changed.
+- Results render in a fixed bottom split while query focus is retained. Existing
+  SQL files can be opened in the Query Buffer with `:edit` and retain the
+  scratchpad mappings and database-aware language support. Successful executions
+  without tabular output are reported as completed with no result set; this does
+  not imply that zero rows were changed.
 - `[r` and `]r` navigate an in-memory history of up to 50 Execution Records.
   Repeating the same SQL with the same retained outcome promotes the latest
   execution instead of adding a duplicate record.
@@ -101,8 +103,8 @@ _Avoid_: Output buffer
   complete CSV output to a file. Existing files require `!` to overwrite. The
   rerun is explicit because arbitrary SQL may mutate the Database Target.
 - `:SQLiteClose` stops the active execution and disposes of the scratchpad.
-  Closing its tab, or losing either owned window or buffer, performs the same
-  cleanup so no hidden session remains active.
+  Closing its tab, losing either owned window, or replacing the Result View
+  buffer performs the same cleanup so no hidden session remains active.
 
 ## UX priorities
 

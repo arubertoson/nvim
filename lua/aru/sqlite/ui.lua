@@ -10,6 +10,7 @@ local M = {}
 ---@class aru.sqlite.UI
 ---@field tabpage integer
 ---@field query_buf integer
+---@field owned_query_buf integer|nil
 ---@field result_buf integer
 ---@field query_win integer
 ---@field result_win integer
@@ -57,8 +58,9 @@ end
 
 ---@param db_path string
 ---@param on_lost fun()
+---@param on_query_changed fun(query_buf: integer)
 ---@return aru.sqlite.UI
-function M.open(db_path, on_lost)
+function M.open(db_path, on_lost, on_query_changed)
     local previous_tabline = vim.o.tabline
     vim.cmd("tabnew")
     local tabpage = vim.api.nvim_get_current_tabpage()
@@ -89,17 +91,39 @@ function M.open(db_path, on_lost)
 
     local augroup = vim.api.nvim_create_augroup("AruSQLiteScratchpad", { clear = true })
     local loss_check_scheduled = false
+    ---@type aru.sqlite.UI
+    local opened_ui
 
-    local function scratchpad_intact()
-        return vim.api.nvim_tabpage_is_valid(tabpage)
-            and vim.api.nvim_win_is_valid(query_win)
-            and vim.api.nvim_win_is_valid(result_win)
-            and vim.api.nvim_buf_is_valid(query_buf)
-            and vim.api.nvim_buf_is_valid(result_buf)
-            and vim.api.nvim_win_get_tabpage(query_win) == tabpage
-            and vim.api.nvim_win_get_tabpage(result_win) == tabpage
-            and vim.api.nvim_win_get_buf(query_win) == query_buf
-            and vim.api.nvim_win_get_buf(result_win) == result_buf
+    local function reconcile_scratchpad()
+        if
+            not vim.api.nvim_tabpage_is_valid(tabpage)
+            or not vim.api.nvim_win_is_valid(query_win)
+            or not vim.api.nvim_win_is_valid(result_win)
+            or not vim.api.nvim_buf_is_valid(result_buf)
+            or vim.api.nvim_win_get_tabpage(query_win) ~= tabpage
+            or vim.api.nvim_win_get_tabpage(result_win) ~= tabpage
+            or vim.api.nvim_win_get_buf(result_win) ~= result_buf
+        then
+            return false
+        end
+
+        local current_query_buf = vim.api.nvim_win_get_buf(query_win)
+        if current_query_buf ~= query_buf then
+            query_buf = current_query_buf
+            opened_ui.query_buf = query_buf
+            vim.b[query_buf].aru_sqlite_query = true
+            vim.bo[query_buf].filetype = "sql"
+            on_query_changed(query_buf)
+        elseif
+            opened_ui.owned_query_buf == query_buf
+            and vim.api.nvim_buf_get_name(query_buf) ~= ""
+        then
+            opened_ui.owned_query_buf = nil
+            vim.b[query_buf].aru_sqlite_query = true
+            vim.bo[query_buf].filetype = "sql"
+            on_query_changed(query_buf)
+        end
+        return true
     end
 
     local function check_for_loss()
@@ -107,7 +131,7 @@ function M.open(db_path, on_lost)
         loss_check_scheduled = true
         vim.schedule(function()
             loss_check_scheduled = false
-            if not scratchpad_intact() then on_lost() end
+            if not reconcile_scratchpad() then on_lost() end
         end)
     end
 
@@ -128,20 +152,15 @@ function M.open(db_path, on_lost)
         group = augroup,
         callback = check_for_loss,
     })
-    vim.api.nvim_create_autocmd("BufWinLeave", {
+    vim.api.nvim_create_autocmd({ "BufFilePost", "BufWinEnter", "BufWinLeave" }, {
         group = augroup,
-        buffer = query_buf,
-        callback = check_for_loss,
-    })
-    vim.api.nvim_create_autocmd("BufWinLeave", {
-        group = augroup,
-        buffer = result_buf,
         callback = check_for_loss,
     })
 
-    return {
+    opened_ui = {
         tabpage = tabpage,
         query_buf = query_buf,
+        owned_query_buf = query_buf,
         result_buf = result_buf,
         query_win = query_win,
         result_win = result_win,
@@ -150,6 +169,7 @@ function M.open(db_path, on_lost)
         previous_tabline = previous_tabline,
         sql_preview = nil,
     }
+    return opened_ui
 end
 
 ---@param lines string[]
@@ -259,8 +279,8 @@ function M.close(ui)
     if vim.api.nvim_buf_is_valid(ui.result_buf) then
         vim.api.nvim_buf_delete(ui.result_buf, { force = true })
     end
-    if vim.api.nvim_buf_is_valid(ui.query_buf) then
-        vim.api.nvim_buf_delete(ui.query_buf, { force = true })
+    if ui.owned_query_buf and vim.api.nvim_buf_is_valid(ui.owned_query_buf) then
+        vim.api.nvim_buf_delete(ui.owned_query_buf, { force = true })
     end
 end
 
