@@ -1,6 +1,75 @@
 local custom = require("aru.custom")
 local blink = require("blink.cmp")
 
+local M = {}
+
+-- stylua: ignore start
+local code_triggers = {
+  default     = "[%w_%.$:@>:%?]",
+  lua         = "[%w_%.:]",
+  python      = "[%w_%.$]",
+  javascript  = "[%w_%.$%?]",
+  typescript  = "[%w_%.$%?]",
+  tsx         = "[%w_%.$%?]",
+  jsx         = "[%w_%.$%?]",
+  c           = "[%w_%.$>]",
+  cpp         = "[%w_%.$:>]",
+  csharp      = "[%w_%.$:]",
+  rust        = "[%w_%.$:]",
+  go          = "[%w_%.$]",
+  php         = "[%w_%.$>:@]",
+  ruby        = "[%w_%.$:@]",
+  kotlin      = "[%w_%.$:]",
+  java        = "[%w_%.$]",
+  swift       = "[%w_%.$:]",
+  zig         = "[%w_%.@]",
+}
+-- stylua: ignore end
+
+local path_triggers = "[/\\~`%-]"
+
+---@return boolean
+local function has_code_char_before()
+    local col = vim.api.nvim_win_get_cursor(0)[2]
+    if col == 0 then return false end
+
+    local previous = vim.api.nvim_get_current_line():sub(col, col)
+    if previous == "" or previous:match("%s") then return false end
+
+    local pattern = code_triggers[vim.bo.filetype] or code_triggers.default
+    return previous:match(pattern) ~= nil or previous:match(path_triggers) ~= nil
+end
+
+function M.tab_forward()
+    if vim.snippet.active({ direction = 1 }) then
+        vim.snippet.jump(1)
+        return true
+    end
+
+    if not blink.is_visible() and has_code_char_before() then
+        blink.show()
+        return true
+    end
+
+    local key = vim.api.nvim_replace_termcodes("<Tab>", true, false, true)
+    vim.api.nvim_feedkeys(key, "n", false)
+end
+
+function M.tab_backward()
+    if vim.snippet.active({ direction = -1 }) then
+        vim.snippet.jump(-1)
+        return true
+    end
+
+    local key = vim.api.nvim_replace_termcodes("<S-Tab>", true, false, true)
+    vim.api.nvim_feedkeys(key, "n", false)
+end
+
+function M.complete()
+    if blink.is_visible() then return blink.select_and_accept() end
+    return blink.show()
+end
+
 blink.setup({
     enabled = function() return not require("aru.buf").is_plugin_ui(0) end,
     fuzzy = { implementation = "prefer_rust_with_warning" },
@@ -118,3 +187,5 @@ blink.setup({
         ["<C-e>"] = { "hide" },
     },
 })
+
+return M

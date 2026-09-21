@@ -107,7 +107,6 @@ require("aru.startup").load({
         { name = "internal features", paths = runtime("lua/aru/setup.lua") },
         { name = "mini.nvim", paths = runtime("lua/aru/plugins/mini.lua") },
         { name = "blink.cmp", paths = runtime("lua/aru/plugins/blink.lua") },
-        { name = "supermaven", paths = runtime("lua/aru/plugins/tabcmp.lua") },
         { name = "formatting", paths = runtime("lua/aru/plugins/conform.lua") },
         { name = "file search", paths = runtime("lua/aru/plugins/fff.lua") },
         { name = "git signs", paths = runtime("lua/aru/plugins/gitsigns.lua") },

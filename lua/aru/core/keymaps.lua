@@ -238,11 +238,13 @@ vim.keymap.set("x", "R", function() vim.treesitter.select("parent") end, {
 -- Completion & Snippets
 -- ============================================================================
 
-local cmp = require("aru.cmp")
+local function blink_action(action)
+    return function() return require("aru.plugins.blink")[action]() end
+end
 
-vim.keymap.set({ "i", "s" }, "<Tab>", cmp.tab_forward, { silent = true })
-vim.keymap.set({ "i", "s" }, "<S-Tab>", cmp.tab_backward, { silent = true })
-vim.keymap.set({ "i", "s" }, "<C-l>", cmp.smart_accept, { silent = true })
+vim.keymap.set({ "i", "s" }, "<Tab>", blink_action("tab_forward"), { silent = true })
+vim.keymap.set({ "i", "s" }, "<S-Tab>", blink_action("tab_backward"), { silent = true })
+vim.keymap.set({ "i", "s" }, "<C-l>", blink_action("complete"), { silent = true })
 
 -- ============================================================================
 -- Oil (file explorer)

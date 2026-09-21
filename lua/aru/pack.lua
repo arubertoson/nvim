@@ -73,11 +73,6 @@ vim.pack.add({
         src = "https://github.com/Saghen/blink.cmp",
         version = vim.version.range("1.10.2"),
     },
-    {
-        src = "https://github.com/supermaven-inc/supermaven-nvim.git",
-        version = "main",
-    },
-
     -- ===========================================================================
     -- Pickers / Search
     -- ===========================================================================

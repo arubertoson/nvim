@@ -73,11 +73,6 @@
       "src": "https://github.com/nvim-lua/plenary.nvim.git",
       "version": "'master'"
     },
-    "supermaven-nvim": {
-      "rev": "07d20fc",
-      "src": "https://github.com/supermaven-inc/supermaven-nvim.git",
-      "version": "'main'"
-    },
     "vim-sleuth": {
       "rev": "be69bff",
       "src": "https://github.com/tpope/vim-sleuth"
