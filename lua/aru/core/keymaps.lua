@@ -247,23 +247,13 @@ vim.keymap.set({ "i", "s" }, "<C-l>", cmp.smart_accept, { silent = true })
 -- ============================================================================
 -- Oil (file explorer)
 -- ============================================================================
-map("n", "<leader>n", function()
-    if vim.bo[0].filetype == "oil" then
-        require("oil").discard_all_changes()
-        require("oil").close()
-    else
-        require("oil").open_float()
-    end
-end, { desc = "Toggle Oil (current dir)" })
+map("n", "<leader>n", function() require("aru.oil").toggle() end, {
+    desc = "Toggle Oil (current dir)",
+})
 
-map("n", "<leader>N", function()
-    if vim.bo[0].filetype == "oil" then
-        require("oil").discard_all_changes()
-        require("oil").close()
-    else
-        require("oil").open_float(vim.fn.getcwd())
-    end
-end, { desc = "Toggle Oil (cwd)" })
+map("n", "<leader>N", function() require("aru.oil").toggle_cwd() end, {
+    desc = "Toggle Oil (cwd)",
+})
 
 -- Oil internal mappings (set in oil.setup):
 -- q      = close
