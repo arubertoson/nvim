@@ -18,6 +18,10 @@ local constants = require("aru.agent.constants")
 ---@field PRESET string
 ---@field SESSION_DIR string
 ---@field SESSION_ID string|nil
+---@field TOOLS string
+
+---@class aru.agent.runtime.Setup
+---@field tools string[]|nil
 
 ---@param runtime aru.agent.runtime.Args
 ---@param args string[]
@@ -58,14 +62,20 @@ end
 ---@param ctx aru.agent.ConfigState
 ---@param request aru.agent.Request
 ---@param target aru.agent.runtime.SessionTarget
+---@param setup aru.agent.runtime.Setup
 ---@return string[]
-function M.command(ctx, request, target)
+function M.command(ctx, request, target, setup)
     local args = { ctx.config.executable }
     local runtime = runtime_config(ctx.config.runtime)
 
     if request.preset and request.preset ~= "" then
         table.insert(args, runtime.PRESET)
         table.insert(args, request.preset)
+    end
+
+    if setup.tools then
+        table.insert(args, runtime.TOOLS)
+        table.insert(args, table.concat(setup.tools, ","))
     end
 
     vim.list_extend(args, runtime.JSON_ARGS)

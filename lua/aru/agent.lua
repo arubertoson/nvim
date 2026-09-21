@@ -50,6 +50,7 @@
 local M = {}
 
 local config = require("aru.agent.config")
+local constants = require("aru.agent.constants")
 local payload = require("aru.agent.payload")
 local collect = require("aru.agent.collect")
 local runtime = require("aru.agent.runtime")
@@ -141,7 +142,12 @@ local function send(request, state)
         local agent_session
         agent_session, response =
             session.begin_read(state.cwd, label, request.force_new_session == true)
-        local cmd = runtime.command(ctx, request, { kind = "explicit", id = agent_session.id })
+        local cmd = runtime.command(
+            ctx,
+            request,
+            { kind = "explicit", id = agent_session.id },
+            constants.MODE.CHAT
+        )
         run = function(stdin, on_event, on_exit)
             vim.fs.mkdir(cfg.session_dir, { parents = true })
             process.json({
@@ -154,7 +160,7 @@ local function send(request, state)
             })
         end
     else
-        local cmd = runtime.command(ctx, request, { kind = "none" })
+        local cmd = runtime.command(ctx, request, { kind = "none" }, constants.MODE.GENERATE)
         run = function(stdin, on_event, on_exit)
             return process.json({
                 executable = cmd[1],

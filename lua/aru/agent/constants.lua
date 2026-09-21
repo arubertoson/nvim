@@ -12,7 +12,15 @@ M.RUNTIME = {
         PRESET = "--preset",
         SESSION_DIR = "--session-dir",
         SESSION_ID = "--session-id",
+        TOOLS = "--tools",
     },
+}
+
+M.MODE = {
+    CHAT = {
+        tools = { "read", "ffgrep", "fffind" },
+    },
+    GENERATE = {},
 }
 
 M.EVENT = {

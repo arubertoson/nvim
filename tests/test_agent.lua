@@ -165,6 +165,7 @@ T["runtime"]["runtime without explicit identity fails visibly"] = function()
         NO_SESSION = "--no-session",
         PRESET = "--preset",
         SESSION_DIR = "--session-dir",
+        TOOLS = "--tools",
     }
 
     local ok, err = pcall(runtime.command, {
@@ -178,7 +179,7 @@ T["runtime"]["runtime without explicit identity fails visibly"] = function()
     }, {
         kind = "explicit",
         id = "id",
-    })
+    }, {})
 
     constants.RUNTIME.incapable = nil
     MiniTest.expect.equality(ok, false)
@@ -634,14 +635,21 @@ T["facade"]["read requests reuse explicit identity unless forced new"] = functio
         prompt = "new",
     })
 
-    local function session_id(call)
+    local function argument_value(call, name)
         for index, arg in ipairs(call.args) do
-            if arg == "--session-id" then return call.args[index + 1] end
+            if arg == name then return call.args[index + 1] end
         end
     end
 
-    MiniTest.expect.equality(session_id(calls[1]), session_id(calls[2]))
-    MiniTest.expect.equality(session_id(calls[2]) ~= session_id(calls[3]), true)
+    MiniTest.expect.equality(argument_value(calls[1], "--tools"), "read,ffgrep,fffind")
+    MiniTest.expect.equality(
+        argument_value(calls[1], "--session-id"),
+        argument_value(calls[2], "--session-id")
+    )
+    MiniTest.expect.equality(
+        argument_value(calls[2], "--session-id") ~= argument_value(calls[3], "--session-id"),
+        true
+    )
     MiniTest.expect.equality(require("aru.agent.session").counts(), 2)
     pcall(vim.fs.rm, session_dir, { recursive = true })
 end
@@ -674,7 +682,9 @@ T["facade"]["concurrent Read is rejected without starting a process"] = function
 end
 
 T["facade"]["Generate does not create or select Agent Sessions"] = function()
+    local process_opts
     require("aru.agent.process").json = function(opts)
+        process_opts = opts
         opts.on_event(text_event("generated"))
         opts.on_exit({ code = 0, stderr = "" })
     end
@@ -690,6 +700,7 @@ T["facade"]["Generate does not create or select Agent Sessions"] = function()
     })
 
     MiniTest.expect.equality(sent, true)
+    MiniTest.expect.equality(vim.tbl_contains(process_opts.args, "--tools"), false)
     MiniTest.expect.equality({ require("aru.agent.session").counts() }, { 0, 0 })
     MiniTest.expect.equality(vim.uv.fs_stat(session_dir), nil)
 end
