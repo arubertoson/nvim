@@ -273,6 +273,7 @@ map("n", "<leader>N", function() require("aru.oil").toggle_cwd() end, {
 -- <leader>sd = surround delete
 -- <leader>sr = surround replace
 -- Mini.ai: textobjects (automatic, used with operators)
+-- Custom object reference and examples: docs/mini-ai.md
 
 -- ============================================================================
 -- Spell
