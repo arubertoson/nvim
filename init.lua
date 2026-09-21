@@ -97,6 +97,7 @@ require("aru.startup").load({
         { name = "options", paths = runtime("lua/aru/core/options.lua") },
         { name = "theme", paths = runtime("lua/aru/core/themes.lua") },
         { name = "spell", paths = runtime("lua/aru/core/spell.lua") },
+        { name = "autosave", paths = runtime("lua/aru/autosave.lua") },
         { name = "autocommands", paths = runtime("lua/aru/core/autocommands.lua") },
         { name = "statusline", paths = runtime("lua/aru/core/statusline.lua") },
         { name = "keymaps", paths = runtime("lua/aru/core/keymaps.lua") },
