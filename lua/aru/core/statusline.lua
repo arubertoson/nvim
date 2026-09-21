@@ -91,15 +91,11 @@ Design principle
   Statusline functions format strings from previously prepared state. Nothing else.
   If a value might cause side effects or blocking work, it does not belong here.
 
-TODO: This module is marked for future rewrite due to:
-- Ad-hoc state management across autocmds
-- Git branch query duplication with aru.state.git
-- Potential race conditions with async git system() calls
-For now: it works, don't touch unless broken
 ]]
 --
 
 local colors = require("aru.colors")
+local git = require("aru.git")
 local log = require("aru.log")
 
 local highlights = {
@@ -129,183 +125,166 @@ local function lineinfo()
     return hlstring(highlights.dim, ("[%s:%s]"):format(line_with_width, column_with_width))
 end
 
-StatusLine = {}
+local state = {}
 
-StatusLine.inactive = function()
-    return table.concat({
-        StatusLine.filetype or "-",
-    })
-end
+local StatusLine = {}
 
-StatusLine.cache = function(attr, value) StatusLine[attr] = value end
+function StatusLine.inactive() return state.filetype or "-" end
 
-StatusLine.active = function()
+function StatusLine.active()
     local mode_str = vim.api.nvim_get_mode().mode
     if mode_str == "t" or mode_str == "nt" then
-        return table.concat({
-            " ",
-            mode(),
-            "%=",
-            "%=",
-            StatusLine.active_state or "-",
-        })
+        return table.concat({ " ", mode(), "%=", "%=", state.active_files or "-" })
     end
-    local statusline = {
-        StatusLine.workspace_branch or "-",
-        StatusLine.buffer_lsp_and_filetype or "[-]",
-        StatusLine.current_buffer or "-",
-        "%=",
-        "%=",
-        StatusLine.active_state or "-",
-        lineinfo(),
-    }
 
-    return table.concat(statusline, " ")
+    return table.concat({
+        state.workspace_branch or "-",
+        state.buffer_lsp_and_filetype or "[-]",
+        state.current_buffer or "-",
+        "%=",
+        "%=",
+        state.active_files or "-",
+        lineinfo(),
+    }, " ")
 end
 
+_G.StatusLine = StatusLine
 vim.opt.statusline = "%!v:lua.StatusLine.active()"
-
--- ============================================================
--- Statusline autocmds
--- ============================================================
 
 local statusline_augroup = vim.api.nvim_create_augroup("aru-statusline", { clear = true })
 
-vim.api.nvim_create_autocmd({ "WinEnter", "BufEnter", "FileType" }, {
+local inactive_filetypes = {
+    fzf = true,
+    lspinfo = true,
+    lazy = true,
+    netrw = true,
+    qf = true,
+}
+
+vim.api.nvim_create_autocmd("FileType", {
     group = statusline_augroup,
-    pattern = {
-        "fzf",
-        "lspinfo",
-        "lazy",
-        "netrw",
-        "qf",
-    },
-    callback = function() vim.opt_local.statusline = "%!v:lua.StatusLine.inactive()" end,
+    desc = "Select the statusline for the current filetype",
+    callback = function()
+        vim.opt_local.statusline = inactive_filetypes[vim.bo.filetype]
+                and "%!v:lua.StatusLine.inactive()"
+            or ""
+    end,
 })
 
--- TODO: switch these things out with gitisngs, it was for experimental purposes.
--- this whole section can also potentially be improved by extracting functionality
--- into functions and reduce the caught events. BufEnter is an event the whole
--- statusline reacts to, we can bundle that. But let's stay simple for now
+local function current_root() return git.git_root(0) or vim.uv.cwd() or "" end
+
+local function cache_branch(root, branch)
+    if root ~= current_root() then return end
+
+    state.workspace_root = root
+    state.workspace_branch = hlstring(highlights.comment, branch or "-")
+    vim.cmd.redrawstatus()
+end
+
+local function refresh_branch()
+    local root = current_root()
+    cache_branch(root, git.branch_for(root))
+    git.refresh_branch(root)
+end
+
 vim.api.nvim_create_autocmd({ "DirChanged", "BufEnter", "VimEnter" }, {
     group = statusline_augroup,
-    callback = function()
-        -- XXX: this should be cached somewhere :)
-        local root = require("aru.git").git_root(0) or vim.uv.cwd() or ""
-        local git = require("aru.state.git")
-        local branch = git.branch_for(root) or "-"
-
-        local function cache_branch(value)
-            vim.schedule(function()
-                local branch_hl = hlstring(highlights.comment, value or "-")
-
-                StatusLine.cache("workspace_root", root)
-                StatusLine.cache("workspace_branch", branch_hl)
-
-                vim.cmd.redrawstatus()
-            end)
-        end
-
-        cache_branch(branch)
-        git.refresh(root, cache_branch)
-    end,
+    desc = "Update statusline Git scope",
+    callback = refresh_branch,
 })
 
-vim.api.nvim_create_autocmd({ "BufEnter", "VimEnter" }, {
+vim.api.nvim_create_autocmd("User", {
     group = statusline_augroup,
-    desc = "Update and cache current filename for statusline",
-    callback = function()
-        local bufnr = vim.api.nvim_get_current_buf()
-        local current_buffer = vim.api.nvim_buf_get_name(bufnr)
-        local root = StatusLine.workspace_root
-            or require("aru.git").git_root(bufnr)
-            or vim.uv.cwd()
-            or ""
-
-        local relpath = root and vim.fs.relpath(root, current_buffer) or current_buffer
-        local buf_dirty = vim.api.nvim_get_option_value("modified", { buf = bufnr }) and "*" or ""
-
-        vim.schedule(function()
-            StatusLine.cache(
-                "current_buffer",
-                hlstring(highlights.comment, ("%s%s"):format(relpath, buf_dirty))
-            )
-
-            vim.cmd.redrawstatus()
-        end)
+    pattern = "AruGitBranchChanged",
+    desc = "Update statusline after an asynchronous Git branch refresh",
+    callback = function(event)
+        local data = event.data
+        if data then cache_branch(data.root, data.branch) end
     end,
 })
+
+local function refresh_current_buffer()
+    local bufnr = vim.api.nvim_get_current_buf()
+    local current_buffer = vim.api.nvim_buf_get_name(bufnr)
+    local root = current_root()
+    local relpath = vim.fs.relpath(root, current_buffer) or current_buffer
+    local dirty = vim.api.nvim_get_option_value("modified", { buf = bufnr }) and "*" or ""
+
+    state.current_buffer = hlstring(highlights.comment, ("%s%s"):format(relpath, dirty))
+    vim.cmd.redrawstatus()
+end
+
+vim.api.nvim_create_autocmd(
+    { "BufEnter", "BufWritePost", "TextChanged", "TextChangedI", "VimEnter" },
+    {
+        group = statusline_augroup,
+        desc = "Update current file status",
+        callback = refresh_current_buffer,
+    }
+)
+
+vim.api.nvim_create_autocmd("OptionSet", {
+    group = statusline_augroup,
+    pattern = "modified",
+    desc = "Update current file status after an explicit modified-option change",
+    callback = refresh_current_buffer,
+})
+
+local function refresh_lsp_state()
+    local bufnr = vim.api.nvim_get_current_buf()
+    local lsp_active = #vim.lsp.get_clients({ bufnr = bufnr }) > 0 and "LSP" or ""
+    local filetype = vim.bo[bufnr].filetype
+
+    state.buffer_lsp_and_filetype = table.concat({
+        hlstring(highlights.dim, "["),
+        hlstring(highlights.comment, lsp_active),
+        hlstring(highlights.comment, "."),
+        hlstring(highlights.dim, filetype),
+        hlstring(highlights.dim, "]"),
+    })
+    state.filetype = filetype
+    vim.cmd.redrawstatus()
+end
 
 vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach", "BufEnter", "VimEnter" }, {
     group = statusline_augroup,
-    desc = "Show if LSP is active in the current buffer/workspace and what filetype it is",
-    callback = function()
-        local bufnr = vim.api.nvim_get_current_buf()
-        local clients = vim.lsp.get_clients({ bufnr = bufnr })
-
-        local lsp_active = (#clients > 0 and "LSP" or "")
-        local filetype = vim.bo.filetype
-
-        local parts = {}
-        table.insert(parts, hlstring(highlights.dim, "["))
-        table.insert(parts, hlstring(highlights.comment, lsp_active))
-        table.insert(parts, hlstring(highlights.comment, "."))
-        table.insert(parts, hlstring(highlights.dim, filetype))
-        table.insert(parts, hlstring(highlights.dim, "]"))
-
-        local buffer_lsp_and_filetype = table.concat(parts)
-
-        vim.schedule(function()
-            StatusLine.cache("buffer_lsp_and_filetype", buffer_lsp_and_filetype)
-            StatusLine.cache("lsp_active", lsp_active)
-            StatusLine.cache("filetype", filetype)
-
-            vim.cmd.redrawstatus()
-        end)
-    end,
+    desc = "Update statusline LSP and filetype state",
+    callback = refresh_lsp_state,
 })
 
-local function refresh_active_state(event)
+local function refresh_active_files()
     local ok, active = pcall(function() return require("aru.nav").active end)
     if not ok then return end
 
     local slots = {}
-    local cur_buf = event and event.buf or vim.api.nvim_get_current_buf()
-    local cur_abs = vim.fs.normalize(vim.api.nvim_buf_get_name(cur_buf))
+    local current_path = vim.fs.normalize(vim.api.nvim_buf_get_name(0))
     local items = active.items()
-
     for i = 1, 3 do
         local item = items[i]
         local content = ""
-
         if item then
-            local filename = vim.fs.basename(item.path)
-            local is_selected = item.path == cur_abs
-            local color = is_selected and highlights.dim or highlights.comment
-            content = hlstring(color, filename)
+            local color = item.path == current_path and highlights.dim or highlights.comment
+            content = hlstring(color, vim.fs.basename(item.path))
         end
 
-        table.insert(slots, hlstring(highlights.comment, ("[%d:"):format(i)))
-        table.insert(slots, content)
-        table.insert(slots, hlstring(highlights.comment, "]"))
-        table.insert(slots, " ")
+        slots[#slots + 1] = hlstring(highlights.comment, ("[%d:"):format(i))
+        slots[#slots + 1] = content
+        slots[#slots + 1] = hlstring(highlights.comment, "]")
+        slots[#slots + 1] = " "
     end
 
-    vim.schedule(function()
-        StatusLine.cache("active_state", table.concat(slots, ""))
-        vim.cmd.redrawstatus()
-    end)
+    state.active_files = table.concat(slots)
+    vim.cmd.redrawstatus()
 end
 
----Keep visual track of active files in three statusline slots.
 vim.api.nvim_create_autocmd("User", {
     group = statusline_augroup,
-    pattern = { "AruActiveUpdated" },
+    pattern = "AruActiveUpdated",
     desc = "Update active-file slots for statusline",
-    callback = refresh_active_state,
+    callback = refresh_active_files,
 })
 vim.api.nvim_create_autocmd({ "BufEnter", "VimEnter" }, {
     group = statusline_augroup,
     desc = "Update active-file slots for statusline",
-    callback = refresh_active_state,
+    callback = refresh_active_files,
 })

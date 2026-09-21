@@ -75,32 +75,44 @@ for index = #tool_paths, 1, -1 do
     if vim.fn.isdirectory(path) == 1 then vim.env.PATH = path .. ":" .. (vim.env.PATH or "") end
 end
 
+local function runtime(path) return vim.api.nvim_get_runtime_file(path, true) end
+
 require("aru.startup").load({
-    -- Install and add plugins to the runtime path before we start working
-    -- on other parts of the setup. This should be a fairly fast setup as
-    -- we are only adding the lua modules to the runtimepath and making
-    -- them available to require.
-    vim.api.nvim_get_runtime_file("lua/aru/pack.lua", true),
+    critical = {
+        -- Install plugins and add them to the runtime path before requiring
+        -- plugin modules.
+        { name = "packages", paths = runtime("lua/aru/pack.lua") },
 
-    -- Second thing to load is sessions, these should be restored before we
-    -- start loading deferred functionality.
-    vim.api.nvim_get_runtime_file("lua/aru/plugins/continue.lua", true),
+        -- Restore sessions before the rest of the editor behavior starts.
+        { name = "sessions", paths = runtime("lua/aru/plugins/continue.lua") },
 
-    -- Register shared LSP behavior before language modules enable servers,
-    -- ensuring every attachment is observed by the LspAttach handlers.
-    vim.api.nvim_get_runtime_file("lua/aru/plugins/lsp.lua", true),
+        -- Register shared LSP behavior before language modules enable servers.
+        { name = "lsp", paths = runtime("lua/aru/plugins/lsp.lua") },
 
-    -- Language configs are lightweight and should be loaded early as they can
-    -- impact general file behavior.
-    vim.api.nvim_get_runtime_file("lua/aru/languages/*.lua", true),
+        -- Language modules are independent and lightweight.
+        { name = "languages", paths = runtime("lua/aru/languages/*.lua") },
 
-    -- Core modules - basic editor functionality; options, keymaps, and
-    -- essential autocommands. Only the bare minimum goes here, everything
-    -- else is deferred. Order is not important, we just want everything...
-    vim.api.nvim_get_runtime_file("lua/aru/core/*.lua", true),
-}, {
-    -- Deferred loading, staggered to run one by one with a 2ms delay
-    -- between each file. This allows the UI to render quick enough to
-    -- be responsive while the rest of the setup is loading.
-    vim.api.nvim_get_runtime_file("lua/aru/plugins/*.lua", true),
+        -- Core order is explicit because options and theme establish state read
+        -- by later UI and behavior modules.
+        { name = "options", paths = runtime("lua/aru/core/options.lua") },
+        { name = "theme", paths = runtime("lua/aru/core/themes.lua") },
+        { name = "spell", paths = runtime("lua/aru/core/spell.lua") },
+        { name = "autocommands", paths = runtime("lua/aru/core/autocommands.lua") },
+        { name = "statusline", paths = runtime("lua/aru/core/statusline.lua") },
+        { name = "keymaps", paths = runtime("lua/aru/core/keymaps.lua") },
+    },
+    deferred = {
+        -- Deferred feature order is deliberate; no critical module is repeated.
+        { name = "internal features", paths = runtime("lua/aru/setup.lua") },
+        { name = "mini.nvim", paths = runtime("lua/aru/plugins/mini.lua") },
+        { name = "blink.cmp", paths = runtime("lua/aru/plugins/blink.lua") },
+        { name = "supermaven", paths = runtime("lua/aru/plugins/tabcmp.lua") },
+        { name = "formatting", paths = runtime("lua/aru/plugins/conform.lua") },
+        { name = "file search", paths = runtime("lua/aru/plugins/fff.lua") },
+        { name = "git signs", paths = runtime("lua/aru/plugins/gitsigns.lua") },
+        { name = "indent guides", paths = runtime("lua/aru/plugins/indent-blankline.lua") },
+        { name = "centered layout", paths = runtime("lua/aru/plugins/no-neck-pain.lua") },
+        { name = "file explorer", paths = runtime("lua/aru/plugins/oil.lua") },
+        { name = "sqlite", paths = runtime("lua/aru/plugins/sqlite.lua") },
+    },
 })

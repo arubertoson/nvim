@@ -18,6 +18,14 @@ local M = {}
 local _errors = {}
 local DEFER_DELAY_MS = 2
 
+---@class AruStartup.Group
+---@field name string Human-readable group name used in startup logs.
+---@field paths string[] Ordered runtime paths in this group.
+
+---@class AruStartup.Config
+---@field critical AruStartup.Group[]
+---@field deferred AruStartup.Group[]
+
 --- Measures wall time using vim.uv.hrtime() and returns ms.
 ---@param fn fun(): any Function to time
 ---@return any result The function's return
@@ -56,22 +64,28 @@ end
 
 --- Schedules a single file after defer_delay_ms, then yields until completion.
 --- Execution is synchronous per file; loads are staggered, not parallel.
+---@param group_name string Human-readable startup group name
 ---@param path string Path to a Lua file
 ---@param defer_delay_ms number Delay in ms before running the file
-local function defer_load_file(path, defer_delay_ms)
+local function defer_load_file(group_name, path, defer_delay_ms)
     local co = coroutine.running()
 
     vim.defer_fn(function()
-        local ok, errmsg = load_file(path)
-        if not ok then
-            log.error(errmsg)
-            table.insert(_errors, ("%s: %s"):format(path, errmsg))
+        local load_ok, load_err
+        local _, elapsed = M.timeit_ms(function()
+            load_ok, load_err = load_file(path)
+        end)
+        log.trace("Loaded deferred startup module", group_name, path, elapsed)
+
+        if not load_ok then
+            log.error(load_err)
+            table.insert(_errors, ("%s: %s"):format(path, load_err))
         end
 
-        local ok_resume, errmsg = coroutine.resume(co)
+        local ok_resume, resume_err = coroutine.resume(co)
         if not ok_resume then
-            log.error(errmsg)
-            table.insert(_errors, ("%s: %s"):format(path, errmsg))
+            log.error(resume_err)
+            table.insert(_errors, ("%s: %s"):format(path, resume_err))
         end
     end, defer_delay_ms)
 
@@ -89,31 +103,28 @@ end
 
 --- Loads groups sequentially; each group and file is processed in order.
 --- Use for core config that must be available immediately.
----@param groups string[][] Ordered groups of file paths to load
+---@param groups AruStartup.Group[] Ordered groups of file paths to load
 function M.load_critical_paths(groups)
-    for _, files in ipairs(groups) do
-        for _, path in ipairs(files) do
+    for _, group in ipairs(groups) do
+        for _, path in ipairs(group.paths) do
             local _, elapsed = M.timeit_ms(function() must(path) end)
-            log.trace("Loaded startup module", path, elapsed)
+            log.trace("Loaded critical startup module", group.name, path, elapsed)
         end
     end
 end
 
 --- Staggers loading across files using coroutine yield/resume so the UI
 --- remains responsive between files. Execution per file is synchronous.
----@param groups string[][] Ordered groups of file paths to load
+---@param groups AruStartup.Group[] Ordered groups of file paths to load
 ---@param defer_delay_ms? number Delay in ms between each file (default 2)
 ---@param on_finish? fun() Callback to run after all deferred files finish
 function M.load_deferred_paths(groups, defer_delay_ms, on_finish)
     if defer_delay_ms == nil then defer_delay_ms = DEFER_DELAY_MS end
 
     coroutine.wrap(function()
-        for _, files in ipairs(groups) do
-            for _, path in ipairs(files) do
-                local _, elapsed = M.timeit_ms(
-                    function() defer_load_file(path, defer_delay_ms) end
-                )
-                log.trace("Loaded startup module", path, elapsed)
+        for _, group in ipairs(groups) do
+            for _, path in ipairs(group.paths) do
+                defer_load_file(group.name, path, defer_delay_ms)
             end
         end
 
@@ -144,37 +155,27 @@ M._test = {
     reset = function() _errors = {} end,
 }
 
----@param critical string[][] Ordered groups of file paths to load
----@param deferred string[][]
-function M.load(critical, deferred)
-    -- Module loading with performance tracking
-    --
-    -- Everything is timed so I can see what's slow and replace it.
-    -- The split between immediate and deferred loading creates the illusion
-    -- of instant startup while still getting all features eventually.
-    local _, total_time = M.timeit_ms(function()
-        -- Immediate loading - critical path for UI responsiveness
-        --
-        -- These must load synchronously because I need them working immediately
-        -- when the editor appears. The order matters for dependencies.
-        local _, direct_load_time = M.timeit_ms(function() M.load_critical_paths(critical) end)
-        log.trace(string.format("Critical path load time: %.3f ms", direct_load_time))
+---@param config AruStartup.Config
+function M.load(config)
+    local synchronous_start = vim.uv.hrtime()
 
-        -- Deferred loading - plugins
-        --
-        -- These load after 2ms delay to let UI render first. At this point order is
-        -- not important, we just want everything... eventually.
-        local _, defer_load_time = M.timeit_ms(function()
-            M.load_deferred_paths(deferred, 2, function() flush_startup_errors() end)
-        end)
-        log.trace(string.format("Deferred load time: %.3f ms", defer_load_time))
+    -- Immediate loading - critical path for UI responsiveness.
+    local _, critical_time = M.timeit_ms(function() M.load_critical_paths(config.critical) end)
+    log.trace(string.format("Critical startup completed in %.3f ms", critical_time))
+
+    -- Deferred loading - ordered feature groups staggered so the UI can render.
+    -- Individual timings measure module execution only. The phase timing includes
+    -- stagger delays and event-loop scheduling through actual completion.
+    local deferred_start = vim.uv.hrtime()
+    M.load_deferred_paths(config.deferred, DEFER_DELAY_MS, function()
+        local deferred_time = (vim.uv.hrtime() - deferred_start) / 1000000
+        log.trace(string.format("Deferred startup completed in %.3f ms", deferred_time))
+        flush_startup_errors()
     end)
 
-    -- Performance summary
-    --
-    -- Total synchronous time here excludes the deferred work itself; that runs
-    -- later through scheduled callbacks.
-    log.trace(string.format("total load time: %.3f ms", total_time))
+    -- This excludes deferred work, which completes through scheduled callbacks.
+    local synchronous_time = (vim.uv.hrtime() - synchronous_start) / 1000000
+    log.trace(string.format("Synchronous startup completed in %.3f ms", synchronous_time))
 end
 
 return M

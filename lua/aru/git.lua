@@ -1,7 +1,10 @@
 ---@module "aru.git"
 ---@brief Small synchronous git/path helpers.
 
+local log = require("aru.log")
+
 local M = {}
+local branch_state = {}
 
 local function normalize(path)
     if not path or path == "" then return nil end
@@ -94,6 +97,148 @@ function M.scope_for(source)
     return {
         root = root,
         branch = M.branch_sync(root),
+    }
+end
+
+---@class AruGit.BranchEntry
+---@field head string?
+---@field head_exists boolean
+---@field branch string?
+---@field pending boolean?
+---@field callbacks fun(branch: string?)[]?
+---@field watcher uv.uv_fs_event_t?
+
+---@param root string
+---@return AruGit.BranchEntry
+local function branch_entry(root)
+    local head = M.head_path(root)
+    local entry = branch_state[root]
+    if not entry then
+        entry = {}
+        branch_state[root] = entry
+    end
+
+    entry.head = head
+    entry.head_exists = head ~= nil and vim.uv.fs_stat(head) ~= nil
+    return entry
+end
+
+---@param root string
+---@param branch string?
+local function emit_branch_changed(root, branch)
+    vim.api.nvim_exec_autocmds("User", {
+        pattern = "AruGitBranchChanged",
+        modeline = false,
+        data = { root = root, branch = branch },
+    })
+end
+
+---@param root string
+---@param entry AruGit.BranchEntry
+local function ensure_branch_watcher(root, entry)
+    if entry.watcher or not entry.head_exists then return end
+
+    local handle, err = vim.uv.new_fs_event()
+    if not handle then error(("failed to create Git HEAD watcher: %s"):format(err)) end
+
+    local ok, start_err = handle:start(entry.head, {}, function(watch_err)
+        if watch_err then
+            log.error("Git HEAD watcher failed", watch_err)
+            return
+        end
+
+        entry.branch = nil
+        vim.schedule(function() M.refresh_branch(root) end)
+    end)
+    if not ok then
+        handle:close()
+        error(("failed to watch Git HEAD: %s"):format(start_err))
+    end
+
+    entry.watcher = handle
+end
+
+---Refresh the cached branch asynchronously.
+---@param root string
+---@param callback? fun(branch: string?)
+function M.refresh_branch(root, callback)
+    local entry = branch_entry(root)
+    if not entry.head_exists then
+        entry.branch = nil
+        if callback then callback(nil) end
+        emit_branch_changed(root, nil)
+        return
+    end
+
+    ensure_branch_watcher(root, entry)
+    if entry.pending then
+        if callback then
+            entry.callbacks = entry.callbacks or {}
+            entry.callbacks[#entry.callbacks + 1] = callback
+        end
+        return
+    end
+
+    entry.pending = true
+    entry.callbacks = callback and { callback } or {}
+
+    vim.system(
+        { "git", "symbolic-ref", "--short", "HEAD" },
+        { cwd = root, text = true },
+        function(result)
+            local branch = result.code == 0 and vim.trim(result.stdout) or nil
+            vim.schedule(function()
+                entry.pending = false
+                entry.branch = branch
+
+                local callbacks = entry.callbacks or {}
+                entry.callbacks = nil
+                for _, pending_callback in ipairs(callbacks) do
+                    pending_callback(branch)
+                end
+
+                emit_branch_changed(root, branch)
+            end)
+        end
+    )
+end
+
+---Return the cached branch, starting an asynchronous refresh when absent.
+---@param root string
+---@return string?
+function M.branch_for(root)
+    local entry = branch_state[root]
+    if entry and entry.branch ~= nil then return entry.branch end
+
+    M.refresh_branch(root)
+    return entry and entry.branch or nil
+end
+
+local function close_branch_watchers()
+    for _, entry in pairs(branch_state) do
+        if entry.watcher then
+            entry.watcher:stop()
+            entry.watcher:close()
+            entry.watcher = nil
+        end
+    end
+end
+
+vim.api.nvim_create_autocmd("VimLeavePre", {
+    group = vim.api.nvim_create_augroup("aru_git_state", { clear = true }),
+    desc = "Release Git HEAD watchers",
+    callback = close_branch_watchers,
+})
+
+if vim.g.aru_test then
+    M._test = {
+        branch_state = branch_state,
+        reset = function()
+            close_branch_watchers()
+            for root in pairs(branch_state) do
+                branch_state[root] = nil
+            end
+        end,
     }
 end
 
