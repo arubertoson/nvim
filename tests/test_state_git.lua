@@ -6,10 +6,10 @@ if not _G.MiniTest then MiniTest.setup({ silent = true }) end
 local T = MiniTest.new_set({
     hooks = {
         pre_case = function()
-            package.loaded["aru.git"] = nil
-            require("aru.git")._test.reset()
+            package.loaded["aru.workspace.git"] = nil
+            require("aru.workspace.git")._test.reset()
         end,
-        post_case = function() require("aru.git")._test.reset() end,
+        post_case = function() require("aru.workspace.git")._test.reset() end,
     },
 })
 
@@ -44,7 +44,7 @@ local function wait_until(fn)
 end
 
 T["sync helpers expose git scope"] = function()
-    local git = require("aru.git")
+    local git = require("aru.workspace.git")
     local root = git_repo()
     local file = vim.fs.joinpath(root, "file.txt")
 
@@ -54,7 +54,7 @@ T["sync helpers expose git scope"] = function()
 end
 
 T["sync helpers report detached head hash"] = function()
-    local git = require("aru.git")
+    local git = require("aru.workspace.git")
     local root = git_repo()
     local commit = vim.trim(sh({ "git", "rev-parse", "HEAD" }, root).stdout)
     sh({ "git", "checkout", "--detach", commit }, root)
@@ -63,7 +63,7 @@ T["sync helpers report detached head hash"] = function()
 end
 
 T["branch_for is cache-only and refreshes asynchronously"] = function()
-    local git = require("aru.git")
+    local git = require("aru.workspace.git")
     local root = git_repo()
 
     MiniTest.expect.equality(git.branch_for(root), nil)
@@ -72,7 +72,7 @@ T["branch_for is cache-only and refreshes asynchronously"] = function()
 end
 
 T["refresh callback receives branch"] = function()
-    local git = require("aru.git")
+    local git = require("aru.workspace.git")
     local root = git_repo()
     local seen
 
@@ -81,7 +81,7 @@ T["refresh callback receives branch"] = function()
 end
 
 T["non-git directories stay nil and do not create watchers"] = function()
-    local git = require("aru.git")
+    local git = require("aru.workspace.git")
     local root = tmpdir()
     local seen = "unset"
 
@@ -94,7 +94,7 @@ T["non-git directories stay nil and do not create watchers"] = function()
 end
 
 T["detached HEAD reports nil"] = function()
-    local git = require("aru.git")
+    local git = require("aru.workspace.git")
     local root = git_repo()
     local commit = vim.trim(sh({ "git", "rev-parse", "HEAD" }, root).stdout)
     sh({ "git", "checkout", "--detach", commit }, root)
@@ -106,7 +106,7 @@ T["detached HEAD reports nil"] = function()
 end
 
 T["watcher cleanup removes watcher handles"] = function()
-    local git = require("aru.git")
+    local git = require("aru.workspace.git")
     local root = git_repo()
 
     git.refresh_branch(root)

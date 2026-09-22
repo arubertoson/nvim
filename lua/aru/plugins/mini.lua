@@ -1,5 +1,0 @@
-require("aru.plugins.mini.notify")
-require("aru.plugins.mini.pairs")
-require("aru.plugins.mini.pick")
-require("aru.plugins.mini.surround")
-require("aru.plugins.mini.ai")

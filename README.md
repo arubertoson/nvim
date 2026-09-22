@@ -18,6 +18,22 @@ package manager. Everything loads in two chunks:
 No lazy loading. No event-based triggers. No dependency graphs. If something is
 too slow, I replace it. I don't add complexity to work around it.
 
+## Architecture
+
+The configuration is organized by editor behavior, not by plugin:
+
+- `runtime/` owns package loading and startup phases.
+- `editor/` owns universal editing policy and text-editing assistance.
+- `interface/` owns presentation and temporary-window behavior.
+- `language/` owns language tooling; `servers/` is its only nested family.
+- `workspace/` owns project navigation, files, Git, sessions, and layout.
+- `tools/` owns standalone workflows such as Psst and Lua Scratch.
+
+A behavior owns its setup, lifecycle, and mappings. Plugins are implementation
+details within those modules; there are no forwarding plugin-config files. A
+new directory must represent a real family of behaviors, not contain a single
+wrapper file.
+
 ## Why so few dependencies / plugins?
 
 Every plugin is a commitment. It can break, slow things down, or conflict with

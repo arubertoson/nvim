@@ -77,42 +77,39 @@ end
 
 local function runtime(path) return vim.api.nvim_get_runtime_file(path, true) end
 
-require("aru.startup").load({
+require("aru.runtime.startup").load({
     critical = {
-        -- Install plugins and add them to the runtime path before requiring
-        -- plugin modules.
-        { name = "packages", paths = runtime("lua/aru/pack.lua") },
+        -- Packages must be on the runtime path before behavior is configured.
+        { name = "packages", paths = runtime("lua/aru/runtime/packages.lua") },
+        { name = "sessions", paths = runtime("lua/aru/workspace/sessions.lua") },
 
-        -- Restore sessions before the rest of the editor behavior starts.
-        { name = "sessions", paths = runtime("lua/aru/plugins/continue.lua") },
+        -- Shared LSP policy precedes independent server declarations.
+        { name = "language behavior", setup = function() require("aru.language.lsp").setup() end },
+        { name = "language servers", paths = runtime("lua/aru/language/servers/*.lua") },
 
-        -- Register shared LSP behavior before language modules enable servers.
-        { name = "lsp", paths = runtime("lua/aru/plugins/lsp.lua") },
-
-        -- Language modules are independent and lightweight.
-        { name = "languages", paths = runtime("lua/aru/languages/*.lua") },
-
-        -- Core order is explicit because options and theme establish state read
-        -- by later UI and behavior modules.
-        { name = "options", paths = runtime("lua/aru/core/options.lua") },
-        { name = "theme", paths = runtime("lua/aru/core/themes.lua") },
-        { name = "spell", paths = runtime("lua/aru/core/spell.lua") },
-        { name = "autosave", paths = runtime("lua/aru/autosave.lua") },
-        { name = "autocommands", paths = runtime("lua/aru/core/autocommands.lua") },
-        { name = "statusline", paths = runtime("lua/aru/core/statusline.lua") },
-        { name = "keymaps", paths = runtime("lua/aru/core/keymaps.lua") },
+        -- Editor policy establishes state read by interface and workspace behavior.
+        { name = "editor options", paths = runtime("lua/aru/editor/options.lua") },
+        { name = "theme", paths = runtime("lua/aru/interface/theme.lua") },
+        { name = "spell", paths = runtime("lua/aru/editor/spell.lua") },
+        { name = "autosave", paths = runtime("lua/aru/editor/autosave.lua") },
+        { name = "editor events", paths = runtime("lua/aru/editor/events.lua") },
+        { name = "statusline", paths = runtime("lua/aru/interface/statusline.lua") },
+        { name = "editor keymaps", paths = runtime("lua/aru/editor/keymaps.lua") },
     },
     deferred = {
-        -- Deferred feature order is deliberate; no critical module is repeated.
-        { name = "internal features", paths = runtime("lua/aru/setup.lua") },
-        { name = "mini.nvim", paths = runtime("lua/aru/plugins/mini.lua") },
-        { name = "blink.cmp", paths = runtime("lua/aru/plugins/blink.lua") },
-        { name = "formatting", paths = runtime("lua/aru/plugins/conform.lua") },
-        { name = "file search", paths = runtime("lua/aru/plugins/fff.lua") },
-        { name = "git signs", paths = runtime("lua/aru/plugins/gitsigns.lua") },
-        { name = "indent guides", paths = runtime("lua/aru/plugins/indent-blankline.lua") },
-        { name = "centered layout", paths = runtime("lua/aru/plugins/no-neck-pain.lua") },
-        { name = "file explorer", paths = runtime("lua/aru/plugins/oil.lua") },
-        { name = "sqlite", paths = runtime("lua/aru/plugins/sqlite.lua") },
+        { name = "workspace navigation", paths = runtime("lua/aru/workspace/navigation.lua") },
+        { name = "text editing", paths = runtime("lua/aru/editor/text.lua") },
+        { name = "notifications", paths = runtime("lua/aru/interface/notifications.lua") },
+        { name = "picker", paths = runtime("lua/aru/interface/picker.lua") },
+        { name = "completion", paths = runtime("lua/aru/language/completion.lua") },
+        { name = "formatting", paths = runtime("lua/aru/language/formatting.lua") },
+        { name = "file search", paths = runtime("lua/aru/workspace/search.lua") },
+        { name = "Git signs", paths = runtime("lua/aru/workspace/git_signs.lua") },
+        { name = "indent guides", paths = runtime("lua/aru/editor/indent.lua") },
+        { name = "centered layout", paths = runtime("lua/aru/workspace/layout.lua") },
+        { name = "file explorer", setup = function() require("aru.workspace.files").setup() end },
+        { name = "Psst", paths = runtime("lua/aru/tools/psst.lua") },
+        { name = "SQLite scratch", setup = function() require("sqlite-scratch").setup() end },
+        { name = "Lua scratch", setup = function() require("aru.tools.lua_scratch").setup() end },
     },
 })

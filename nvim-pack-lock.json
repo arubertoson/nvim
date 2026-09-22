@@ -73,6 +73,18 @@
       "src": "https://github.com/nvim-lua/plenary.nvim.git",
       "version": "'master'"
     },
+    "psst.nvim": {
+      "rev": "381ea064e6fd461b6a0c4f6352844b965febc429",
+      "src": "https://github.com/arubertoson/psst.nvim"
+    },
+    "sqlite-scratch.nvim": {
+      "rev": "6d0dcecbf53167f58181ac08d3c105a837c507de",
+      "src": "https://github.com/arubertoson/sqlite-scratch.nvim"
+    },
+    "tracks.nvim": {
+      "rev": "0d46851fc8b61ad11ad52b105cfe9555eee7217d",
+      "src": "https://github.com/arubertoson/tracks.nvim"
+    },
     "vim-sleuth": {
       "rev": "be69bff",
       "src": "https://github.com/tpope/vim-sleuth"

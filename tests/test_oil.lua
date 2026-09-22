@@ -23,7 +23,7 @@ T["Oil asynchronously hides Git-ignored entries"] = function()
     vim.fn.writefile({}, vim.fs.joinpath(root, "ignored.txt"))
     vim.fn.writefile({}, vim.fs.joinpath(root, "visible.txt"))
 
-    require("aru.oil").setup()
+    require("aru.workspace.files").setup()
     require("oil").open(root)
 
     local hidden = vim.wait(3000, function()

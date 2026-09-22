@@ -121,7 +121,7 @@ Remove the obsolete `nvim-config.log` entry from `.gitignore`.
 
 1. Reduce `lua/aru/log.lua` to creation and return of the native logger.
 2. Remove custom logger configuration from `init.lua`.
-3. Remove notification-sink attachment from `lua/aru/startup.lua`.
+3. Remove notification-sink attachment from `lua/aru/runtime/startup.lua`.
 4. Convert every `aru.log` call site to the native dot-call API.
 5. Remove bound logger creation and rely on native source metadata.
 6. Separate implicit notifications into explicit `vim.notify()` calls where

@@ -8,8 +8,8 @@ local scratch
 local T = MiniTest.new_set({
     hooks = {
         pre_case = function()
-            package.loaded["aru.lua_scratch"] = nil
-            scratch = require("aru.lua_scratch")
+            package.loaded["aru.tools.lua_scratch"] = nil
+            scratch = require("aru.tools.lua_scratch")
         end,
         post_case = function()
             scratch.close()
