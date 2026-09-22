@@ -166,6 +166,27 @@ T["active files"]["remove does not delete buffers"] = function()
     MiniTest.expect.equality(vim.api.nvim_buf_is_loaded(buf_a), true)
 end
 
+T["active files"]["replaces existing persisted state"] = function()
+    local root = temp_project("active-replace-persisted", "main")
+    local storage = root .. "/active.json"
+    local stale = temp_file(root, "stale.lua")
+    local current = temp_file(root, "current.lua")
+    local normalized_root = vim.fs.normalize(root)
+
+    vim.fn.writefile(
+        { vim.json.encode({ [normalized_root] = { main = { "stale.lua" } } }) },
+        storage
+    )
+
+    edit(current)
+    local active = setup_active(storage)
+    MiniTest.expect.equality(active.items()[1].path, vim.fs.normalize(stale))
+    MiniTest.expect.equality(active.replace(1), true)
+
+    local decoded = vim.json.decode(table.concat(vim.fn.readfile(storage), "\n"))
+    MiniTest.expect.equality(decoded[normalized_root].main, { "current.lua" })
+end
+
 T["active files"]["persists by root and branch"] = function()
     local root = temp_project("active-scope", "main")
     local storage = root .. "/active.json"

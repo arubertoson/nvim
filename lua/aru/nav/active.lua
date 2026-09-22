@@ -59,6 +59,29 @@ local function emit_updated()
     })
 end
 
+---@param path string
+---@param encoded string
+---@return boolean
+local function write_store(path, encoded)
+    local temporary_path = ("%s.tmp.%d"):format(path, vim.uv.os_getpid())
+    local ok, result =
+        pcall(vim.fn.writefile, vim.split(encoded, "\n", { plain = true }), temporary_path)
+    if not ok or result ~= 0 then
+        vim.uv.fs_unlink(temporary_path)
+        log.warn("Failed to write active store", temporary_path, result)
+        return false
+    end
+
+    local renamed, err = vim.uv.fs_rename(temporary_path, path)
+    if not renamed then
+        vim.uv.fs_unlink(temporary_path)
+        log.warn("Failed to replace active store", path, err)
+        return false
+    end
+
+    return true
+end
+
 local function commit()
     local scope = M._scope or scope_for()
     if not scope then return end
@@ -81,8 +104,7 @@ local function commit()
         return
     end
 
-    vim.fn.writefile(vim.split(encoded, "\n", { plain = true }), M.config.storage_path)
-    emit_updated()
+    if write_store(M.config.storage_path, encoded) then emit_updated() end
 end
 
 local function refresh_scope()
