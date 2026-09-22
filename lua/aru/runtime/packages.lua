@@ -102,7 +102,7 @@ vim.list_extend(plugins, {
     -- the generic searchable picker layer for LSP, diagnostics, and vim.ui.select
     -- flows such as code actions.
     --
-    { src = "https://github.com/dmtrKovalenko/fff.nvim", version = "v0.9.6" },
+    { src = "https://github.com/dmtrKovalenko/fff.nvim", version = "v0.11.0" },
 
     -- ===========================================================================
     -- Uncategorized
