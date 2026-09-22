@@ -376,11 +376,12 @@ map(
     { desc = "Pi: scroll float up" }
 )
 
--- Lua REPL (ftplugin/lua.lua - only in lua files):
--- <leader>rr = run current buffer
--- <leader>rl = run current line
--- <leader>rs = run visual selection (visual mode)
+-- Lua Scratch (buffer-local mappings installed by aru.lua_scratch):
+-- <leader>rr = run scratch buffer
+-- <leader>rl = run current scratch line
+-- <leader>rs = run visual selection
 -- <leader>re = re-run last chunk
+-- <leader>rq = close Lua Scratch
 
 -- ============================================================================
 -- Notes on Conflicting/Overlapping Keymaps

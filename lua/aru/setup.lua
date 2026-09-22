@@ -3,4 +3,4 @@
 ---@brief Internal feature composition root.
 
 require("aru.nav").setup()
-require("aru.neodev").setup()
+require("aru.lua_scratch").setup()
