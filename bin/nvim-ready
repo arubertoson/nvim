@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Start Neovim without exposing its intermediate startup layouts.
+#
+# continue.nvim restores a single-pane session before no-neck-pain.nvim creates
+# its padding panes. A normal tmux window displays both states because Neovim has
+# no redraw transaction spanning asynchronous plugin setup. This launcher starts
+# Neovim in a detached tmux window instead. The startup_reveal module selects the
+# window after no-neck-pain finishes, so the first visible frame is complete.
+#
+# Usage:
+#   bin/nvim-ready [nvim arguments]
+#
+# It can replace the normal command with an alias such as:
+#   alias nvim="$HOME/.config/nvim/bin/nvim-ready"
+#
+# Outside tmux it falls back to ordinary Neovim. ARU_NVIM_REVEAL is an internal
+# handshake with lua/aru/interface/startup_reveal.lua, not a user-facing option.
+set -euo pipefail
+
+if [[ -z "${TMUX:-}" ]]; then
+    exec nvim "$@"
+fi
+
+pane=$(
+    tmux new-window -dP -F '#{pane_id}' -c "$PWD" -e ARU_NVIM_REVEAL=tmux \
+        nvim "$@"
+)
+
+# Keep the invoking shell occupied until the hidden window is revealed or exits.
+while tmux display-message -p -t "$pane" '#{pane_id}' >/dev/null 2>&1; do
+    if [[ "$(tmux display-message -p -t "$pane" '#{window_active}')" == "1" ]]; then
+        break
+    fi
+    sleep 0.01
+done

@@ -3,6 +3,7 @@
 
 local log = require("aru.log")
 local colors = require("aru.interface.colors")
+local startup_reveal = require("aru.interface.startup_reveal")
 
 local M = {}
 
@@ -106,7 +107,11 @@ nnp.setup({
     },
     callbacks = {
         postEnable = function(state)
-            vim.defer_fn(function() hide_separator(state.previously_focused_win) end, 50)
+            vim.defer_fn(function()
+                hide_separator(state.previously_focused_win)
+                apply_layout_for_filetype(vim.api.nvim_get_current_buf())
+                vim.defer_fn(startup_reveal.reveal, 10)
+            end, 50)
         end,
         postDisable = restore_separators,
     },

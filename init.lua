@@ -57,6 +57,7 @@ with a faster alternative. I prioritize speed over feature completeness.
 --]]
 
 vim.loader.enable()
+require("aru.interface.startup_reveal").setup()
 
 -- UI Enhancement - must load first
 --
