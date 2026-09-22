@@ -41,7 +41,3 @@ It then runs the complete quality gate. Neovim, Node, Mise, and Just are system
 prerequisites; language tooling for target repositories remains target-repository-owned.
 Every commit reruns `just check`, which verifies Lua formatting and runs the test suite.
 Use `just format` to fix formatting failures.
-
-## Feature documentation
-
-- [Agent interaction](docs/agent-interaction.md)
