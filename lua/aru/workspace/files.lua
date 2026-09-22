@@ -128,6 +128,8 @@ function M.setup()
     oil = require("oil")
     refresh_callback = require("oil.actions").refresh.callback
 
+    vim.keymap.set("n", "<leader>n", M.toggle, { desc = "Toggle file explorer" })
+
     oil.setup({
         view_options = {
             show_hidden = true,
