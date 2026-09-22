@@ -42,14 +42,14 @@ vim.g.editorconfig = true
 
 -- UI
 vim.opt.showcmd = false
-vim.o.winborder = "rounded"
+vim.o.winborder = require("aru.config").ui.border
 vim.opt.number = true
 vim.opt.relativenumber = true
 vim.opt.colorcolumn = "100"
 vim.opt.showtabline = 1
 vim.opt.signcolumn = "yes"
 vim.opt.breakindent = true
-vim.g.termguicolors = true
+vim.opt.termguicolors = true
 vim.opt.updatetime = 250
 vim.opt.showmode = false
 vim.opt.laststatus = 3

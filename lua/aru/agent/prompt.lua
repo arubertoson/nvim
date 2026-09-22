@@ -126,8 +126,7 @@ end
 
 ---@param buf integer
 local function prompt_win_config(buf)
-    local custom = require("aru.custom")
-    local border = custom.border or constants.UI.BORDER_ROUNDED
+    local border = constants.UI.BORDER_ROUNDED
     local title_inset = string.rep(horizontal_border_char(border, 2), PROMPT_BORDER_INSET)
     local width = prompt_width()
     local content_rows = prompt_content_rows(buf, width)
@@ -189,7 +188,7 @@ local function render_footer(state)
             constants.UI.HIGHLIGHT_COMMENT,
         }
     end
-    local border = require("aru.custom").border or constants.UI.BORDER_ROUNDED
+    local border = constants.UI.BORDER_ROUNDED
     action_chunks[#action_chunks + 1] = {
         string.rep(horizontal_border_char(border, 6), PROMPT_BORDER_INSET),
         "FloatBorder",
@@ -404,7 +403,7 @@ local function context_overview_win_config(buf)
         width = width,
         height = height,
         style = constants.UI.STYLE_MINIMAL,
-        border = require("aru.custom").border or constants.UI.BORDER_ROUNDED,
+        border = constants.UI.BORDER_ROUNDED,
         title = " context overview ",
         title_pos = constants.UI.TITLE_POS_LEFT,
         zindex = PROMPT_LAYOUT.ZINDEX + 1,

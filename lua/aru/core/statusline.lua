@@ -95,6 +95,7 @@ Design principle
 --
 
 local colors = require("aru.colors")
+local config = require("aru.config")
 local git = require("aru.git")
 local log = require("aru.log")
 
@@ -259,7 +260,7 @@ local function refresh_active_files()
     local slots = {}
     local current_path = vim.fs.normalize(vim.api.nvim_buf_get_name(0))
     local items = active.items()
-    for i = 1, 3 do
+    for i = 1, #config.navigation.active_file_keys do
         local item = items[i]
         local content = ""
         if item then

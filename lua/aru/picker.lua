@@ -1,7 +1,7 @@
 ---@module "aru.picker"
 --- Shared picker presentation helpers.
 
-local custom = require("aru.custom")
+local config = require("aru.config")
 
 local M = {}
 
@@ -17,12 +17,13 @@ function M.window_config()
         - (has_tabline and 1 or 0)
         - (has_statusline and 1 or 0)
 
-    local height = math.floor(0.7 * max_height)
-    local width = math.min(math.floor(0.8 * vim.o.columns), 75)
+    local picker = config.ui.picker
+    local height = math.floor(picker.height_ratio * max_height)
+    local width = math.min(math.floor(picker.width_ratio * vim.o.columns), picker.max_width)
 
     return {
         anchor = "NW",
-        border = custom.border or "rounded",
+        border = config.ui.border,
         height = height,
         width = width,
         row = math.floor(0.5 * (max_height - height)) + (has_tabline and 1 or 0),

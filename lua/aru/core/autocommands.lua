@@ -1,6 +1,3 @@
-local log = require("aru.log")
-local custom = require("aru.custom")
-
 vim.api.nvim_create_autocmd("BufWinEnter", {
     group = vim.api.nvim_create_augroup("gmr_avoid_comment_new_line", { clear = true }),
     desc = "Avoid comment on new line",
@@ -13,22 +10,12 @@ vim.api.nvim_create_autocmd("TextYankPost", {
     callback = function() vim.highlight.on_yank() end,
 })
 
-vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter" }, {
+vim.api.nvim_create_autocmd("FileType", {
     group = vim.api.nvim_create_augroup("aru_activate_treesitter_on_filetype", { clear = true }),
-    pattern = custom.treesitter_parsers,
-    desc = "When editing a file which is a valid treesitter parser (authored file list), we activate treesitter",
+    desc = "Activate Treesitter when the filetype has an available parser",
     callback = function(ev)
-        -- Lazy version, it's going to try to start the treesitter parser for every
-        -- filetyp, this will trigger on all things that open a buffer in neovim
-        -- and it's a bit unyieldy. But it works.
         local ok = pcall(vim.treesitter.start, ev.buf)
-        if not ok then
-            local bufname = vim.api.nvim_buf_get_name(ev.buf)
-            local ft = vim.api.nvim_get_option_value("filetype", { buf = ev.buf })
-
-            log.debug("Treesitter failed to start", bufname, ft)
-            return
-        end
+        if not ok then return end
 
         vim.bo[ev.buf].indentexpr = require("nvim-treesitter").indentexpr
     end,

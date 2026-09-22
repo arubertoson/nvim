@@ -2,6 +2,7 @@
 ---@brief Small persisted working set of active files.
 
 local buf = require("aru.buf")
+local config = require("aru.config")
 local git = require("aru.git")
 local log = require("aru.log")
 
@@ -13,7 +14,7 @@ local M = {}
 ---@field before_select fun()? Called before switching to an active file.
 ---@field augroup_id number?
 local default_config = {
-    max_files = 3,
+    max_files = #config.navigation.active_file_keys,
     storage_path = vim.fs.joinpath(vim.fn.stdpath("state"), "aru-active.json"),
     before_select = nil,
     augroup_id = nil,

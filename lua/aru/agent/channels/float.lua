@@ -271,7 +271,6 @@ local function create_float_window(lines)
     local width = float_width()
     local layout = { side = float_opts.side, width = width }
     local height = math.min(estimated_rows(buf, width), max_height())
-    local custom = require("aru.custom")
 
     run_lifecycle_hook("before_open", layout)
     local ok, win = pcall(vim.api.nvim_open_win, buf, false, {
@@ -281,7 +280,7 @@ local function create_float_window(lines)
         width = width,
         height = math.max(1, height),
         style = constants.UI.STYLE_MINIMAL,
-        border = custom.border or constants.UI.BORDER_ROUNDED,
+        border = constants.UI.BORDER_ROUNDED,
         title = " agent ",
         title_pos = constants.UI.TITLE_POS_LEFT,
         zindex = ui_layout.ZINDEX,

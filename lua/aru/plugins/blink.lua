@@ -1,5 +1,5 @@
-local custom = require("aru.custom")
 local blink = require("blink.cmp")
+local config = require("aru.config")
 
 local M = {}
 
@@ -73,7 +73,7 @@ end
 blink.setup({
     enabled = function() return not require("aru.buf").is_plugin_ui(0) end,
     fuzzy = { implementation = "prefer_rust_with_warning" },
-    appearance = { kind_icons = custom.icons.kind },
+    appearance = { kind_icons = config.icons.kind },
 
     -- We activate completion sources for specific actions on the cmdline
     cmdline = {
@@ -96,7 +96,7 @@ blink.setup({
             auto_show_delay_ms = 150,
             update_delay_ms = 120,
             treesitter_highlighting = true,
-            window = { border = "rounded", winblend = vim.o.pumblend },
+            window = { border = config.ui.border, winblend = vim.o.pumblend },
         },
         ghost_text = { enabled = false, show_with_menu = false },
         list = {
@@ -113,7 +113,7 @@ blink.setup({
             auto_show = function(ctx)
                 return ctx.mode ~= "default" or vim.b[ctx.bufnr].aru_agent_prompt == true
             end,
-            border = "rounded",
+            border = config.ui.border,
             -- Minimum width should be controlled by components
             min_width = 1,
             draw = {
@@ -171,7 +171,7 @@ blink.setup({
         enabled = true,
         window = {
             show_documentation = true,
-            border = "rounded",
+            border = config.ui.border,
             winblend = vim.o.pumblend,
         },
     },

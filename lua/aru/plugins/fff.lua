@@ -13,9 +13,11 @@
 ---   wired to fff file/grep backends, and selection expects a file item with a
 ---   `relative_path`. Generic help/LSP/code-action flows use Neovim defaults.
 
+local config = require("aru.config")
+
 local function capped_width_ratio(columns)
-    local max_columns = 75 -- roughly 600px at an 8px terminal cell width
-    return math.min(0.8, max_columns / columns)
+    local picker = config.ui.picker
+    return math.min(picker.width_ratio, picker.max_width / columns)
 end
 
 local function reset_fff_config_cache()
@@ -44,7 +46,7 @@ vim.g.fff = {
     layout = {
         anchor = "center",
         prompt_position = "top",
-        height = 0.7,
+        height = config.ui.picker.height_ratio,
         width = capped_width_ratio,
         show_scrollbar = false,
     },

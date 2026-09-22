@@ -3,9 +3,16 @@
 ---Personal LSP glue. Keeps everything in one place so it's easy to tweak
 ---without digging through several abstraction layers.
 
-local custom = require("aru.custom")
+local config = require("aru.config")
 
 local M = {}
+
+local diagnostic_signs = {
+    [vim.diagnostic.severity.ERROR] = config.icons.diagnostic.error,
+    [vim.diagnostic.severity.WARN] = config.icons.diagnostic.warn,
+    [vim.diagnostic.severity.HINT] = config.icons.diagnostic.hint,
+    [vim.diagnostic.severity.INFO] = config.icons.diagnostic.info,
+}
 
 local diagnostic_config = {
     virtual_lines = false,
@@ -16,17 +23,12 @@ local diagnostic_config = {
     },
     float = {
         severity_sort = true,
-        border = "rounded",
+        border = config.ui.border,
     },
     update_in_insert = false,
     severity_sort = true,
     signs = {
-        text = {
-            [vim.diagnostic.severity.ERROR] = custom.icons.diagnostic.error,
-            [vim.diagnostic.severity.WARN] = custom.icons.diagnostic.warn,
-            [vim.diagnostic.severity.HINT] = custom.icons.diagnostic.hint,
-            [vim.diagnostic.severity.INFO] = custom.icons.diagnostic.info,
-        },
+        text = diagnostic_signs,
     },
 }
 

@@ -4,19 +4,20 @@
 --- When adding a keymap anywhere, come here and document it.
 --- Grep this file to check for conflicts.
 
+local config = require("aru.config")
 local map = vim.keymap.set
 
 -- ============================================================================
 -- Leaders
 -- ============================================================================
-vim.g.mapleader = ";"
-vim.g.maplocalleader = ","
+vim.g.mapleader = config.keys.leader
+vim.g.maplocalleader = config.keys.local_leader
 
 -- ============================================================================
 -- Nops (disable defaults)
 -- ============================================================================
-map({ "n", "x", "o" }, ";", "<Nop>", { silent = true })
-map({ "n", "x", "o" }, ",", "<Nop>", { silent = true })
+map({ "n", "x", "o" }, config.keys.leader, "<Nop>", { silent = true })
+map({ "n", "x", "o" }, config.keys.local_leader, "<Nop>", { silent = true })
 map("n", "q", function()
     if require("aru.quick_close").close_current() then return end
     require("aru.agent").float.close()
@@ -183,24 +184,15 @@ map(
     function() require("aru.nav").active.add() end,
     { desc = "Active add current file" }
 )
-map(
-    "n",
-    "<localleader>j",
-    function() require("aru.nav").active.replace(1) end,
-    { desc = "Active replace slot 1" }
-)
-map(
-    "n",
-    "<localleader>k",
-    function() require("aru.nav").active.replace(2) end,
-    { desc = "Active replace slot 2" }
-)
-map(
-    "n",
-    "<localleader>l",
-    function() require("aru.nav").active.replace(3) end,
-    { desc = "Active replace slot 3" }
-)
+for slot, key in ipairs(config.navigation.active_file_keys) do
+    local active_slot = slot
+    map(
+        "n",
+        "<localleader>" .. key,
+        function() require("aru.nav").active.replace(active_slot) end,
+        { desc = ("Active replace slot %d"):format(active_slot) }
+    )
+end
 map(
     "n",
     "<localleader>d",

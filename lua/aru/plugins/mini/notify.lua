@@ -1,3 +1,4 @@
+local config = require("aru.config")
 local notify = require("mini.notify")
 
 notify.setup({
@@ -13,7 +14,7 @@ notify.setup({
                 anchor = "SE",
                 col = vim.o.columns,
                 row = vim.o.lines - pad,
-                border = "rounded",
+                border = config.ui.border,
             }
         end,
         winblend = 20,

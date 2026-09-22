@@ -1,8 +1,10 @@
+local config = require("aru.config")
 local log = require("aru.log")
-local theme = require("aru.custom").theme
+local theme = config.ui.theme
+local colorscheme = theme.family .. "-" .. theme.variant
 
 require("kanagawa").setup({
-    theme = "dragon", -- or "dragon"/"lotus"
+    theme = theme.variant,
     transparent = false,
     dimInactive = false,
 
@@ -79,8 +81,6 @@ require("kanagawa").setup({
     end,
 })
 
-vim.cmd.colorscheme("kanagawa") -- or kanagawa-wave/dragon/lotus
-
 -- TODO: Keep this override in sync with the spell module note. This forces plain
 -- underline after colorscheme load because the colorscheme otherwise resolves
 -- spell groups to undercurl, which does not render reliably in the current setup.
@@ -111,13 +111,11 @@ local function set_spell_underlines()
     })
 end
 
-set_spell_underlines()
-
 vim.api.nvim_create_autocmd("ColorScheme", {
     group = vim.api.nvim_create_augroup("aru_spell_highlights", { clear = true }),
     desc = "Use underline for spelling highlights",
     callback = set_spell_underlines,
 })
 
-log.debug("Activating theme: " .. theme)
-vim.cmd.colorscheme(theme)
+log.debug("Activating theme: " .. colorscheme)
+vim.cmd.colorscheme(colorscheme)
