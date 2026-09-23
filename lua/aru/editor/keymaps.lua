@@ -39,7 +39,28 @@ map("t", "<C-\\><C-\\>", "<C-\\><C-n>", { silent = true })
 
 map("n", "<localleader>q", ":<C-u>qa<CR>", { desc = "Exit Neovim" })
 map("n", "<localleader>C", ":<C-u>bd<CR>", { desc = "Delete buffer" })
-map("n", "<localleader>c", ":<C-u>wincmd c<CR>", { desc = "Close split" })
+map("n", "<localleader>c", function()
+    local state = _G.NoNeckPain and _G.NoNeckPain.state
+    local tab = state and state.tabs[state.active_tab]
+    if state and state.enabled and tab then
+        local main = tab.wins.main
+        local current = vim.api.nvim_get_current_win()
+        if current == main.curr then
+            local other_editing_window = false
+            for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+                if win ~= current and win ~= main.left and win ~= main.right then
+                    other_editing_window = true
+                    break
+                end
+            end
+            if not other_editing_window then
+                vim.cmd.bdelete()
+                return
+            end
+        end
+    end
+    vim.cmd("wincmd c")
+end, { desc = "Close split" })
 
 map("n", "<leader>;", "<CMD>:noh<CR>", { desc = "Clear search highlight", silent = true })
 map("n", "<localleader>r", ":%s:<C-R><C-w>::g<left><left>", { desc = "Replace word under cursor" })
