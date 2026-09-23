@@ -62,9 +62,12 @@ local function build_nvim_library(root)
     return library
 end
 
+local lua_language_server =
+    vim.fs.joinpath(vim.fn.stdpath("config"), "tools", "bin", "lua-language-server")
+
 ---@type vim.lsp.Config
 vim.lsp.config("lua_ls", {
-    cmd = { "lua-language-server" },
+    cmd = { lua_language_server },
     filetypes = { "lua" },
     root_markers = {
         ".luarc.json",
