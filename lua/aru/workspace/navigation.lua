@@ -4,39 +4,71 @@
 local config = require("aru.config")
 local map = vim.keymap.set
 
-require("tracks").setup()
+require("tracks").setup({ keymaps = false })
 
-map("n", "<C-o>", function() require("tracks").point_jump.prev() end, {
+map("n", "<M-k>", function() require("tracks").point_jump.prev() end, {
     desc = "Previous buffer point",
 })
-map("n", "<C-i>", function() require("tracks").point_jump.next() end, {
+map("n", "<M-j>", function() require("tracks").point_jump.next() end, {
     desc = "Next buffer point",
 })
-map("n", "<M-o>", function() require("tracks").file_jump.prev() end, {
+map("n", "<M-h>", function() require("tracks").file_jump.prev() end, {
     desc = "Previous file visit",
 })
-map("n", "<M-i>", function() require("tracks").file_jump.next() end, {
+map("n", "<M-l>", function() require("tracks").file_jump.next() end, {
     desc = "Next file visit",
 })
-map("n", "<C-t>", function() require("tracks").file_jump.toggle() end, {
+map("n", "<M-t>", function() require("tracks").file_jump.toggle() end, {
     desc = "Toggle previous file",
 })
 
-map("n", "<localleader>a", function() require("tracks").active.add() end, {
+-- Shifted navigation targets the visible tool, regardless of cursor focus.
+-- Psst takes priority when both tool windows are visible.
+local function navigate_visible(delta)
+    local psst = require("psst")
+    if psst.float.is_visible() then
+        if delta < 0 then
+            psst.float.response_prev()
+        else
+            psst.float.response_next()
+        end
+        return
+    end
+
+    local sqlite = require("sqlite-scratch")
+    if sqlite.is_visible() then sqlite.navigate(delta) end
+end
+
+local function scroll_visible(direction)
+    local psst = require("psst")
+    if psst.float.is_visible() then psst.float.scroll(direction) end
+end
+
+map("n", "<M-H>", function() navigate_visible(-1) end, {
+    desc = "Previous visible response or SQLite result",
+})
+map("n", "<M-L>", function() navigate_visible(1) end, {
+    desc = "Next visible response or SQLite result",
+})
+map("n", "<M-K>", function() scroll_visible("up") end, {
+    desc = "Scroll visible Psst response up",
+})
+map("n", "<M-J>", function() scroll_visible("down") end, {
+    desc = "Scroll visible Psst response down",
+})
+
+map("n", "<leader>A", function() require("tracks").active.add() end, {
     desc = "Active add current file",
 })
 for slot, key in ipairs(config.navigation.active_file_keys) do
     local active_slot = slot
     map(
         "n",
-        "<localleader>" .. key,
-        function() require("tracks").active.replace(active_slot) end,
-        { desc = ("Active replace slot %d"):format(active_slot) }
+        "<leader>" .. key,
+        function() require("tracks").active.select(active_slot) end,
+        { desc = ("Active select slot %d"):format(active_slot) }
     )
 end
-map("n", "<localleader>d", function() require("tracks").active.remove() end, {
+map("n", "<leader>X", function() require("tracks").active.remove() end, {
     desc = "Active remove current file",
-})
-map("n", "<localleader>D", function() require("tracks").active.remove_all() end, {
-    desc = "Active remove all files",
 })

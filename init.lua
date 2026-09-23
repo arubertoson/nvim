@@ -110,7 +110,10 @@ require("aru.runtime.startup").load({
         { name = "centered layout", paths = runtime("lua/aru/workspace/layout.lua") },
         { name = "file explorer", setup = function() require("aru.workspace.files").setup() end },
         { name = "Psst", paths = runtime("lua/aru/tools/psst.lua") },
-        { name = "SQLite scratch", setup = function() require("sqlite-scratch").setup() end },
+        {
+            name = "SQLite scratch",
+            setup = function() require("sqlite-scratch").setup({ keymaps = true }) end,
+        },
         { name = "Lua scratch", setup = function() require("aru.tools.lua_scratch").setup() end },
     },
 })

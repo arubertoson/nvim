@@ -9,7 +9,7 @@ M.keys = {
 }
 
 M.navigation = {
-    active_file_keys = { "j", "k", "l" },
+    active_file_keys = { "1", "2", "3" },
 }
 
 M.ui = {

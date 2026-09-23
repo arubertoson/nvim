@@ -21,8 +21,6 @@ map("n", "<C-u>", "v:count ? '<C-u>zz' : (winheight('.') / 2) . '<C-u>zz'", { ex
 
 map("c", "<C-h>", "<Left>")
 map("c", "<C-l>", "<Right>")
-map("c", "<C-p>", "<Down>")
-map("c", "<C-n>", "<Up>")
 map("c", "<C-d>", "<Del>")
 map("c", "<C-a>", "<Home>")
 map("c", "<C-e>", "<End>")

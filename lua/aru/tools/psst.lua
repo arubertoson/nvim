@@ -6,6 +6,7 @@ local layout = require("aru.workspace.layout")
 
 require("psst").setup({
     executable = "pi-dev",
+    keymaps = { global = false },
     float = {
         side = "left",
         width = 80,
@@ -39,22 +40,4 @@ end, { desc = "Psst: question with cursor diagnostic" })
 
 map("n", "<leader>P", function() require("psst").float.focus() end, {
     desc = "Psst: focus/unfocus response",
-})
-map({ "n", "i" }, "<M-h>", function() require("psst").float.response_prev() end, {
-    desc = "Psst: previous response",
-})
-map({ "n", "i" }, "<M-l>", function() require("psst").float.response_next() end, {
-    desc = "Psst: next response",
-})
-map({ "n", "i" }, "<M-H>", function() require("psst").float.session_prev() end, {
-    desc = "Psst: previous inquiry session",
-})
-map({ "n", "i" }, "<M-L>", function() require("psst").float.session_next() end, {
-    desc = "Psst: next inquiry session",
-})
-map({ "n", "i" }, "<M-d>", function() require("psst").float.scroll("down") end, {
-    desc = "Psst: scroll response down",
-})
-map({ "n", "i" }, "<M-u>", function() require("psst").float.scroll("up") end, {
-    desc = "Psst: scroll response up",
 })

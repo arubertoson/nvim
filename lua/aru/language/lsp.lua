@@ -97,8 +97,6 @@ local function map_buffer_keys(bufnr)
         function() print(vim.inspect(vim.lsp.buf.list_workspace_folders())) end,
         "List workspace folders"
     )
-
-    map("<leader>li", "<cmd>checkhealth vim.lsp<cr>", "LSP health")
 end
 
 local function setup_buffer(bufnr)
@@ -259,12 +257,6 @@ function M.setup()
         "<leader>ld",
         function() vim.diagnostic.enable(not vim.diagnostic.is_enabled()) end,
         { desc = "Toggle diagnostics" }
-    )
-    vim.keymap.set(
-        "n",
-        "<leader>lh",
-        function() vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled()) end,
-        { desc = "Toggle inlay hints" }
     )
     vim.keymap.set("n", "<leader>li", "<cmd>checkhealth vim.lsp<CR>", { desc = "LSP info" })
 
