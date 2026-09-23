@@ -42,12 +42,20 @@ local function map_buffer_keys(bufnr)
         })
     end
 
-    local function pick_lsp(scope) require("mini.extra").pickers.lsp({ scope = scope }) end
+    local function picker_opts()
+        return { window = { config = require("aru.interface.picker").window_config } }
+    end
+
+    local function pick_lsp(scope)
+        require("mini.extra").pickers.lsp({ scope = scope }, picker_opts())
+    end
 
     local function pick_diagnostics(scope)
         require("mini.extra").pickers.diagnostic(
             { scope = scope },
-            { source = { show = require("aru.interface.picker").show_diagnostics } }
+            vim.tbl_deep_extend("force", picker_opts(), {
+                source = { show = require("aru.interface.picker").show_diagnostics },
+            })
         )
     end
 
