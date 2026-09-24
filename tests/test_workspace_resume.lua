@@ -21,6 +21,7 @@ local function project()
         ("vim.opt.runtimepath:prepend(%q)"):format(tracks_root),
         ("vim.opt.runtimepath:prepend(%q)"):format(config_root),
         'require("aru.workspace.sessions")',
+        'vim.api.nvim_create_autocmd("FileType", { callback = function(ev) vim.g.resume_filetype_event = vim.bo[ev.buf].filetype end })',
     }, init)
     return { root = root, jj = jj, state = state, init = init }
 end
@@ -29,13 +30,12 @@ local function launch(p, args, commands)
     local output = vim.fn.tempname()
     local argv = { vim.v.progpath, "--headless", "--noplugin", "-u", p.init }
     vim.list_extend(argv, args)
-    if commands then vim.list_extend(argv, { "-c", commands }) end
     vim.list_extend(argv, {
         "-c",
-        ("lua vim.fn.writefile({vim.json.encode({cwd=vim.uv.cwd(),path=vim.api.nvim_buf_get_name(0),line=vim.api.nvim_win_get_cursor(0)[1],history=require('tracks.file_jump').snapshot()})},%q)"):format(
+        ("lua local early_path=vim.api.nvim_buf_get_name(0); vim.schedule(function() %s vim.fn.writefile({vim.json.encode({early_path=early_path,cwd=vim.uv.cwd(),path=vim.api.nvim_buf_get_name(0),line=vim.api.nvim_win_get_cursor(0)[1],filetype=vim.bo.filetype,filetype_event=vim.g.resume_filetype_event,history=require('tracks.file_jump').snapshot()})},%q); vim.cmd('qa!') end)"):format(
+            commands and ("vim.cmd(%q); "):format(commands) or "",
             output
         ),
-        "+qa!",
     })
     local result = vim.system(argv, {
         cwd = p.jj,
@@ -54,11 +54,15 @@ T["jj resume and file navigation survive restart"] = function()
 
     local second = launch(p, {}, "lua assert(require('tracks.file_jump').prev())")
     MiniTest.expect.equality(second.path, p.jj .. "/a.lua")
+    MiniTest.expect.equality(second.filetype, "lua")
     MiniTest.expect.equality(second.line, 2)
     MiniTest.expect.equality(#second.history.entries, 2)
 
     local dot = launch(p, { "." })
+    MiniTest.expect.equality(dot.early_path, p.jj .. "/a.lua")
     MiniTest.expect.equality(dot.path, p.jj .. "/a.lua")
+    MiniTest.expect.equality(dot.filetype, "lua")
+    MiniTest.expect.equality(dot.filetype_event, "lua")
     MiniTest.expect.equality(dot.line, 2)
     MiniTest.expect.equality(dot.cwd, p.jj)
 

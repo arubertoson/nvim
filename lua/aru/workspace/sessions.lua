@@ -180,11 +180,26 @@ local selected = import_trail(workspace, explicit_file)
 file_jump._setup(file_config)
 if not explicit_file and selected then
     vim.cmd.edit({ args = { selected.path } })
-    local lines = math.max(1, vim.api.nvim_buf_line_count(0))
+    local buf = vim.api.nvim_get_current_buf()
+    local lines = math.max(1, vim.api.nvim_buf_line_count(buf))
     local view = vim.deepcopy(selected.view)
     view.lnum = math.max(1, math.min(view.lnum, lines))
     view.topline = math.max(1, math.min(view.topline, lines))
     vim.fn.winrestview(view)
+
+    -- The file is visible immediately, but startup filetype detection and our
+    -- FileType handlers are not ready yet. Apply the detected type after startup.
+    vim.schedule(function()
+        if
+            not vim.api.nvim_buf_is_valid(buf)
+            or vim.api.nvim_buf_get_name(buf) ~= selected.path
+            or vim.bo[buf].filetype ~= ""
+        then
+            return
+        end
+        local ft = vim.filetype.match({ buf = buf, filename = selected.path })
+        if ft then vim.bo[buf].filetype = ft end
+    end)
 end
 
 local group = vim.api.nvim_create_augroup("aru_workspace_resume", { clear = true })
