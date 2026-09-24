@@ -96,6 +96,7 @@ require("aru.runtime.startup").load({
         { name = "editor events", paths = runtime("lua/aru/editor/events.lua") },
         { name = "statusline", paths = runtime("lua/aru/interface/statusline.lua") },
         { name = "editor keymaps", paths = runtime("lua/aru/editor/keymaps.lua") },
+        { name = "centered layout", paths = runtime("lua/aru/workspace/layout.lua") },
     },
     deferred = {
         { name = "workspace navigation", paths = runtime("lua/aru/workspace/navigation.lua") },
@@ -107,7 +108,6 @@ require("aru.runtime.startup").load({
         { name = "file search", paths = runtime("lua/aru/workspace/search.lua") },
         { name = "Git signs", paths = runtime("lua/aru/workspace/git_signs.lua") },
         { name = "indent guides", paths = runtime("lua/aru/editor/indent.lua") },
-        { name = "centered layout", paths = runtime("lua/aru/workspace/layout.lua") },
         { name = "file explorer", setup = function() require("aru.workspace.files").setup() end },
         { name = "Psst", paths = runtime("lua/aru/tools/psst.lua") },
         {

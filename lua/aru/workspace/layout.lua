@@ -114,8 +114,9 @@ nnp.setup({
     },
     callbacks = {
         postEnable = function(state)
+            hide_separator(state.previously_focused_win)
+            apply_layout_for_filetype(vim.api.nvim_get_current_buf())
             vim.defer_fn(function()
-                hide_separator(state.previously_focused_win)
                 apply_layout_for_filetype(vim.api.nvim_get_current_buf())
                 vim.defer_fn(startup_reveal.reveal, 10)
             end, 50)
@@ -196,11 +197,9 @@ vim.api.nvim_create_autocmd({ "BufEnter", "FileType" }, {
     end,
 })
 
--- For the first run we just want to apply the layout
-vim.defer_fn(function()
-    nnp.enable()
-    apply_layout_for_filetype(vim.api.nvim_get_current_buf())
-end, 0)
+-- The public enable API debounces for 10ms. Build the initial layout before
+-- startup's first render; later tab/toggle operations still use the public API.
+require("no-neck-pain.main").enable("startup")
 
 vim.keymap.set("n", "<leader>wo", function()
     nnp.toggle()

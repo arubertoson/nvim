@@ -3,6 +3,7 @@ local MiniTest = _G.MiniTest or require("mini.test")
 if not _G.MiniTest then MiniTest.setup({ silent = true }) end
 
 local nnp
+local enabled_on_load
 local original_columns
 
 local function enabled() return _G.NoNeckPain.state and _G.NoNeckPain.state.enabled end
@@ -17,6 +18,7 @@ local T = MiniTest.new_set({
             vim.o.columns = 180
             require("aru.editor.keymaps")
             require("aru.workspace.layout")
+            enabled_on_load = enabled() and #vim.api.nvim_tabpage_list_wins(0) > 1
             nnp = require("no-neck-pain")
         end,
         pre_case = function()
@@ -34,6 +36,10 @@ local T = MiniTest.new_set({
         end,
     },
 })
+
+T["initial layout is ready when its module loads"] = function()
+    MiniTest.expect.equality(enabled_on_load, true)
+end
 
 T["closing a temporary file preserves the centered editing window"] = function()
     local win = vim.api.nvim_get_current_win()
