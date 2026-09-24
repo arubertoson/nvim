@@ -109,7 +109,8 @@ nnp.setup({
     minSideBufferWidth = 0,
     autocmds = {
         enableOnTabEnter = true,
-        skipEnteringNoNeckPainBuffer = true,
+        -- The upstream skip handler searches windows across tabs and can switch tabs.
+        skipEnteringNoNeckPainBuffer = false,
     },
     callbacks = {
         postEnable = function(state)
@@ -130,6 +131,61 @@ nnp.setup({
         },
         right = { enabled = false },
     },
+})
+
+-- Skip padding windows without selecting a window from another tab.
+vim.api.nvim_create_autocmd("WinEnter", {
+    group = vim.api.nvim_create_augroup("AruNoNeckPainSkipSide", { clear = true }),
+    callback = function()
+        local tab = vim.api.nvim_get_current_tabpage()
+        local win = vim.api.nvim_get_current_win()
+        local state = _G.NoNeckPain.state
+        local layout = state and state.tabs[tab]
+        if not layout or layout.scratchpad_enabled then return end
+
+        local sides = layout.wins.main
+        if win ~= sides.left and win ~= sides.right then return end
+
+        local previous = vim.fn.win_getid(vim.fn.winnr("#"))
+        local wins = vim.api.nvim_tabpage_list_wins(tab)
+        local side_index, previous_index
+        for index, candidate in ipairs(wins) do
+            if candidate == win then side_index = index end
+            if candidate == previous then previous_index = index end
+        end
+        if not side_index or not previous_index then return end
+
+        local step = previous_index < side_index and 1 or -1
+        vim.schedule(function()
+            if
+                vim.api.nvim_get_current_tabpage() ~= tab
+                or vim.api.nvim_get_current_win() ~= win
+            then
+                return
+            end
+
+            for offset = 1, #wins - 1 do
+                local candidate = wins[(side_index - 1 + step * offset) % #wins + 1]
+                if
+                    candidate ~= previous
+                    and candidate ~= sides.left
+                    and candidate ~= sides.right
+                    and vim.api.nvim_win_is_valid(candidate)
+                    and vim.api.nvim_win_get_config(candidate).relative == ""
+                then
+                    vim.api.nvim_set_current_win(candidate)
+                    return
+                end
+            end
+
+            if
+                vim.api.nvim_win_is_valid(previous)
+                and vim.api.nvim_win_get_tabpage(previous) == tab
+            then
+                vim.api.nvim_set_current_win(previous)
+            end
+        end)
+    end,
 })
 
 vim.api.nvim_create_autocmd({ "BufEnter", "FileType" }, {
