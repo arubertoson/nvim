@@ -20,13 +20,17 @@ local separator_winhighlight = ("WinSeparator:%s,VertSplit:%s"):format(separator
 local saved_winhighlight = {}
 local saved_psst_width = nil
 
-local function is_enabled()
-    return _G.NoNeckPain and _G.NoNeckPain.state and _G.NoNeckPain.state.enabled
+local function is_current_tab_ready()
+    local state = _G.NoNeckPain and _G.NoNeckPain.state
+    if not state or not state.enabled then return false end
+
+    local tab = vim.api.nvim_get_current_tabpage()
+    return state.active_tab == tab and state.tabs[tab] ~= nil
 end
 
 ---@param layout Psst.config.FloatLayout
 function M.expand_for_tool_float(layout)
-    if saved_psst_width or not is_enabled() then return end
+    if saved_psst_width or not is_current_tab_ready() then return end
 
     saved_psst_width = _G.NoNeckPain.config.width
     local side_margin = 3
@@ -41,7 +45,7 @@ function M.restore_after_tool_float()
 
     local width = saved_psst_width
     saved_psst_width = nil
-    if is_enabled() then nnp.resize(width) end
+    if is_current_tab_ready() then nnp.resize(width) end
 end
 
 ---@param buf integer
@@ -75,7 +79,7 @@ end
 
 ---@param buf integer
 local function apply_layout_for_filetype(buf)
-    if saved_psst_width or not is_enabled() then return end
+    if saved_psst_width or not is_current_tab_ready() then return end
     local win = layout_window(buf)
     if not win then return end
 
@@ -87,9 +91,11 @@ local function apply_layout_for_filetype(buf)
     local center_buffer = is_markdown or is_sqlite_query
     local right_enabled = _G.NoNeckPain.config.buffers.right.enabled
 
-    if right_enabled ~= center_buffer then nnp.toggle_side("right") end
+    if right_enabled ~= center_buffer and is_current_tab_ready() then nnp.toggle_side("right") end
 
-    if _G.NoNeckPain.config.width ~= target_width then nnp.resize(target_width) end
+    if _G.NoNeckPain.config.width ~= target_width and is_current_tab_ready() then
+        nnp.resize(target_width)
+    end
 end
 
 local hl = vim.api.nvim_get_hl(0, { name = "Normal", link = false })
