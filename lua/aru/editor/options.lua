@@ -41,7 +41,7 @@ vim.opt.cmdheight = 0
 vim.g.editorconfig = true
 
 -- UI
-vim.opt.shortmess:append("I") -- Do not flash the intro screen before session restoration.
+vim.opt.shortmess:append("I") -- Do not flash the intro screen before workspace resume.
 vim.opt.showcmd = false
 vim.o.winborder = require("aru.config").ui.border
 vim.opt.number = true
