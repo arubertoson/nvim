@@ -106,7 +106,7 @@ require("aru.runtime.startup").load({
         { name = "completion", paths = runtime("lua/aru/language/completion.lua") },
         { name = "formatting", paths = runtime("lua/aru/language/formatting.lua") },
         { name = "file search", paths = runtime("lua/aru/workspace/search.lua") },
-        { name = "Git signs", paths = runtime("lua/aru/workspace/git_signs.lua") },
+        { name = "VC signs", paths = runtime("lua/aru/workspace/vc_signs.lua") },
         { name = "indent guides", paths = runtime("lua/aru/editor/indent.lua") },
         { name = "file explorer", setup = function() require("aru.workspace.files").setup() end },
         { name = "Psst", paths = runtime("lua/aru/tools/psst.lua") },

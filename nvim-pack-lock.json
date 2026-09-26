@@ -1,5 +1,9 @@
 {
   "plugins": {
+    "async.nvim": {
+      "rev": "15f28ec323a75f34f317336831c00c2d1b0a7192",
+      "src": "https://github.com/lewis6991/async.nvim"
+    },
     "blink.cmp": {
       "rev": "327fff9",
       "src": "https://github.com/Saghen/blink.cmp",
@@ -19,11 +23,6 @@
       "rev": "95fd777c2529fc7b4d7572dabff64cc07268f2c5",
       "src": "https://github.com/dmtrKovalenko/fff.nvim",
       "version": "'v0.11.0'"
-    },
-    "gitsigns.nvim": {
-      "rev": "7010000",
-      "src": "https://github.com/lewis6991/gitsigns.nvim",
-      "version": "2.1.0 - 2.1.0"
     },
     "indent-blankline.nvim": {
       "rev": "005b560",
@@ -84,6 +83,14 @@
     "tracks.nvim": {
       "rev": "0d46851fc8b61ad11ad52b105cfe9555eee7217d",
       "src": "https://github.com/arubertoson/tracks.nvim"
+    },
+    "vclib.nvim": {
+      "rev": "c83945c63dc0c5c8687ba0eff5a40af1f8bf6002",
+      "src": "https://github.com/algmyr/vclib.nvim"
+    },
+    "vcsigns.nvim": {
+      "rev": "7d7e9934f94a8e270089ac2621fcfbb78780de69",
+      "src": "https://github.com/algmyr/vcsigns.nvim"
     },
     "vim-sleuth": {
       "rev": "be69bff",

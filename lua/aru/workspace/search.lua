@@ -4,14 +4,12 @@
 ---   Primary file/content interaction layer.
 ---
 --- Use for:
----   - file search
----   - live grep
----   - git/path-constrained file queries
+---   - file search and live grep with fff
+---   - changed-file search for Git and jj with mini.pick
 ---
 --- Boundary:
----   fff has a picker UI, but not a public generic picker API. Its search path is
----   wired to fff file/grep backends, and selection expects a file item with a
----   `relative_path`. Generic help/LSP/code-action flows use Neovim defaults.
+---   fff has no public API for external file lists, so changed files use
+---   mini.pick for both version control systems.
 
 local config = require("aru.config")
 
@@ -110,7 +108,7 @@ map(
 map(
     "n",
     "<leader>fc",
-    with_fff(function(fff) fff.find_files({ cwd = vim.uv.cwd(), query = "git:modified " }) end),
+    require("aru.workspace.changed_files").find_changed_files,
     { desc = "Find changed files" }
 )
 map(

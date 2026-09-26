@@ -38,6 +38,8 @@ vim.list_extend(plugins, {
         src = "https://github.com/nvim-lua/plenary.nvim.git",
         version = "master",
     },
+    { src = "https://github.com/algmyr/vclib.nvim" },
+    { src = "https://github.com/lewis6991/async.nvim" },
     {
         src = "https://github.com/nvim-tree/nvim-web-devicons",
         version = "master",
@@ -57,10 +59,7 @@ vim.list_extend(plugins, {
     { src = "https://github.com/rebelot/kanagawa.nvim" },
 
     -- UI Stuff
-    {
-        src = "https://github.com/lewis6991/gitsigns.nvim",
-        version = vim.version.range("2.1.0"),
-    },
+    { src = "https://github.com/algmyr/vcsigns.nvim" },
     {
         src = "https://github.com/lukas-reineke/indent-blankline.nvim",
         version = vim.version.range("3.9.1"),
@@ -94,12 +93,9 @@ vim.list_extend(plugins, {
     -- ===========================================================================
     -- Pickers / Search
     -- ===========================================================================
-    -- fff.nvim owns file/content workflows: file search, live grep, and
-    -- git/path-constrained file queries.
-    --
-    -- fff stays focused on file/content search. mini.pick/mini.extra provides
-    -- the generic searchable picker layer for LSP, diagnostics, and vim.ui.select
-    -- flows such as code actions.
+    -- fff.nvim owns general file search and live grep.
+    -- mini.pick/mini.extra handles other searchable lists, including changed files,
+    -- LSP, diagnostics, and vim.ui.select flows such as code actions.
     --
     { src = "https://github.com/dmtrKovalenko/fff.nvim", version = "v0.11.0" },
 
