@@ -19,6 +19,7 @@ local separator_hl = "AruNoNeckPainSeparator"
 local separator_winhighlight = ("WinSeparator:%s,VertSplit:%s"):format(separator_hl, separator_hl)
 local saved_winhighlight = {}
 local saved_psst_width = nil
+local leaving = false
 
 local function is_current_tab_ready()
     local state = _G.NoNeckPain and _G.NoNeckPain.state
@@ -135,9 +136,15 @@ nnp.setup({
 })
 
 -- Skip padding windows without selecting a window from another tab.
+local skip_side_group = vim.api.nvim_create_augroup("AruNoNeckPainSkipSide", { clear = true })
+vim.api.nvim_create_autocmd("VimLeavePre", {
+    group = skip_side_group,
+    callback = function() leaving = true end,
+})
 vim.api.nvim_create_autocmd("WinEnter", {
-    group = vim.api.nvim_create_augroup("AruNoNeckPainSkipSide", { clear = true }),
+    group = skip_side_group,
     callback = function()
+        if leaving then return end
         local tab = vim.api.nvim_get_current_tabpage()
         local win = vim.api.nvim_get_current_win()
         local state = _G.NoNeckPain.state
@@ -159,7 +166,8 @@ vim.api.nvim_create_autocmd("WinEnter", {
         local step = previous_index < side_index and 1 or -1
         vim.schedule(function()
             if
-                vim.api.nvim_get_current_tabpage() ~= tab
+                leaving
+                or vim.api.nvim_get_current_tabpage() ~= tab
                 or vim.api.nvim_get_current_win() ~= win
             then
                 return
