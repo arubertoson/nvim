@@ -66,6 +66,8 @@ end
 
 local function hide_separator(win)
     win = win or vim.api.nvim_get_current_win()
+    if not vim.api.nvim_win_is_valid(win) then return end
+
     saved_winhighlight[win] = saved_winhighlight[win] or vim.wo[win].winhighlight
     set_separator_highlight(win, separator_winhighlight)
 end
