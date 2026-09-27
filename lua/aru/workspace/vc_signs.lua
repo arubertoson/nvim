@@ -1,4 +1,7 @@
-require("vcsigns").setup({ target_commit = 1 })
+require("vcsigns").setup({
+    target_commit = 1,
+    signs = { text = { add = "▎", change = "▎" } },
+})
 
 local actions = require("vcsigns.actions")
 
