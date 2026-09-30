@@ -3,7 +3,7 @@ default:
     @just --list
 
 # Bootstrap this Neovim configuration, then verify it.
-setup: tools-install lsp-install plugins-install hooks-install check
+setup: tools-install lsp-install test-tools-install plugins-install hooks-install check
 
 # Run every check expected to pass before committing.
 check: format-check test
@@ -40,6 +40,10 @@ tools-install:
 # Install Node-based language servers and formatters from tools/lsp.
 lsp-install:
     @npm --prefix tools/lsp ci
+
+# Install legacy TypeScript separately for real-server integration tests.
+test-tools-install:
+    @npm --prefix tests/fixtures/typescript ci
 
 # Install plugins at the revisions in nvim-pack-lock.json.
 plugins-install:

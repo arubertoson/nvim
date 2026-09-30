@@ -1,6 +1,7 @@
 .aider*
 /tools/bin/
 /tools/lsp/node_modules/
+/tests/fixtures/typescript/node_modules/
 /tools/fff/
 
 # Beads / Dolt files (added by bd init)

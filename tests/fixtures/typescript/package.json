@@ -1,0 +1,7 @@
+{
+  "name": "nvim-legacy-typescript-fixture",
+  "private": true,
+  "dependencies": {
+    "typescript": "6.0.3"
+  }
+}

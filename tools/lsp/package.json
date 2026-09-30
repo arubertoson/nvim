@@ -6,7 +6,7 @@
     "@biomejs/biome": "latest",
     "@tailwindcss/language-server": "latest",
     "prettier": "latest",
-    "typescript": "latest",
+    "typescript": "^7.0.2",
     "typescript-language-server": "latest",
     "vscode-langservers-extracted": "latest"
   }

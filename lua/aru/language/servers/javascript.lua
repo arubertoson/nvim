@@ -47,8 +47,40 @@ end
 
 local function find_node_bin(root_dir, name) return find_node_path(root_dir, ".bin/" .. name, true) end
 
-local function find_tsserver(root_dir)
-    return find_node_path(root_dir, "typescript/lib/tsserver.js", false)
+---@alias TypeScriptServer { name: "ts_ls", path: string } | { name: "tsc", path: string }
+
+-- Resolve once per project. Restart Neovim after changing its TypeScript installation.
+---@type table<string, TypeScriptServer>
+local typescript_servers = {}
+
+---@param root_dir string
+---@return TypeScriptServer
+local function select_typescript_server(root_dir)
+    local package_json = find_node_path(root_dir, "typescript/package.json", false)
+        or vim.fs.joinpath(
+            vim.fn.stdpath("config"),
+            "tools",
+            "lsp",
+            "node_modules",
+            "typescript",
+            "package.json"
+        )
+    local package = vim.json.decode(table.concat(vim.fn.readfile(package_json), "\n"))
+    local version =
+        assert(vim.version.parse(package.version), "Invalid TypeScript version: " .. package_json)
+    local package_dir = vim.fs.dirname(package_json)
+    if version.major >= 7 then
+        local compiler = vim.fs.joinpath(package_dir, "bin", "tsc")
+        assert(
+            vim.fn.executable(compiler) == 1,
+            "Missing native TypeScript compiler: " .. compiler
+        )
+        return { name = "tsc", path = compiler }
+    end
+
+    local tsserver = vim.fs.joinpath(package_dir, "lib", "tsserver.js")
+    assert(vim.uv.fs_stat(tsserver), "Missing TypeScript server: " .. tsserver)
+    return { name = "ts_ls", path = tsserver }
 end
 
 local function start_rpc(cmd, dispatchers, config)
@@ -67,12 +99,17 @@ local function typescript_language_server_cmd(dispatchers, config)
     return start_rpc({ executable, "--stdio" }, dispatchers, config)
 end
 
+local function native_typescript_cmd(dispatchers, config)
+    local server = typescript_servers[config.root_dir]
+    return start_rpc({ server.path, "--lsp", "--stdio" }, dispatchers, config)
+end
+
 local function biome_cmd(dispatchers, config)
     local executable = find_node_bin(config.root_dir or vim.fn.getcwd(), "biome") or "biome"
     return start_rpc({ executable, "lsp-proxy" }, dispatchers, config)
 end
 
-local function typescript_root_dir(bufnr, on_dir)
+local function typescript_root_dir(server_name, bufnr, on_dir)
     -- The project root is where the LSP can be started from.
     -- This LSP supports monorepos and simple projects. We select from the project root,
     -- identified by the presence of a package-manager lock file.
@@ -92,7 +129,11 @@ local function typescript_root_dir(bufnr, on_dir)
     end
 
     -- We fallback to the current working directory if no project root is found.
-    on_dir(project_root or vim.fn.getcwd())
+    local root_dir = project_root or vim.fn.getcwd()
+    if not typescript_servers[root_dir] then
+        typescript_servers[root_dir] = select_typescript_server(root_dir)
+    end
+    if typescript_servers[root_dir].name == server_name then on_dir(root_dir) end
 end
 
 local function biome_root_dir(bufnr, on_dir)
@@ -121,17 +162,10 @@ vim.lsp.config("ts_ls", {
         "typescript",
         "typescriptreact",
     },
-    root_dir = typescript_root_dir,
+    root_dir = function(bufnr, on_dir) typescript_root_dir("ts_ls", bufnr, on_dir) end,
     before_init = function(init_params, config)
-        local tsserver = find_tsserver(config.root_dir or vim.fn.getcwd())
-        if tsserver then
-            config.init_options = vim.tbl_deep_extend("force", config.init_options or {}, {
-                tsserver = {
-                    path = tsserver,
-                },
-            })
-            init_params.initializationOptions = config.init_options
-        end
+        config.init_options.tsserver = { path = typescript_servers[config.root_dir].path }
+        init_params.initializationOptions = config.init_options
     end,
     handlers = {
         -- handle rename request for certain code actions like extracting functions / types
@@ -219,6 +253,17 @@ vim.lsp.config("ts_ls", {
     end,
 })
 
+vim.lsp.config("tsc", {
+    cmd = native_typescript_cmd,
+    filetypes = {
+        "javascript",
+        "javascriptreact",
+        "typescript",
+        "typescriptreact",
+    },
+    root_dir = function(bufnr, on_dir) typescript_root_dir("tsc", bufnr, on_dir) end,
+})
+
 vim.lsp.config("biome", {
     cmd = biome_cmd,
     filetypes = {
@@ -233,4 +278,4 @@ vim.lsp.config("biome", {
     root_dir = biome_root_dir,
 })
 
-vim.lsp.enable({ "ts_ls", "biome" })
+vim.lsp.enable({ "ts_ls", "tsc", "biome" })

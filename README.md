@@ -43,6 +43,19 @@ plugin does it *significantly* better.
 Dependencies need to earn its place. If a native feature catches up, the
 plugin gets replaced, not stacked on top.
 
+## TypeScript
+
+The configuration chooses one TypeScript server per project:
+
+- Installed project TypeScript 6 or older uses `ts_ls` and its own `tsserver.js`.
+- Installed project TypeScript 7 or newer uses its native LSP (`tsc --lsp --stdio`).
+- Without project TypeScript, the native installation in `tools/lsp` is used.
+
+Selection is kept for the Neovim session. Install a project version and restart
+Neovim when you need different behavior. Deno projects are excluded from both
+servers. The legacy `LspTypescript*` commands remain specific to `ts_ls`; standard
+LSP navigation and code actions work with either server.
+
 ## Development
 
 With `mise` and `just` available, bootstrap a fresh checkout with:
@@ -55,5 +68,7 @@ This installs the configuration-owned StyLua and LuaLS versions, the Node-based
 tools declared in `tools/lsp/package.json`, Neovim plugins, and the pre-commit hook.
 It then runs the complete quality gate. Neovim, Node, Mise, and Just are system
 prerequisites; language tooling for target repositories remains target-repository-owned.
+`just test-tools-install` installs the isolated legacy TypeScript fixture for
+integration tests against both real server backends; `just setup` includes it.
 Every commit reruns `just check`, which verifies Lua formatting and runs the test suite.
 Use `just format` to fix formatting failures.
