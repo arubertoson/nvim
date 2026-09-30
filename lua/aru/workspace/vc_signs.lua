@@ -1,5 +1,5 @@
 require("vcsigns").setup({
-    target_commit = 1,
+    target_commit = 0,
     signs = { text = { add = "▎", change = "▎" } },
 })
 
