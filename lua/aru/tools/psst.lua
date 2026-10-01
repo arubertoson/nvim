@@ -5,7 +5,7 @@ local map = vim.keymap.set
 local layout = require("aru.workspace.layout")
 
 require("psst").setup({
-    executable = "pi-dev",
+    executable = "pi",
     keymaps = { global = false },
     float = {
         side = "left",
