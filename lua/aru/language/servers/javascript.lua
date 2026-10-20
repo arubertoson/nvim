@@ -1,3 +1,15 @@
+--- JavaScript/TypeScript language-server configuration.
+---
+--- One TypeScript server is selected per project:
+--- - Project TypeScript 6 or older uses ts_ls and its own tsserver.js.
+--- - Project TypeScript 7 or newer uses its native LSP (tsc --lsp --stdio).
+--- - Without project TypeScript, the native installation in tools/lsp is used.
+---
+--- Selection is kept for the Neovim session. Install a project version and restart
+--- Neovim when different behavior is needed. Deno projects are excluded from both
+--- servers. Legacy LspTypescript* commands remain specific to ts_ls; standard LSP
+--- navigation and code actions work with either server.
+
 local package_root_markers =
     { "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb", "bun.lock" }
 local biome_config_files = { "biome.json", "biome.jsonc" }

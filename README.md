@@ -43,19 +43,6 @@ plugin does it *significantly* better.
 Dependencies need to earn its place. If a native feature catches up, the
 plugin gets replaced, not stacked on top.
 
-## TypeScript
-
-The configuration chooses one TypeScript server per project:
-
-- Installed project TypeScript 6 or older uses `ts_ls` and its own `tsserver.js`.
-- Installed project TypeScript 7 or newer uses its native LSP (`tsc --lsp --stdio`).
-- Without project TypeScript, the native installation in `tools/lsp` is used.
-
-Selection is kept for the Neovim session. Install a project version and restart
-Neovim when you need different behavior. Deno projects are excluded from both
-servers. The legacy `LspTypescript*` commands remain specific to `ts_ls`; standard
-LSP navigation and code actions work with either server.
-
 ## Development
 
 With `mise` and `just` available, bootstrap a fresh checkout with:
