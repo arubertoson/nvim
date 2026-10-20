@@ -4,9 +4,6 @@
 local config = require("aru.config")
 local map = vim.keymap.set
 
-vim.g.mapleader = config.keys.leader
-vim.g.maplocalleader = config.keys.local_leader
-
 map({ "n", "x", "o" }, config.keys.leader, "<Nop>", { silent = true })
 map({ "n", "x", "o" }, config.keys.local_leader, "<Nop>", { silent = true })
 
