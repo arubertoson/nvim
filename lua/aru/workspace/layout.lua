@@ -20,6 +20,32 @@ local separator_winhighlight = ("WinSeparator:%s,VertSplit:%s"):format(separator
 local saved_winhighlight = {}
 local saved_psst_width = nil
 local leaving = false
+---@type integer? Borrowed review window; review teardown releases the layout hold.
+local review_window
+
+-- A frozen review uses the existing layout, even while crossing filetypes.
+---@param win integer
+function M.hold_review_window(win) review_window = win end
+function M.release_review_window() review_window = nil end
+
+-- Parley communicates through events and never imports this module.
+local review_group = vim.api.nvim_create_augroup("AruParleyLayout", { clear = true })
+vim.api.nvim_create_autocmd("User", {
+    group = review_group,
+    pattern = "ParleyReviewStarted",
+    desc = "Keep the existing layout while Parley owns the source window",
+    callback = function(event) M.hold_review_window(event.data.window) end,
+})
+vim.api.nvim_create_autocmd("User", {
+    group = review_group,
+    pattern = "ParleyReviewStopped",
+    desc = "Release Parley's source-window layout hold",
+    callback = function(event)
+        if review_window == event.data.window then M.release_review_window() end
+    end,
+})
+local parley = package.loaded["parley"]
+if parley then review_window = parley.active_window() end
 
 local function is_current_tab_ready()
     local state = _G.NoNeckPain and _G.NoNeckPain.state
@@ -84,7 +110,7 @@ end
 local function apply_layout_for_filetype(buf)
     if saved_psst_width or not is_current_tab_ready() then return end
     local win = layout_window(buf)
-    if not win then return end
+    if not win or win == review_window then return end
 
     hide_separator(win)
 

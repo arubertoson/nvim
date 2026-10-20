@@ -95,7 +95,6 @@ Design principle
 --
 
 local colors = require("aru.interface.colors")
-local config = require("aru.config")
 local git = require("aru.workspace.git")
 local log = require("aru.log")
 
@@ -126,7 +125,7 @@ local function lineinfo()
     return hlstring(highlights.dim, ("[%s:%s]"):format(line_with_width, column_with_width))
 end
 
-local state = {}
+local state = { review_badge = hlstring(highlights.dim, " EDIT "), review = "" }
 
 local StatusLine = {}
 
@@ -135,16 +134,17 @@ function StatusLine.inactive() return state.filetype or "-" end
 function StatusLine.active()
     local mode_str = vim.api.nvim_get_mode().mode
     if mode_str == "t" or mode_str == "nt" then
-        return table.concat({ " ", mode(), "%=", "%=", state.active_files or "-" })
+        return table.concat({ state.review_badge, mode(), "%=", "%=", state.review })
     end
 
     return table.concat({
+        state.review_badge,
         state.workspace_branch or "-",
         state.buffer_lsp_and_filetype or "[-]",
         state.current_buffer or "-",
         "%=",
         "%=",
-        state.active_files or "-",
+        state.review,
         lineinfo(),
     }, " ")
 end
@@ -253,39 +253,19 @@ vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach", "BufEnter", "VimEnter" }
     callback = refresh_lsp_state,
 })
 
-local function refresh_active_files()
-    local ok, active = pcall(function() return require("tracks").active end)
-    if not ok then return end
-
-    local slots = {}
-    local current_path = vim.fs.normalize(vim.api.nvim_buf_get_name(0))
-    local items = active.items()
-    for i = 1, #config.navigation.active_file_keys do
-        local item = items[i]
-        local content = ""
-        if item then
-            local color = item.path == current_path and highlights.dim or highlights.comment
-            content = hlstring(color, vim.fs.basename(item.path))
-        end
-
-        slots[#slots + 1] = hlstring(highlights.comment, ("[%d:"):format(i))
-        slots[#slots + 1] = content
-        slots[#slots + 1] = hlstring(highlights.comment, "]")
-        slots[#slots + 1] = " "
-    end
-
-    state.active_files = table.concat(slots)
+---@param status string Cached empty-or-active review status; no work during rendering.
+local function cache_review(status)
+    state.review_badge = status == "" and hlstring(highlights.dim, " EDIT ")
+        or hlstring(highlights.selected, " REVIEW ")
+    state.review = status == "" and "" or hlstring(highlights.comment, status:gsub("%%", "%%%%"))
     vim.cmd.redrawstatus()
 end
 
 vim.api.nvim_create_autocmd("User", {
     group = statusline_augroup,
-    pattern = "TracksActiveUpdated",
-    desc = "Update active-file slots for statusline",
-    callback = refresh_active_files,
+    pattern = "ParleyReviewChanged",
+    desc = "Cache review progress for the statusline",
+    callback = function(event) cache_review(event.data.status) end,
 })
-vim.api.nvim_create_autocmd({ "BufEnter", "VimEnter" }, {
-    group = statusline_augroup,
-    desc = "Update active-file slots for statusline",
-    callback = refresh_active_files,
-})
+local parley = package.loaded["parley"]
+if parley then cache_review(parley.status()) end

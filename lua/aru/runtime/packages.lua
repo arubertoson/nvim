@@ -29,6 +29,7 @@ end
 add_personal_plugin("psst.nvim")
 add_personal_plugin("sqlite-scratch.nvim")
 add_personal_plugin("tracks.nvim")
+add_personal_plugin("parley.nvim")
 
 vim.list_extend(plugins, {
     -- ===========================================================================
