@@ -12,7 +12,8 @@ vim.lsp.config("zls", {
     -- https://github.com/zigtools/zls/blob/master/src/Config.zig
     settings = {
         zls = {
-            -- enable_build_on_save = true,
+            -- A project's check step enables build-on-save automatically.
+            build_on_save_args = { "-fincremental", "--debounce", "1000" },
             inlay_hints_hide_redundant_param_names = true,
             inlay_hints_hide_redundant_param_names_last_token = true,
             warn_style = true,

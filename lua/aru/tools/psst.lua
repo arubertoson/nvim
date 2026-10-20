@@ -7,6 +7,9 @@ local layout = require("aru.workspace.layout")
 require("psst").setup({
     executable = "pi",
     keymaps = { global = false },
+    tools = {
+        inquire = { "read", "ffgrep", "fffind", "zig-stdlib-search" },
+    },
     float = {
         side = "left",
         width = 80,

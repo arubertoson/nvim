@@ -57,6 +57,12 @@ with a faster alternative. I prioritize speed over feature completeness.
 --]]
 
 vim.loader.enable()
+
+-- Neovim expands leaders when mappings are registered, so establish them first.
+local config = require("aru.config")
+vim.g.mapleader = config.keys.leader
+vim.g.maplocalleader = config.keys.local_leader
+
 require("aru.interface.startup_reveal").setup()
 
 -- UI Enhancement - must load first

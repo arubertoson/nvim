@@ -33,8 +33,9 @@ hooks-install:
 tools-install:
     @mise install
     @mkdir -p tools/bin
-    @rm -f tools/bin/lua-language-server tools/bin/sqls
+    @rm -f tools/bin/harper-ls tools/bin/lua-language-server tools/bin/sqls
     @ln -s "$(mise exec -- which lua-language-server)" tools/bin/lua-language-server
+    @ln -s "$(mise exec -- which harper-ls)" tools/bin/harper-ls
     @install -m 755 "$(mise exec -- which sqls)" tools/bin/sqls
 
 # Install Node-based language servers and formatters from tools/lsp.
