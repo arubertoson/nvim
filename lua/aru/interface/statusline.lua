@@ -125,7 +125,7 @@ local function lineinfo()
     return hlstring(highlights.dim, ("[%s:%s]"):format(line_with_width, column_with_width))
 end
 
-local state = { review_badge = hlstring(highlights.dim, " EDIT "), review = "" }
+local state = { review_badge = hlstring(highlights.dim, " EDIT "), review = "", request = "" }
 
 local StatusLine = {}
 
@@ -134,7 +134,7 @@ function StatusLine.inactive() return state.filetype or "-" end
 function StatusLine.active()
     local mode_str = vim.api.nvim_get_mode().mode
     if mode_str == "t" or mode_str == "nt" then
-        return table.concat({ state.review_badge, mode(), "%=", "%=", state.review })
+        return table.concat({ state.review_badge, mode(), "%=", "%=", state.review, state.request })
     end
 
     return table.concat({
@@ -145,6 +145,7 @@ function StatusLine.active()
         "%=",
         "%=",
         state.review,
+        state.request,
         lineinfo(),
     }, " ")
 end
@@ -267,5 +268,31 @@ vim.api.nvim_create_autocmd("User", {
     desc = "Cache review progress for the statusline",
     callback = function(event) cache_review(event.data.status) end,
 })
+---@param status ParleyInteraction.Status Copied cached request state; never polls Pi.
+local function cache_request(status)
+    local label = status.phase
+    if status.phase == "idle" then
+        state.request = ""
+    else
+        if status.phase == "accepted" and status.activity then
+            label = "accepted / " .. status.activity
+        elseif status.phase == "failed" and status.outcome then
+            label = status.outcome.status .. " / delivery failed"
+        end
+        state.request = hlstring(highlights.comment, " Parley: " .. label .. " ")
+    end
+    vim.cmd.redrawstatus()
+end
+
+vim.api.nvim_create_autocmd("User", {
+    group = statusline_augroup,
+    pattern = "ParleyRequestChanged",
+    desc = "Cache Parley request progress for the statusline",
+    callback = function(event) cache_request(event.data) end,
+})
+
 local parley = package.loaded["parley"]
-if parley then cache_review(parley.status()) end
+if parley then
+    cache_review(parley.status())
+    cache_request(parley.request_status())
+end
