@@ -72,7 +72,6 @@ local function map_buffer_keys(bufnr)
 
 	map("]d", function() vim.diagnostic.jump({ count = 1, float = true }) end, "Next diagnostic")
 	map("[d", function() vim.diagnostic.jump({ count = -1, float = true }) end, "Prev diagnostic")
-	map("M", vim.diagnostic.open_float, "Line diagnostics")
     -- stylua: ignore end
 
     map(
@@ -242,8 +241,38 @@ local function setup_gc()
     })
 end
 
+local function inspect_here()
+    -- Neovim records both diagnostic and LSP floats on their source buffer.
+    local win = vim.b.lsp_floating_preview
+    if
+        win
+        and vim.api.nvim_win_is_valid(win)
+        and vim.api.nvim_win_get_tabpage(win) == vim.api.nvim_get_current_tabpage()
+    then
+        local opts = vim.api.nvim_win_get_config(win)
+        if opts.relative ~= "" and opts.focusable then
+            vim.api.nvim_set_current_win(win)
+            return
+        end
+    end
+    vim.lsp.buf.hover()
+end
+
 function M.setup()
     vim.diagnostic.config(diagnostic_config)
+    vim.keymap.set(
+        "n",
+        "<C-k>",
+        inspect_here,
+        { desc = "Focus information popup or show documentation" }
+    )
+    vim.keymap.set(
+        { "i", "s" },
+        "<C-k>",
+        vim.lsp.buf.signature_help,
+        { desc = "Function signature" }
+    )
+    vim.keymap.del({ "i", "s" }, "<C-s>")
     setup_gc()
 
     vim.keymap.set(

@@ -146,4 +146,56 @@ T["does not attach either TypeScript server in a Deno project"] = function()
     MiniTest.expect.equality(attached, false)
 end
 
+T["Ctrl-k enters diagnostic or hover details without hiding documentation behind diagnostics"] = function()
+    child.lua(
+        [[
+        vim.opt.runtimepath:append(...)
+        require("aru.language.lsp").setup()
+    ]],
+        { config_root }
+    )
+    start_and_hover()
+    child.lua([[
+        local function inspect()
+            local key = vim.api.nvim_replace_termcodes("<C-k>", true, false, true)
+            vim.api.nvim_feedkeys(key, "xt", false)
+        end
+        local buf = vim.api.nvim_get_current_buf()
+        local source_win = vim.api.nvim_get_current_win()
+        local ns = vim.api.nvim_create_namespace("inspect_test")
+        vim.diagnostic.set(ns, buf, {
+            { lnum = 1, col = 0, end_col = 5, message = "Inspection diagnostic" },
+        })
+        assert(vim.fn.maparg("M", "n") == "", "M should retain its native behavior")
+        vim.api.nvim_win_set_cursor(source_win, { 1, 0 })
+        vim.api.nvim_feedkeys("]d", "xt", false)
+        assert(vim.wait(2000, function()
+            local win = vim.b[buf].lsp_floating_preview
+            return win ~= nil and vim.api.nvim_win_is_valid(win)
+        end, 20), "Diagnostic navigation did not show details")
+        local diagnostic_win = vim.b[buf].lsp_floating_preview
+        inspect()
+        assert(vim.api.nvim_get_current_win() == diagnostic_win,
+            "Ctrl-k should enter the diagnostic window")
+        vim.api.nvim_feedkeys("q", "xt", false)
+        assert(vim.api.nvim_get_current_win() == source_win)
+
+        -- The diagnostic remains on this line, but its popup is now closed.
+        inspect()
+        assert(vim.wait(10000, function()
+            local win = vim.b[buf].lsp_floating_preview
+            return win ~= nil and vim.api.nvim_win_is_valid(win)
+        end, 20), "Ctrl-k did not open symbol documentation")
+        local hover_win = vim.b[buf].lsp_floating_preview
+        local text = table.concat(vim.api.nvim_buf_get_lines(
+            vim.api.nvim_win_get_buf(hover_win), 0, -1, false
+        ), "\n")
+        assert(text:find("value", 1, true), "Expected symbol documentation")
+        assert(not text:find("Inspection diagnostic", 1, true))
+        inspect()
+        assert(vim.api.nvim_get_current_win() == hover_win,
+            "Second Ctrl-k should enter the documentation window")
+    ]])
+end
+
 return T
