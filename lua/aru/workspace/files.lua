@@ -150,6 +150,8 @@ function M.setup()
         skip_confirm_for_simple_edits = true,
         keymaps = {
             q = "actions.close",
+            q = "actions.close",
+            ["<Esc>"] = "actions.close",
             ["<C-k>"] = "actions.parent",
             ["<C-j>"] = "actions.select",
             ["<C-p>"] = "actions.preview",
