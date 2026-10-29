@@ -75,4 +75,50 @@ T["closing an extra split still closes its window"] = function()
     MiniTest.expect.equality(enabled(), true)
 end
 
+T["restarting layout recovers a missing editing window"] = function()
+    local state = _G.NoNeckPain.state
+    local tab = vim.api.nvim_get_current_tabpage()
+    local main = state.tabs[tab].wins.main
+    vim.api.nvim_win_close(main.curr, true)
+    wait_for(function() return #vim.api.nvim_tabpage_list_wins(tab) == 1 end)
+
+    local keys = vim.api.nvim_replace_termcodes(";wo", true, false, true)
+    vim.api.nvim_feedkeys(keys, "xt", false)
+    wait_for(function() return not enabled() end)
+
+    vim.api.nvim_feedkeys(keys, "xt", false)
+    wait_for(function()
+        local current = _G.NoNeckPain.state
+        local layout = current.tabs[tab]
+        return current.enabled and layout and #vim.api.nvim_tabpage_list_wins(tab) > 1
+    end)
+
+    local recovered = _G.NoNeckPain.state.tabs[tab].wins.main
+    local has_editing_window = false
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(tab)) do
+        if win ~= recovered.left and win ~= recovered.right then has_editing_window = true end
+    end
+    MiniTest.expect.equality(has_editing_window, true)
+end
+
+T["restarting layout recomputes padding window width"] = function()
+    local tab = vim.api.nvim_get_current_tabpage()
+    local left = _G.NoNeckPain.state.tabs[tab].wins.main.left
+    vim.api.nvim_win_set_width(left, 3)
+
+    local keys = vim.api.nvim_replace_termcodes(";wo", true, false, true)
+    vim.api.nvim_feedkeys(keys, "xt", false)
+    wait_for(function() return not enabled() end)
+
+    vim.api.nvim_feedkeys(keys, "xt", false)
+    wait_for(function()
+        local state = _G.NoNeckPain.state
+        local layout = state.tabs[tab]
+        return state.enabled and layout and layout.wins.main.left ~= left
+    end)
+
+    local resized = _G.NoNeckPain.state.tabs[tab].wins.main.left
+    MiniTest.expect.equality(vim.api.nvim_win_get_width(resized) > 3, true)
+end
+
 return T

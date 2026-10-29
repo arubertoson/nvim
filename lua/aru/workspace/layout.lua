@@ -237,8 +237,40 @@ vim.api.nvim_create_autocmd({ "BufEnter", "FileType" }, {
 -- startup's first render; later tab/toggle operations still use the public API.
 require("no-neck-pain.main").enable("startup")
 
-vim.keymap.set("n", "<leader>wo", function()
+local function recover_missing_editing_window()
+    local state = _G.NoNeckPain.state
+    local tab = vim.api.nvim_get_current_tabpage()
+    local layout = state.tabs[tab]
+    if not state.enabled or not layout then return false end
+
+    local sides = layout.wins.main
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(tab)) do
+        if
+            win ~= sides.left
+            and win ~= sides.right
+            and vim.api.nvim_win_get_config(win).relative == ""
+        then
+            return false
+        end
+    end
+
+    -- Upstream runs `quitall!` on disable if only padding windows remain.
+    -- Give it a real editing window so the layout can safely reset.
+    vim.cmd("rightbelow new")
+    for _, info in ipairs(vim.fn.getbufinfo({ buflisted = 1 })) do
+        local buf = info.bufnr
+        if vim.bo[buf].buftype == "" and vim.bo[buf].filetype ~= "no-neck-pain" then
+            vim.api.nvim_win_set_buf(0, buf)
+            break
+        end
+    end
+
     nnp.toggle()
+    return true
+end
+
+vim.keymap.set("n", "<leader>wo", function()
+    if not recover_missing_editing_window() then nnp.toggle() end
     local buf = vim.api.nvim_get_current_buf()
     vim.defer_fn(function() apply_layout_for_filetype(buf) end, 50)
 end, { desc = "Toggle no-neck-pain" })
